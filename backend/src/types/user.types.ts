@@ -28,3 +28,18 @@ export interface UserDocument {
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
+
+/**
+ * Password-free user shape returned to clients. Timestamps are serialized as
+ * ISO-8601 strings. NEVER include `passwordHash` here.
+ */
+export interface PublicUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  department?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}

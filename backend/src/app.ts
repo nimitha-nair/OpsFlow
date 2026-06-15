@@ -2,6 +2,7 @@ import express from "express";
 
 import authRoutes from "./routes/auth.routes";
 import exampleRoutes from "./routes/example.routes";
+import userRoutes from "./routes/user.routes";
 
 const app = express();
 
@@ -12,6 +13,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/auth", authRoutes);
+app.use("/users", userRoutes);
 app.use("/example", exampleRoutes);
 
 import { authenticate } from "./middleware/auth.middleware";
