@@ -1,22 +1,19 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tsconfigPaths from "vite-tsconfig-paths";
+import tailwindcss from "@tailwindcss/vite";
 
-// Backend origin for the dev proxy. Override with BACKEND_URL if the backend
-// runs elsewhere.
-const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:5000'
+const backendUrl = process.env.BACKEND_URL ?? "http://localhost:5000";
 
-// https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tsconfigPaths(), tailwindcss()],
   server: {
     proxy: {
-      // Requests to /api/* are forwarded to the backend with the /api prefix
-      // stripped, so the frontend avoids CORS in development.
-      '/api': {
+      "/api": {
         target: backendUrl,
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+        rewrite: (path) => path.replace(/^\/api/, ""),
       },
     },
   },
-})
+});
