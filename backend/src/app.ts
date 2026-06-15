@@ -1,6 +1,7 @@
 import express from "express";
 
 import authRoutes from "./routes/auth.routes";
+import exampleRoutes from "./routes/example.routes";
 
 const app = express();
 
@@ -11,6 +12,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/auth", authRoutes);
+app.use("/example", exampleRoutes);
 
 import { authenticate } from "./middleware/auth.middleware";
 
