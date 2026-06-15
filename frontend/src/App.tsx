@@ -1,11 +1,16 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
+import { ModulePlaceholder } from "./components/common/ModulePlaceholder";
+import { AppLayout } from "./components/layout/AppLayout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { useAuth } from "./context/auth-context";
-import { Admin } from "./pages/Admin";
-import { Employee } from "./pages/Employee";
-import { Hr } from "./pages/Hr";
+import { AdminDashboard } from "./pages/dashboards/AdminDashboard";
+import { EmployeeDashboard } from "./pages/dashboards/EmployeeDashboard";
+import { HrDashboard } from "./pages/dashboards/HrDashboard";
 import { Login } from "./pages/Login";
+import { CreateUserPage } from "./pages/users/CreateUserPage";
+import { EditUserPage } from "./pages/users/EditUserPage";
+import { UserListPage } from "./pages/users/UserListPage";
 import { roleHome } from "./types/auth";
 
 /** Sends "/" to the user's home area, or to /login when unauthenticated. */
@@ -23,30 +28,92 @@ function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
 
+      {/* ADMIN */}
       <Route
         path="/admin"
         element={
           <ProtectedRoute allowedRoles={["ADMIN"]}>
-            <Admin />
+            <AppLayout />
           </ProtectedRoute>
         }
-      />
+      >
+        <Route index element={<AdminDashboard />} />
+        <Route path="users" element={<UserListPage />} />
+        <Route path="users/new" element={<CreateUserPage />} />
+        <Route path="users/:id" element={<EditUserPage />} />
+        <Route
+          path="departments"
+          element={<ModulePlaceholder title="Departments" />}
+        />
+        <Route
+          path="attendance"
+          element={<ModulePlaceholder title="Attendance" />}
+        />
+        <Route
+          path="leave"
+          element={<ModulePlaceholder title="Leave Management" />}
+        />
+        <Route path="payroll" element={<ModulePlaceholder title="Payroll" />} />
+        <Route path="reports" element={<ModulePlaceholder title="Reports" />} />
+        <Route
+          path="settings"
+          element={<ModulePlaceholder title="Settings" />}
+        />
+      </Route>
+
+      {/* HR */}
       <Route
         path="/hr"
         element={
           <ProtectedRoute allowedRoles={["HR"]}>
-            <Hr />
+            <AppLayout />
           </ProtectedRoute>
         }
-      />
+      >
+        <Route index element={<HrDashboard />} />
+        <Route
+          path="employees"
+          element={<ModulePlaceholder title="Employees" />}
+        />
+        <Route
+          path="attendance"
+          element={<ModulePlaceholder title="Attendance" />}
+        />
+        <Route
+          path="leave"
+          element={<ModulePlaceholder title="Leave Management" />}
+        />
+        <Route path="payroll" element={<ModulePlaceholder title="Payroll" />} />
+        <Route path="reports" element={<ModulePlaceholder title="Reports" />} />
+      </Route>
+
+      {/* EMPLOYEE */}
       <Route
         path="/employee"
         element={
           <ProtectedRoute allowedRoles={["EMPLOYEE"]}>
-            <Employee />
+            <AppLayout />
           </ProtectedRoute>
         }
-      />
+      >
+        <Route index element={<EmployeeDashboard />} />
+        <Route
+          path="profile"
+          element={<ModulePlaceholder title="My Profile" />}
+        />
+        <Route
+          path="attendance"
+          element={<ModulePlaceholder title="Attendance" />}
+        />
+        <Route
+          path="leave"
+          element={<ModulePlaceholder title="Leave Requests" />}
+        />
+        <Route
+          path="payslips"
+          element={<ModulePlaceholder title="Payslips" />}
+        />
+      </Route>
 
       <Route path="/" element={<RootRedirect />} />
       <Route path="*" element={<Navigate to="/" replace />} />
