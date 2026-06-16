@@ -15,6 +15,12 @@ export async function listUsers(
   return data;
 }
 
+/** GET /users/me — the authenticated user's own profile. */
+export async function getMe(): Promise<User> {
+  const { data } = await api.get<User>("/users/me");
+  return data;
+}
+
 /** GET /users/:id */
 export async function getUser(id: string): Promise<User> {
   const { data } = await api.get<User>(`/users/${id}`);

@@ -10,7 +10,6 @@ import {
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { PageHeader } from "../../components/layout/PageHeader";
-import { ProjectKanban } from "../../components/projects/ProjectKanban";
 import { ProjectMembers } from "../../components/projects/ProjectMembers";
 import { ProjectStatusBadge } from "../../components/projects/ProjectStatusBadge";
 import { ProjectTasks } from "../../components/projects/ProjectTasks";
@@ -158,17 +157,7 @@ export function ProjectViewPage() {
 
           <ProjectMembers projectId={project.id} readOnly />
           {user?.role === "HR" && (
-            <>
-              <ProjectTasks projectId={project.id} readOnly />
-              <ProjectKanban
-                projectId={project.id}
-                source="all"
-                canMove={false}
-              />
-            </>
-          )}
-          {user?.role === "EMPLOYEE" && (
-            <ProjectKanban projectId={project.id} source="mine" canMove />
+            <ProjectTasks projectId={project.id} readOnly />
           )}
         </div>
       )}

@@ -97,7 +97,6 @@ function TaskFormBody({
 
   const canSubmit =
     values.title.trim() !== "" &&
-    values.description.trim() !== "" &&
     values.assigneeId !== "" &&
     values.dueDate !== "";
 
@@ -146,12 +145,14 @@ function TaskFormBody({
         </div>
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor="task-description">Description</Label>
+          <Label htmlFor="task-description">
+            Description{" "}
+            <span className="font-normal text-muted-foreground">(optional)</span>
+          </Label>
           <Textarea
             id="task-description"
             value={values.description}
             onChange={(e) => set("description", e.target.value)}
-            required
             rows={3}
           />
         </div>

@@ -36,9 +36,18 @@ interface ProjectTasksProps {
   projectId: string;
   /** When true (HR view), hides create/edit controls. */
   readOnly?: boolean;
+  /** Bump to force a refetch (coordinated refresh across project sections). */
+  refreshKey?: number;
+  /** Called after a successful mutation so sibling sections can refetch too. */
+  onMutated?: () => void;
 }
 
-export function ProjectTasks({ projectId, readOnly }: ProjectTasksProps) {
+export function ProjectTasks({
+  projectId,
+  readOnly,
+  refreshKey,
+  onMutated,
+}: ProjectTasksProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [members, setMembers] = useState<AssigneeOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,9 +87,10 @@ export function ProjectTasks({ projectId, readOnly }: ProjectTasksProps) {
     return () => {
       cancelled = true;
     };
-  }, [projectId, reloadKey]);
+  }, [projectId, reloadKey, refreshKey]);
 
   const reload = () => setReloadKey((k) => k + 1);
+  const notify = () => (onMutated ? onMutated() : reload());
 
   const nameById = useMemo(
     () => new Map(members.map((m) => [m.id, m.name])),
@@ -195,7 +205,7 @@ export function ProjectTasks({ projectId, readOnly }: ProjectTasksProps) {
           projectId={projectId}
           members={members}
           task={editTask}
-          onSaved={reload}
+          onSaved={notify}
         />
       )}
     </Card>

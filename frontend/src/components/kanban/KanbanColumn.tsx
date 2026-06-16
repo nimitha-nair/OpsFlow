@@ -13,6 +13,7 @@ interface KanbanColumnProps {
   title: string;
   tasks: Task[];
   getAssigneeName: (id: string) => string;
+  getProjectName: (id: string) => string;
   canMove: boolean;
 }
 
@@ -21,6 +22,7 @@ export function KanbanColumn({
   title,
   tasks,
   getAssigneeName,
+  getProjectName,
   canMove,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
@@ -55,6 +57,7 @@ export function KanbanColumn({
                 key={task.id}
                 task={task}
                 assigneeName={getAssigneeName(task.assigneeId)}
+                projectName={getProjectName(task.projectId)}
                 canMove={canMove}
               />
             ))

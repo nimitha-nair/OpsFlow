@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { toast } from "sonner";
 
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
@@ -41,6 +42,7 @@ export function EditUserPage() {
             password: "",
             role: user.role,
             department: user.department ?? "",
+            position: user.position ?? "",
             isActive: user.isActive,
           });
         }
@@ -67,6 +69,7 @@ export function EditUserPage() {
       email: values.email.trim(),
       role: values.role,
       department: values.department.trim(),
+      position: values.position.trim(),
     };
 
     try {
@@ -75,6 +78,7 @@ export function EditUserPage() {
       if (values.isActive !== initial.isActive) {
         await setUserStatus(id, values.isActive);
       }
+      toast.success("User updated.");
       navigate("/admin/users");
     } catch (err) {
       setSubmitError(apiErrorMessage(err, "Failed to update user."));

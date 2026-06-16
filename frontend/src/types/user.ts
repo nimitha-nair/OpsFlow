@@ -7,6 +7,8 @@ export interface User {
   email: string;
   role: Role;
   department?: string;
+  /** Job title / designation, distinct from `role`. */
+  position?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -39,6 +41,7 @@ export interface CreateUserPayload {
   password: string;
   role: Role;
   department?: string;
+  position?: string;
   isActive?: boolean;
 }
 
@@ -47,4 +50,5 @@ export interface UpdateUserPayload {
   email?: string;
   role?: Role;
   department?: string;
+  position?: string;
 }

@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { Pencil, Plus, RefreshCw, Users } from "lucide-react";
+import { RefreshCw, Users } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -15,12 +14,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { EmptyState } from "../../components/common/EmptyState";
-import { ErrorState } from "../../components/common/ErrorState";
-import { LoadingState } from "../../components/common/LoadingState";
-import { PageHeader } from "../../components/layout/PageHeader";
-import { apiErrorMessage, listUsers } from "../../lib/users-api";
-import type { User } from "../../types/user";
+import { EmptyState } from "../components/common/EmptyState";
+import { ErrorState } from "../components/common/ErrorState";
+import { LoadingState } from "../components/common/LoadingState";
+import { PageHeader } from "../components/layout/PageHeader";
+import { apiErrorMessage, listUsers } from "../lib/users-api";
+import type { User } from "../types/user";
 
 function StatusBadge({ active }: { active: boolean }) {
   return active ? (
@@ -34,8 +33,8 @@ function StatusBadge({ active }: { active: boolean }) {
   );
 }
 
-export function UserListPage() {
-  const [users, setUsers] = useState<User[]>([]);
+export function EmployeesPage() {
+  const [employees, setEmployees] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -43,52 +42,43 @@ export function UserListPage() {
 
   useEffect(() => {
     let cancelled = false;
-
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        const res = await listUsers({ limit: 100 });
-        if (!cancelled) setUsers(res.data);
+        const res = await listUsers({ role: "EMPLOYEE", limit: 100 });
+        if (!cancelled) setEmployees(res.data);
       } catch (err) {
-        if (!cancelled) setError(apiErrorMessage(err, "Failed to load users."));
+        if (!cancelled) {
+          setError(apiErrorMessage(err, "Failed to load employees."));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
-
     void load();
     return () => {
       cancelled = true;
     };
   }, [reloadKey]);
 
+  const reload = () => setReloadKey((k) => k + 1);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter(
+    if (!q) return employees;
+    return employees.filter(
       (u) =>
         u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q),
     );
-  }, [users, search]);
-
-  const reload = () => setReloadKey((k) => k + 1);
+  }, [employees, search]);
 
   return (
     <>
       <PageHeader
-        title="User Management"
-        description="Create, view, and manage organization accounts."
-        breadcrumbs={[
-          { label: "Admin", to: "/admin" },
-          { label: "User Management" },
-        ]}
-        actions={
-          <Link to="/admin/users/new" className={buttonVariants({ size: "sm" })}>
-            <Plus className="size-4" />
-            New User
-          </Link>
-        }
+        title="Employees"
+        description="All employees in the organization."
+        breadcrumbs={[{ label: "HR", to: "/hr" }, { label: "Employees" }]}
       />
 
       <div className="mb-4 flex items-center gap-2">
@@ -98,12 +88,7 @@ export function UserListPage() {
           placeholder="Search by name or email…"
           className="max-w-xs"
         />
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={reload}
-          aria-label="Refresh"
-        >
+        <Button variant="outline" size="icon" onClick={reload} aria-label="Refresh">
           <RefreshCw className={cn("size-4", loading && "animate-spin")} />
         </Button>
       </div>
@@ -112,21 +97,21 @@ export function UserListPage() {
         {error ? (
           <div className="p-6">
             <ErrorState
-              title="Couldn't load users"
+              title="Couldn't load employees"
               description={error}
               onRetry={reload}
             />
           </div>
         ) : loading ? (
-          <LoadingState label="Loading users…" />
+          <LoadingState label="Loading employees…" />
         ) : filtered.length === 0 ? (
           <div className="p-6">
             <EmptyState
               icon={Users}
-              title={users.length === 0 ? "No users yet" : "No matching users"}
+              title={employees.length === 0 ? "No employees yet" : "No matches"}
               description={
-                users.length === 0
-                  ? "Create the first user to get started."
+                employees.length === 0
+                  ? "Employees will appear here once they are created."
                   : "Try a different search term."
               }
             />
@@ -138,45 +123,28 @@ export function UserListPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
                   <TableHead>Position</TableHead>
                   <TableHead>Department</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((user) => (
-                  <TableRow key={user.id}>
+                {filtered.map((emp) => (
+                  <TableRow key={emp.id}>
                     <TableCell className="font-medium text-foreground">
-                      {user.name}
+                      {emp.name}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {user.email}
+                      {emp.email}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {emp.position || "—"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {emp.department || "—"}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{user.role}</Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {user.position || "—"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {user.department || "—"}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge active={user.isActive} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Link
-                        to={`/admin/users/${user.id}`}
-                        className={buttonVariants({
-                          variant: "ghost",
-                          size: "sm",
-                        })}
-                      >
-                        <Pencil className="size-4" />
-                        Edit
-                      </Link>
+                      <StatusBadge active={emp.isActive} />
                     </TableCell>
                   </TableRow>
                 ))}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { toast } from "sonner";
 
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
@@ -71,6 +72,7 @@ export function EditProjectPage() {
     setSubmitError(null);
     try {
       await updateProject(id, result.payload);
+      toast.success("Project updated.");
       navigate(`/admin/projects/${id}`);
     } catch (err) {
       setSubmitError(apiErrorMessage(err, "Failed to update project."));

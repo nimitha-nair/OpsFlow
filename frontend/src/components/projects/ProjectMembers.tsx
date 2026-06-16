@@ -51,9 +51,18 @@ interface ProjectMembersProps {
   projectId: string;
   /** When true, hides assign/remove controls (HR & Employee view). */
   readOnly?: boolean;
+  /** Bump to force a refetch (coordinated refresh across project sections). */
+  refreshKey?: number;
+  /** Called after a successful mutation so sibling sections can refetch too. */
+  onMutated?: () => void;
 }
 
-export function ProjectMembers({ projectId, readOnly }: ProjectMembersProps) {
+export function ProjectMembers({
+  projectId,
+  readOnly,
+  refreshKey,
+  onMutated,
+}: ProjectMembersProps) {
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,9 +98,11 @@ export function ProjectMembers({ projectId, readOnly }: ProjectMembersProps) {
     return () => {
       cancelled = true;
     };
-  }, [projectId, reloadKey]);
+  }, [projectId, reloadKey, refreshKey]);
 
   const reload = () => setReloadKey((k) => k + 1);
+  // After a mutation: notify the parent (coordinated refresh) or refetch locally.
+  const notify = () => (onMutated ? onMutated() : reload());
 
   // Employees eligible to add = EMPLOYEE role, not already assigned.
   const memberIds = useMemo(
@@ -125,7 +136,7 @@ export function ProjectMembers({ projectId, readOnly }: ProjectMembersProps) {
       await assignProjectMember(projectId, selectedUserId);
       toast.success("Employee assigned to project.");
       setDialogOpen(false);
-      reload();
+      notify();
     } catch (err) {
       toast.error(apiErrorMessage(err, "Failed to assign employee."));
     } finally {
@@ -138,7 +149,7 @@ export function ProjectMembers({ projectId, readOnly }: ProjectMembersProps) {
     try {
       await removeProjectMember(projectId, userId);
       toast.success(`${name} removed from project.`);
-      reload();
+      notify();
     } catch (err) {
       toast.error(apiErrorMessage(err, "Failed to remove employee."));
     } finally {
@@ -202,6 +213,9 @@ export function ProjectMembers({ projectId, readOnly }: ProjectMembersProps) {
                           {member.user?.name ?? "Unknown user"}
                         </span>
                         <span className="text-xs text-muted-foreground">
+                          {member.user?.position
+                            ? `${member.user.position} · `
+                            : ""}
                           {member.user?.email ?? member.userId}
                         </span>
                       </div>

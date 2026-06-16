@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 import { PageHeader } from "../../components/layout/PageHeader";
 import { ProjectForm } from "../../components/projects/ProjectForm";
@@ -26,6 +27,7 @@ export function CreateProjectPage() {
     setError(null);
     try {
       const project = await createProject(result.payload);
+      toast.success("Project created.");
       navigate(`/admin/projects/${project.id}`);
     } catch (err) {
       setError(apiErrorMessage(err, "Failed to create project."));

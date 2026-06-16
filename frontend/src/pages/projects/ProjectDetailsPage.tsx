@@ -12,7 +12,6 @@ import {
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { PageHeader } from "../../components/layout/PageHeader";
-import { ProjectKanban } from "../../components/projects/ProjectKanban";
 import { ProjectMembers } from "../../components/projects/ProjectMembers";
 import { ProjectStatusBadge } from "../../components/projects/ProjectStatusBadge";
 import { ProjectTasks } from "../../components/projects/ProjectTasks";
@@ -37,6 +36,10 @@ export function ProjectDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  // Shared version so Members, Tasks, and the Kanban board all refetch together
+  // when any of them mutates data.
+  const [dataVersion, setDataVersion] = useState(0);
+  const bumpData = () => setDataVersion((v) => v + 1);
 
   useEffect(() => {
     if (!id) return;
@@ -128,9 +131,16 @@ export function ProjectDetailsPage() {
             </CardContent>
           </Card>
 
-          <ProjectMembers projectId={project.id} />
-          <ProjectTasks projectId={project.id} />
-          <ProjectKanban projectId={project.id} source="all" canMove />
+          <ProjectMembers
+            projectId={project.id}
+            refreshKey={dataVersion}
+            onMutated={bumpData}
+          />
+          <ProjectTasks
+            projectId={project.id}
+            refreshKey={dataVersion}
+            onMutated={bumpData}
+          />
         </div>
       )}
     </>

@@ -110,7 +110,19 @@ export function UserForm({
               id="department"
               value={values.department}
               onChange={(e) => set("department", e.target.value)}
-              placeholder="Optional"
+              placeholder="e.g. Engineering"
+              maxLength={100}
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="position">Position</Label>
+            <Input
+              id="position"
+              value={values.position}
+              onChange={(e) => set("position", e.target.value)}
+              placeholder="e.g. Software Engineer"
+              maxLength={100}
             />
           </div>
 

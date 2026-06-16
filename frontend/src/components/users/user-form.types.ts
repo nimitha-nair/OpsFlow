@@ -6,6 +6,7 @@ export interface UserFormValues {
   password: string;
   role: Role;
   department: string;
+  position: string;
   isActive: boolean;
 }
 
@@ -15,5 +16,6 @@ export const emptyUserForm: UserFormValues = {
   password: "",
   role: "EMPLOYEE",
   department: "",
+  position: "",
   isActive: true,
 };

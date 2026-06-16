@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 import { PageHeader } from "../../components/layout/PageHeader";
 import { UserForm } from "../../components/users/UserForm";
@@ -28,10 +29,14 @@ export function CreateUserPage() {
       ...(values.department.trim()
         ? { department: values.department.trim() }
         : {}),
+      ...(values.position.trim()
+        ? { position: values.position.trim() }
+        : {}),
     };
 
     try {
       await createUser(payload);
+      toast.success("User created.");
       navigate("/admin/users");
     } catch (err) {
       setError(apiErrorMessage(err, "Failed to create user."));

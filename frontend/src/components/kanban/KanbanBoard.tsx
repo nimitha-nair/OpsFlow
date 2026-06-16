@@ -22,6 +22,7 @@ import {
 interface KanbanBoardProps {
   tasks: Task[];
   getAssigneeName: (id: string) => string;
+  getProjectName: (id: string) => string;
   canMove: boolean;
   onMoveTask: (taskId: string, status: TaskStatus) => void;
 }
@@ -33,6 +34,7 @@ function isTaskStatus(value: string): value is TaskStatus {
 export function KanbanBoard({
   tasks,
   getAssigneeName,
+  getProjectName,
   canMove,
   onMoveTask,
 }: KanbanBoardProps) {
@@ -84,7 +86,7 @@ export function KanbanBoard({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {columns.map((col) => (
           <KanbanColumn
             key={col.status}
@@ -92,6 +94,7 @@ export function KanbanBoard({
             title={col.title}
             tasks={col.tasks}
             getAssigneeName={getAssigneeName}
+            getProjectName={getProjectName}
             canMove={canMove}
           />
         ))}
@@ -102,6 +105,7 @@ export function KanbanBoard({
           <KanbanCardView
             task={activeTask}
             assigneeName={getAssigneeName(activeTask.assigneeId)}
+            projectName={getProjectName(activeTask.projectId)}
             canMove
           />
         ) : null}

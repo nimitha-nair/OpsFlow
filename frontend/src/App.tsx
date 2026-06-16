@@ -7,7 +7,11 @@ import { useAuth } from "./context/auth-context";
 import { AdminDashboard } from "./pages/dashboards/AdminDashboard";
 import { EmployeeDashboard } from "./pages/dashboards/EmployeeDashboard";
 import { HrDashboard } from "./pages/dashboards/HrDashboard";
+import { DepartmentsPage } from "./pages/DepartmentsPage";
+import { EmployeesPage } from "./pages/EmployeesPage";
+import { KanbanPage } from "./pages/KanbanPage";
 import { Login } from "./pages/Login";
+import { ProfilePage } from "./pages/ProfilePage";
 import { CreateProjectPage } from "./pages/projects/CreateProjectPage";
 import { EditProjectPage } from "./pages/projects/EditProjectPage";
 import { HrProjectsPage } from "./pages/projects/HrProjectsPage";
@@ -36,6 +40,18 @@ function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
 
+      {/* Any authenticated user — own profile. */}
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<ProfilePage />} />
+      </Route>
+
       {/* ADMIN */}
       <Route
         path="/admin"
@@ -53,19 +69,12 @@ function App() {
         <Route path="projects/new" element={<CreateProjectPage />} />
         <Route path="projects/:id" element={<ProjectDetailsPage />} />
         <Route path="projects/:id/edit" element={<EditProjectPage />} />
-        <Route
-          path="departments"
-          element={<ModulePlaceholder title="Departments" />}
-        />
-        <Route
-          path="attendance"
-          element={<ModulePlaceholder title="Attendance" />}
-        />
+        <Route path="kanban" element={<KanbanPage />} />
+        <Route path="departments" element={<DepartmentsPage />} />
         <Route
           path="leave"
           element={<ModulePlaceholder title="Leave Management" />}
         />
-        <Route path="payroll" element={<ModulePlaceholder title="Payroll" />} />
         <Route path="reports" element={<ModulePlaceholder title="Reports" />} />
         <Route
           path="settings"
@@ -85,19 +94,12 @@ function App() {
         <Route index element={<HrDashboard />} />
         <Route path="projects" element={<HrProjectsPage />} />
         <Route path="projects/:id" element={<ProjectViewPage />} />
-        <Route
-          path="employees"
-          element={<ModulePlaceholder title="Employees" />}
-        />
-        <Route
-          path="attendance"
-          element={<ModulePlaceholder title="Attendance" />}
-        />
+        <Route path="kanban" element={<KanbanPage />} />
+        <Route path="employees" element={<EmployeesPage />} />
         <Route
           path="leave"
           element={<ModulePlaceholder title="Leave Management" />}
         />
-        <Route path="payroll" element={<ModulePlaceholder title="Payroll" />} />
         <Route path="reports" element={<ModulePlaceholder title="Reports" />} />
       </Route>
 
@@ -114,22 +116,7 @@ function App() {
         <Route path="projects" element={<MyProjectsPage />} />
         <Route path="projects/:id" element={<ProjectViewPage />} />
         <Route path="tasks" element={<MyTasksPage />} />
-        <Route
-          path="profile"
-          element={<ModulePlaceholder title="My Profile" />}
-        />
-        <Route
-          path="attendance"
-          element={<ModulePlaceholder title="Attendance" />}
-        />
-        <Route
-          path="leave"
-          element={<ModulePlaceholder title="Leave Requests" />}
-        />
-        <Route
-          path="payslips"
-          element={<ModulePlaceholder title="Payslips" />}
-        />
+        <Route path="kanban" element={<KanbanPage />} />
       </Route>
 
       <Route path="/" element={<RootRedirect />} />
