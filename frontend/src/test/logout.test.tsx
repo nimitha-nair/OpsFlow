@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import App from "../App";
 import { AuthProvider } from "../context/AuthProvider";
+import { ThemeProvider } from "../context/ThemeProvider";
 import { useAuth } from "../context/auth-context";
 
 const ADMIN_USER = {
@@ -22,11 +23,13 @@ function seedAuth() {
 
 function renderAppAt(path: string) {
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
-    </MemoryRouter>,
+    <ThemeProvider>
+      <MemoryRouter initialEntries={[path]}>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </MemoryRouter>
+    </ThemeProvider>,
   );
 }
 
@@ -42,7 +45,7 @@ afterEach(() => {
 describe("logout flow", () => {
   it("redirects unauthenticated access to /admin back to /login", () => {
     renderAppAt("/admin");
-    expect(screen.getByText("OpsFlow Sign in")).toBeInTheDocument();
+    expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.queryByText("Admin Dashboard")).not.toBeInTheDocument();
   });
 
@@ -60,7 +63,7 @@ describe("logout flow", () => {
     await user.click(await screen.findByRole("menuitem", { name: /log out/i }));
 
     // 4. Redirected to /login.
-    expect(await screen.findByText("OpsFlow Sign in")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Email")).toBeInTheDocument();
     expect(screen.queryByText("Admin Dashboard")).not.toBeInTheDocument();
 
     // localStorage keys removed.
@@ -71,7 +74,7 @@ describe("logout flow", () => {
   it("after logout, directly visiting /admin redirects to /login", () => {
     // Storage was cleared by logout; a fresh direct visit must be blocked.
     renderAppAt("/admin");
-    expect(screen.getByText("OpsFlow Sign in")).toBeInTheDocument();
+    expect(screen.getByLabelText("Email")).toBeInTheDocument();
   });
 });
 

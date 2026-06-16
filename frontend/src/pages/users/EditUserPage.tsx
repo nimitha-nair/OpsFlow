@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { TriangleAlert } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { EmptyState } from "../../components/common/EmptyState";
+import { ErrorState } from "../../components/common/ErrorState";
+import { LoadingState } from "../../components/common/LoadingState";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { UserForm } from "../../components/users/UserForm";
 import type { UserFormValues } from "../../components/users/user-form.types";
@@ -96,25 +94,13 @@ export function EditUserPage() {
       />
 
       {loading ? (
-        <div className="flex flex-col gap-4 rounded-xl border border-border p-6">
-          <Skeleton className="h-9 w-full" />
-          <Skeleton className="h-9 w-full" />
-          <Skeleton className="h-9 w-2/3" />
-        </div>
+        <LoadingState label="Loading user…" />
       ) : loadError || !initial ? (
-        <EmptyState
-          icon={TriangleAlert}
+        <ErrorState
           title="Couldn't load user"
           description={loadError ?? "This user could not be found."}
-          action={
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/admin/users")}
-            >
-              Back to users
-            </Button>
-          }
+          onRetry={() => navigate("/admin/users")}
+          retryLabel="Back to users"
         />
       ) : (
         <UserForm

@@ -4,18 +4,17 @@ import { Link } from "react-router-dom";
 import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "../../components/common/EmptyState";
 import { SectionCard } from "../../components/common/SectionCard";
-import { PageHeader } from "../../components/layout/PageHeader";
+import { WelcomeBanner } from "../../components/dashboard/WelcomeBanner";
 
 export function AdminDashboard() {
   return (
     <>
-      <PageHeader
+      <WelcomeBanner
         title="Admin Dashboard"
-        description="Overview of organization activity and pending actions."
-        breadcrumbs={[{ label: "Admin", to: "/admin" }, { label: "Dashboard" }]}
+        subtitle="Here's an overview of organization activity and pending actions."
       />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         <SectionCard
           title="Recent Users"
           description="Latest accounts added to the organization."

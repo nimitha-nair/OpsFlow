@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Pencil, Plus, RefreshCw, Users } from "lucide-react";
+import { Eye, FolderOpen, RefreshCw } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,27 +14,42 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { EmptyState } from "../../components/common/EmptyState";
-import { ErrorState } from "../../components/common/ErrorState";
-import { LoadingState } from "../../components/common/LoadingState";
-import { PageHeader } from "../../components/layout/PageHeader";
-import { apiErrorMessage, listUsers } from "../../lib/users-api";
-import type { User } from "../../types/user";
+import { EmptyState } from "../common/EmptyState";
+import { ErrorState } from "../common/ErrorState";
+import { LoadingState } from "../common/LoadingState";
+import { PageHeader } from "../layout/PageHeader";
+import type { Crumb } from "../layout/PageHeader";
+import { ProjectStatusBadge } from "./ProjectStatusBadge";
+import { formatDate } from "../../lib/format";
+import {
+  apiErrorMessage,
+  listMyProjects,
+  listProjects,
+} from "../../lib/projects-api";
+import type { Project } from "../../types/project";
 
-function StatusBadge({ active }: { active: boolean }) {
-  return active ? (
-    <Badge className="border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
-      Active
-    </Badge>
-  ) : (
-    <Badge variant="secondary" className="text-muted-foreground">
-      Inactive
-    </Badge>
-  );
+interface ProjectsVisibilityListProps {
+  title: string;
+  description: string;
+  breadcrumbs: Crumb[];
+  /** Path prefix for project links, e.g. "/hr/projects". */
+  basePath: string;
+  /** "all" = GET /projects (HR); "mine" = GET /projects/my-projects (Employee). */
+  source: "all" | "mine";
+  emptyTitle: string;
+  emptyDescription: string;
 }
 
-export function UserListPage() {
-  const [users, setUsers] = useState<User[]>([]);
+export function ProjectsVisibilityList({
+  title,
+  description,
+  breadcrumbs,
+  basePath,
+  source,
+  emptyTitle,
+  emptyDescription,
+}: ProjectsVisibilityListProps) {
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -48,10 +62,15 @@ export function UserListPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await listUsers({ limit: 100 });
-        if (!cancelled) setUsers(res.data);
+        const data =
+          source === "mine"
+            ? await listMyProjects()
+            : (await listProjects({ limit: 100 })).data;
+        if (!cancelled) setProjects(data);
       } catch (err) {
-        if (!cancelled) setError(apiErrorMessage(err, "Failed to load users."));
+        if (!cancelled) {
+          setError(apiErrorMessage(err, "Failed to load projects."));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -61,41 +80,33 @@ export function UserListPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [source, reloadKey]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter(
-      (u) =>
-        u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q),
+    if (!q) return projects;
+    return projects.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.clientName.toLowerCase().includes(q),
     );
-  }, [users, search]);
+  }, [projects, search]);
 
   const reload = () => setReloadKey((k) => k + 1);
 
   return (
     <>
       <PageHeader
-        title="User Management"
-        description="Create, view, and manage organization accounts."
-        breadcrumbs={[
-          { label: "Admin", to: "/admin" },
-          { label: "User Management" },
-        ]}
-        actions={
-          <Link to="/admin/users/new" className={buttonVariants({ size: "sm" })}>
-            <Plus className="size-4" />
-            New User
-          </Link>
-        }
+        title={title}
+        description={description}
+        breadcrumbs={breadcrumbs}
       />
 
       <div className="mb-4 flex items-center gap-2">
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name or email…"
+          placeholder="Search by name or client…"
           className="max-w-xs"
         />
         <Button
@@ -112,21 +123,21 @@ export function UserListPage() {
         {error ? (
           <div className="p-6">
             <ErrorState
-              title="Couldn't load users"
+              title="Couldn't load projects"
               description={error}
               onRetry={reload}
             />
           </div>
         ) : loading ? (
-          <LoadingState label="Loading users…" />
+          <LoadingState label="Loading projects…" />
         ) : filtered.length === 0 ? (
           <div className="p-6">
             <EmptyState
-              icon={Users}
-              title={users.length === 0 ? "No users yet" : "No matching users"}
+              icon={FolderOpen}
+              title={projects.length === 0 ? emptyTitle : "No matching projects"}
               description={
-                users.length === 0
-                  ? "Create the first user to get started."
+                projects.length === 0
+                  ? emptyDescription
                   : "Try a different search term."
               }
             />
@@ -137,41 +148,38 @@ export function UserListPage() {
               <TableHeader className="bg-muted/40">
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Department</TableHead>
+                  <TableHead>Client</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Timeline</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((user) => (
-                  <TableRow key={user.id}>
+                {filtered.map((project) => (
+                  <TableRow key={project.id}>
                     <TableCell className="font-medium text-foreground">
-                      {user.name}
+                      {project.name}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {user.email}
+                      {project.clientName}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{user.role}</Badge>
+                      <ProjectStatusBadge status={project.status} />
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {user.department || "—"}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge active={user.isActive} />
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      {formatDate(project.startDate)} –{" "}
+                      {formatDate(project.endDate)}
                     </TableCell>
                     <TableCell className="text-right">
                       <Link
-                        to={`/admin/users/${user.id}`}
+                        to={`${basePath}/${project.id}`}
                         className={buttonVariants({
                           variant: "ghost",
                           size: "sm",
                         })}
                       >
-                        <Pencil className="size-4" />
-                        Edit
+                        <Eye className="size-4" />
+                        View
                       </Link>
                     </TableCell>
                   </TableRow>

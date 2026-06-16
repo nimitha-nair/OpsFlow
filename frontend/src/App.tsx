@@ -8,6 +8,14 @@ import { AdminDashboard } from "./pages/dashboards/AdminDashboard";
 import { EmployeeDashboard } from "./pages/dashboards/EmployeeDashboard";
 import { HrDashboard } from "./pages/dashboards/HrDashboard";
 import { Login } from "./pages/Login";
+import { CreateProjectPage } from "./pages/projects/CreateProjectPage";
+import { EditProjectPage } from "./pages/projects/EditProjectPage";
+import { HrProjectsPage } from "./pages/projects/HrProjectsPage";
+import { MyProjectsPage } from "./pages/projects/MyProjectsPage";
+import { ProjectDetailsPage } from "./pages/projects/ProjectDetailsPage";
+import { ProjectListPage } from "./pages/projects/ProjectListPage";
+import { ProjectViewPage } from "./pages/projects/ProjectViewPage";
+import { MyTasksPage } from "./pages/tasks/MyTasksPage";
 import { CreateUserPage } from "./pages/users/CreateUserPage";
 import { EditUserPage } from "./pages/users/EditUserPage";
 import { UserListPage } from "./pages/users/UserListPage";
@@ -41,6 +49,10 @@ function App() {
         <Route path="users" element={<UserListPage />} />
         <Route path="users/new" element={<CreateUserPage />} />
         <Route path="users/:id" element={<EditUserPage />} />
+        <Route path="projects" element={<ProjectListPage />} />
+        <Route path="projects/new" element={<CreateProjectPage />} />
+        <Route path="projects/:id" element={<ProjectDetailsPage />} />
+        <Route path="projects/:id/edit" element={<EditProjectPage />} />
         <Route
           path="departments"
           element={<ModulePlaceholder title="Departments" />}
@@ -71,6 +83,8 @@ function App() {
         }
       >
         <Route index element={<HrDashboard />} />
+        <Route path="projects" element={<HrProjectsPage />} />
+        <Route path="projects/:id" element={<ProjectViewPage />} />
         <Route
           path="employees"
           element={<ModulePlaceholder title="Employees" />}
@@ -97,6 +111,9 @@ function App() {
         }
       >
         <Route index element={<EmployeeDashboard />} />
+        <Route path="projects" element={<MyProjectsPage />} />
+        <Route path="projects/:id" element={<ProjectViewPage />} />
+        <Route path="tasks" element={<MyTasksPage />} />
         <Route
           path="profile"
           element={<ModulePlaceholder title="My Profile" />}

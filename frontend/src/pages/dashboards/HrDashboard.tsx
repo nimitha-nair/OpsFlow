@@ -2,18 +2,17 @@ import { CalendarCheck, CalendarDays, Users } from "lucide-react";
 
 import { EmptyState } from "../../components/common/EmptyState";
 import { SectionCard } from "../../components/common/SectionCard";
-import { PageHeader } from "../../components/layout/PageHeader";
+import { WelcomeBanner } from "../../components/dashboard/WelcomeBanner";
 
 export function HrDashboard() {
   return (
     <>
-      <PageHeader
+      <WelcomeBanner
         title="HR Dashboard"
-        description="People operations overview."
-        breadcrumbs={[{ label: "HR", to: "/hr" }, { label: "Dashboard" }]}
+        subtitle="A snapshot of people operations across the team."
       />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         <SectionCard
           title="Employee Overview"
           description="Headcount and recent changes."

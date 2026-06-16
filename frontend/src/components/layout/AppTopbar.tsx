@@ -1,6 +1,7 @@
 import { ChevronDown, LogOut, Menu, Settings, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+import { ThemeToggle } from "./ThemeToggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -48,11 +49,8 @@ export function AppTopbar({ onMenuClick }: AppTopbarProps) {
         <Menu className="size-5" />
       </button>
 
-      <span className="text-sm font-medium text-muted-foreground">
-        OpsFlow HR
-      </span>
-
-      <div className="ml-auto">
+      <div className="ml-auto flex items-center gap-1.5">
+        <ThemeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg p-1 pr-2 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <Avatar className="size-8">

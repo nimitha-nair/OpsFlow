@@ -1,7 +1,8 @@
-import { Layers, X } from "lucide-react";
+import { X } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 import { cn } from "@/lib/utils";
+import { Brand } from "../brand/Brand";
 import { navByRole, roleWorkspaceLabel } from "../../lib/navigation";
 import type { Role } from "../../types/auth";
 
@@ -21,27 +22,20 @@ export function AppSidebar({ role, mobileOpen, onClose }: AppSidebarProps) {
         aria-hidden
         onClick={onClose}
         className={cn(
-          "fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity lg:hidden",
+          "fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity lg:hidden",
           mobileOpen ? "opacity-100" : "pointer-events-none opacity-0",
         )}
       />
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-border bg-card transition-transform duration-200 ease-out lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-transform duration-200 ease-out lg:translate-x-0",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
         {/* Brand */}
-        <div className="flex h-16 items-center justify-between gap-2 border-b border-border px-5">
-          <div className="flex items-center gap-2.5">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Layers className="size-5" />
-            </span>
-            <span className="text-base font-semibold tracking-tight">
-              OpsFlow
-            </span>
-          </div>
+        <div className="flex h-16 items-center justify-between gap-2 border-b border-sidebar-border px-5">
+          <Brand />
           <button
             type="button"
             onClick={onClose}
@@ -54,6 +48,9 @@ export function AppSidebar({ role, mobileOpen, onClose }: AppSidebarProps) {
 
         {/* Navigation */}
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+          <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Menu
+          </p>
           {items.map((item) => {
             const Icon = item.icon;
             return (
@@ -64,22 +61,32 @@ export function AppSidebar({ role, mobileOpen, onClose }: AppSidebarProps) {
                 onClick={onClose}
                 className={({ isActive }) =>
                   cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                     isActive
                       ? "bg-primary/10 text-primary"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground",
                   )
                 }
               >
-                <Icon className="size-[18px] shrink-0" />
-                {item.label}
+                {({ isActive }) => (
+                  <>
+                    <span
+                      className={cn(
+                        "absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary transition-opacity",
+                        isActive ? "opacity-100" : "opacity-0",
+                      )}
+                    />
+                    <Icon className="size-[18px] shrink-0" />
+                    {item.label}
+                  </>
+                )}
               </NavLink>
             );
           })}
         </nav>
 
         {/* Footer */}
-        <div className="border-t border-border p-3">
+        <div className="border-t border-sidebar-border p-3">
           <div className="rounded-lg bg-muted/50 px-3 py-2.5 text-xs text-muted-foreground">
             <span className="block font-medium text-foreground">
               {roleWorkspaceLabel[role]}

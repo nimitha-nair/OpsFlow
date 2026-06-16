@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 
+import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "../../context/auth-context";
 import { AppSidebar } from "./AppSidebar";
 import { AppTopbar } from "./AppTopbar";
@@ -35,6 +36,7 @@ export function AppLayout() {
           </div>
         </main>
       </div>
+      <Toaster richColors closeButton />
     </div>
   );
 }

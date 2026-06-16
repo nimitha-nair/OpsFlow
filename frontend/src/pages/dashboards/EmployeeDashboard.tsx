@@ -2,25 +2,18 @@ import { CalendarCheck, CalendarDays, Receipt } from "lucide-react";
 
 import { EmptyState } from "../../components/common/EmptyState";
 import { SectionCard } from "../../components/common/SectionCard";
-import { PageHeader } from "../../components/layout/PageHeader";
+import { WelcomeBanner } from "../../components/dashboard/WelcomeBanner";
 
 export function EmployeeDashboard() {
   return (
     <>
-      <PageHeader
+      <WelcomeBanner
         title="Employee Dashboard"
-        description="Your attendance, leave, and pay at a glance."
-        breadcrumbs={[
-          { label: "Employee", to: "/employee" },
-          { label: "Dashboard" },
-        ]}
+        subtitle="Your attendance, leave, and pay in one place."
       />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <SectionCard
-          title="My Attendance"
-          description="Your recent check-ins."
-        >
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <SectionCard title="My Attendance" description="Your recent check-ins.">
           <EmptyState
             compact
             icon={CalendarCheck}
@@ -29,10 +22,7 @@ export function EmployeeDashboard() {
           />
         </SectionCard>
 
-        <SectionCard
-          title="Leave Balance"
-          description="Your available leave."
-        >
+        <SectionCard title="Leave Balance" description="Your available leave.">
           <EmptyState
             compact
             icon={CalendarDays}
@@ -41,10 +31,7 @@ export function EmployeeDashboard() {
           />
         </SectionCard>
 
-        <SectionCard
-          title="Recent Payslips"
-          description="Your latest payslips."
-        >
+        <SectionCard title="Recent Payslips" description="Your latest payslips.">
           <EmptyState
             compact
             icon={Receipt}

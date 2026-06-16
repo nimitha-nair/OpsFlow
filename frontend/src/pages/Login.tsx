@@ -2,7 +2,19 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import axios from "axios";
+import { Loader2 } from "lucide-react";
 
+import { Brand } from "../components/brand/Brand";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "../context/auth-context";
 import { roleHome } from "../types/auth";
 
@@ -41,40 +53,61 @@ export function Login() {
   }
 
   return (
-    <main style={{ maxWidth: 360, margin: "4rem auto", fontFamily: "system-ui" }}>
-      <h1>OpsFlow Sign in</h1>
-      <form onSubmit={handleSubmit} noValidate>
-        <label style={{ display: "block", marginBottom: "0.75rem" }}>
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoComplete="username"
-            style={{ display: "block", width: "100%", padding: "0.5rem" }}
-          />
-        </label>
-        <label style={{ display: "block", marginBottom: "0.75rem" }}>
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-            style={{ display: "block", width: "100%", padding: "0.5rem" }}
-          />
-        </label>
-        {error && (
-          <p role="alert" style={{ color: "crimson" }}>
-            {error}
-          </p>
-        )}
-        <button type="submit" disabled={submitting} style={{ padding: "0.5rem 1rem" }}>
-          {submitting ? "Signing in…" : "Sign in"}
-        </button>
-      </form>
+    <main className="flex min-h-svh items-center justify-center bg-muted/30 px-4 py-12">
+      <div className="flex w-full max-w-sm flex-col gap-6">
+        <div className="flex justify-center">
+          <Brand />
+        </div>
+
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle className="text-xl">Sign in</CardTitle>
+            <CardDescription>
+              Welcome back. Enter your credentials to continue.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="username"
+                  placeholder="you@opsflow.local"
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                />
+              </div>
+
+              {error && (
+                <p role="alert" className="text-sm text-destructive">
+                  {error}
+                </p>
+              )}
+
+              <Button type="submit" disabled={submitting} className="w-full">
+                {submitting && <Loader2 className="size-4 animate-spin" />}
+                {submitting ? "Signing in…" : "Sign in"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </main>
   );
 }
