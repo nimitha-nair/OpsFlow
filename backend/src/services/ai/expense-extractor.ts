@@ -1,5 +1,7 @@
+import { getAiConfig } from "../../config/ai";
 import type { ExtractionInput, ExtractionResult } from "./extraction";
 import { mockExtractor } from "./mock-extractor";
+import { kimiExtractor } from "./kimi-extractor";
 
 export type { ExtractionInput, ExtractionResult } from "./extraction";
 
@@ -10,6 +12,5 @@ export interface ExpenseExtractor {
 
 /** Pick the extractor implementation from AI_PROVIDER (default: mock). */
 export function getExtractor(): ExpenseExtractor {
-  // Only the mock exists at this point; the kimi branch is wired in Task 6.
-  return mockExtractor;
+  return getAiConfig().provider === "kimi" ? kimiExtractor : mockExtractor;
 }
