@@ -185,9 +185,7 @@ export function AnalysisReviewPage() {
             <ConfidenceMeter score={analysis.confidenceScore} />
           )}
 
-          {analysis && analysis.status !== "PENDING" && analysis.status !== "FAILED" && (
-            <ProviderMeta analysis={analysis} />
-          )}
+          {canVerify && analysis && <ProviderMeta analysis={analysis} />}
 
           {canVerify && (
             <div className="flex flex-wrap gap-2">

@@ -32,6 +32,7 @@ async function renderPdfPages(buf: ArrayBuffer): Promise<string[]> {
     canvas.height = viewport.height;
     const ctx = canvas.getContext("2d");
     if (!ctx) continue;
+    // pdf.js v6 requires `canvas` in RenderParameters (canvasContext alone fails typecheck).
     await page.render({ canvas, canvasContext: ctx, viewport }).promise;
     urls.push(canvas.toDataURL("image/png"));
   }
@@ -54,22 +55,23 @@ export function ReceiptViewer({ expenseId }: { expenseId: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    let imageObjectUrl: string | null = null;
+    // Tracked across both branches so cleanup can revoke it on early unmount.
+    let objUrl: string | null = null;
     (async () => {
       try {
         const meta = await getExpenseDocument(expenseId);
-        const objUrl = await fetchExpenseDocumentObjectUrl(expenseId, false);
+        objUrl = await fetchExpenseDocumentObjectUrl(expenseId, false);
         if (meta.mimeType === "application/pdf") {
           const buf = await fetch(objUrl).then((r) => r.arrayBuffer());
-          URL.revokeObjectURL(objUrl);
+          URL.revokeObjectURL(objUrl); // PDF bytes are buffered; the blob URL is done.
+          objUrl = null;
           const urls = await renderPdfPages(buf);
           if (!cancelled) setPages(urls);
+        } else if (cancelled) {
+          URL.revokeObjectURL(objUrl);
+          objUrl = null;
         } else {
-          imageObjectUrl = objUrl;
-          if (cancelled) {
-            URL.revokeObjectURL(objUrl);
-            return;
-          }
+          // Image stays displayed from objUrl; cleanup revokes it on unmount.
           setPages([objUrl]);
         }
       } catch {
@@ -80,7 +82,7 @@ export function ReceiptViewer({ expenseId }: { expenseId: string }) {
     })();
     return () => {
       cancelled = true;
-      if (imageObjectUrl) URL.revokeObjectURL(imageObjectUrl);
+      if (objUrl) URL.revokeObjectURL(objUrl);
     };
   }, [expenseId]);
 
@@ -119,6 +121,7 @@ export function ReceiptViewer({ expenseId }: { expenseId: string }) {
           title="Zoom out"
         >
           <ZoomOut className="size-4" />
+          <span className="sr-only">Zoom out</span>
         </Button>
         <Button
           variant="outline"
@@ -128,6 +131,7 @@ export function ReceiptViewer({ expenseId }: { expenseId: string }) {
           title="Zoom in"
         >
           <ZoomIn className="size-4" />
+          <span className="sr-only">Zoom in</span>
         </Button>
         <span className="min-w-12 text-center text-xs tabular-nums text-muted-foreground">
           {fitWidth ? "Fit" : `${Math.round(zoom * 100)}%`}
