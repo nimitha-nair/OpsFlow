@@ -32,3 +32,17 @@ export function formatDate(value: string): string {
     day: "numeric",
   }).format(new Date(timestamp));
 }
+
+export function formatDateTime(value: string): string {
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) {
+    return value || "—";
+  }
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(timestamp));
+}

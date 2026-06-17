@@ -59,16 +59,15 @@ export function isTerminalStatus(s: AnalysisStatus): boolean {
 }
 
 /**
- * Confidence buckets for prominent color coding. The Low boundary is 70 to match
- * the backend's default LOW_CONFIDENCE threshold, so any sub-threshold score
- * reads red "Low" (consistent with the warning banner firing).
+ * Confidence buckets for prominent color coding (product spec):
+ * 0–59 red (Low), 60–79 amber (Medium), 80–100 green (High).
  */
 export function confidenceLevel(
   score: number | undefined,
 ): { label: string; tone: "emerald" | "amber" | "red" } {
   const s = score ?? 0;
   if (s >= 80) return { label: "High", tone: "emerald" };
-  if (s >= 70) return { label: "Medium", tone: "amber" };
+  if (s >= 60) return { label: "Medium", tone: "amber" };
   return { label: "Low", tone: "red" };
 }
 

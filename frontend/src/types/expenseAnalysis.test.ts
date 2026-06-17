@@ -38,11 +38,12 @@ describe("mapToExpenseCategory", () => {
 });
 
 describe("confidenceLevel", () => {
-  it("buckets scores into High/Medium/Low aligned to the 70 threshold", () => {
+  it("buckets scores per spec: 0-59 red, 60-79 amber, 80-100 green", () => {
     expect(confidenceLevel(95)).toEqual({ label: "High", tone: "emerald" });
-    expect(confidenceLevel(75)).toEqual({ label: "Medium", tone: "amber" });
-    expect(confidenceLevel(69)).toEqual({ label: "Low", tone: "red" }); // sub-threshold → red
-    expect(confidenceLevel(40)).toEqual({ label: "Low", tone: "red" });
+    expect(confidenceLevel(80)).toEqual({ label: "High", tone: "emerald" });
+    expect(confidenceLevel(79)).toEqual({ label: "Medium", tone: "amber" });
+    expect(confidenceLevel(60)).toEqual({ label: "Medium", tone: "amber" });
+    expect(confidenceLevel(59)).toEqual({ label: "Low", tone: "red" });
     expect(confidenceLevel(undefined)).toEqual({ label: "Low", tone: "red" });
   });
 });
