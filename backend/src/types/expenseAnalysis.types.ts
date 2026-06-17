@@ -15,6 +15,8 @@ export interface ExpenseAnalysisDocument {
   expenseId: string;
   documentId: string;
   status: AnalysisStatus;
+  /** Which extractor produced this result — used to flag synthetic mock data. */
+  provider?: "mock" | "kimi";
   modelVersion?: string;
   vendorName?: string;
   amount?: number;
@@ -23,6 +25,8 @@ export interface ExpenseAnalysisDocument {
   paymentMethod?: string;
   category?: string;
   taxInformation?: string;
+  /** Why the model reported low confidence, when it provided a reason. */
+  lowConfidenceReason?: string;
   confidenceScore?: number; // 0–100
   /** Verbatim model output, e.g. { rawOutput } — preserved for audit. */
   extractedData?: Record<string, unknown>;
@@ -38,6 +42,8 @@ export interface ExpenseAnalysis {
   expenseId: string;
   documentId: string;
   status: AnalysisStatus;
+  /** Which extractor produced this result — used to flag synthetic mock data. */
+  provider?: "mock" | "kimi";
   modelVersion?: string;
   vendorName?: string;
   amount?: number;
@@ -46,6 +52,8 @@ export interface ExpenseAnalysis {
   paymentMethod?: string;
   category?: string;
   taxInformation?: string;
+  /** Why the model reported low confidence, when it provided a reason. */
+  lowConfidenceReason?: string;
   confidenceScore?: number;
   extractedData?: Record<string, unknown>;
   failureReason?: string;

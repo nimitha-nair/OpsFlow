@@ -9,6 +9,8 @@ export interface ExtractionResult {
   paymentMethod: string | null;
   category: string | null; // free text from the model
   taxInformation: string | null;
+  /** Optional model-provided explanation of low confidence (null if none). */
+  lowConfidenceReason: string | null;
   confidenceScore: number; // 0–100
   rawOutput: string; // verbatim model content
 }
@@ -42,6 +44,7 @@ const modelJsonSchema = z.object({
   paymentMethod: nullableString,
   category: nullableString,
   taxInformation: nullableString,
+  lowConfidenceReason: nullableString,
   confidenceScore: z
     .union([z.number(), z.null()])
     .optional()
@@ -83,6 +86,7 @@ export function parseModelJson(raw: string): ExtractionResult {
     paymentMethod: d.paymentMethod,
     category: d.category,
     taxInformation: d.taxInformation,
+    lowConfidenceReason: d.lowConfidenceReason,
     confidenceScore: confidence,
     rawOutput: raw,
   };

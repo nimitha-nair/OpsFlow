@@ -34,7 +34,15 @@ describe("parseModelJson", () => {
     const r = parseModelJson(JSON.stringify({ vendorName: "X", confidenceScore: 240 }));
     expect(r.amount).toBeNull();
     expect(r.currency).toBeNull();
+    expect(r.lowConfidenceReason).toBeNull();
     expect(r.confidenceScore).toBe(100);
+  });
+
+  it("parses a model-provided lowConfidenceReason", () => {
+    const r = parseModelJson(
+      JSON.stringify({ confidenceScore: 40, lowConfidenceReason: "blurry image" }),
+    );
+    expect(r.lowConfidenceReason).toBe("blurry image");
   });
 
   it("throws MalformedExtractionError on non-JSON", () => {

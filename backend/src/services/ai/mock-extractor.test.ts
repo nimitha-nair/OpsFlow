@@ -27,4 +27,13 @@ describe("mockExtractor", () => {
     expect(Math.max(...values)).toBeGreaterThanOrEqual(70);
     expect(Math.min(...values)).toBeLessThan(70);
   });
+
+  it("includes a lowConfidenceReason only for low-confidence results", async () => {
+    const low = await mockExtractor.extract({ expenseId: "d", documentId: "x" }); // 50
+    const high = await mockExtractor.extract({ expenseId: "c", documentId: "x" }); // 99
+    expect(low.confidenceScore).toBeLessThan(70);
+    expect(typeof low.lowConfidenceReason).toBe("string");
+    expect(high.confidenceScore).toBeGreaterThanOrEqual(70);
+    expect(high.lowConfidenceReason).toBeNull();
+  });
 });

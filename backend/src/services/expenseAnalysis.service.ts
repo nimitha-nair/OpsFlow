@@ -83,12 +83,15 @@ async function upsertPending(
   expenseId: string,
   documentId: string,
 ): Promise<string> {
+  const provider = getAiConfig().provider;
   const existing = await findDocByExpenseId(expenseId);
   if (existing) {
     await db.collection(ANALYSIS_COLLECTION).doc(existing.id).update({
       documentId,
+      provider,
       status: "PENDING" as AnalysisStatus,
       failureReason: FieldValue.delete(),
+      lowConfidenceReason: FieldValue.delete(),
       updatedAt: FieldValue.serverTimestamp(),
     });
     return existing.id;
@@ -96,6 +99,7 @@ async function upsertPending(
   const ref = await db.collection(ANALYSIS_COLLECTION).add({
     expenseId,
     documentId,
+    provider,
     status: "PENDING" as AnalysisStatus,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
@@ -142,6 +146,7 @@ async function runAnalysis(
         paymentMethod: r.paymentMethod ?? FieldValue.delete(),
         category: r.category ?? FieldValue.delete(),
         taxInformation: r.taxInformation ?? FieldValue.delete(),
+        lowConfidenceReason: r.lowConfidenceReason ?? FieldValue.delete(),
         confidenceScore: r.confidenceScore,
         extractedData: { rawOutput: r.rawOutput },
         updatedAt: FieldValue.serverTimestamp(),

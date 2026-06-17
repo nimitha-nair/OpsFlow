@@ -39,6 +39,10 @@ export const mockExtractor: ExpenseExtractor = {
       paymentMethod: METHODS[h % METHODS.length]!,
       category: CATEGORIES[h % CATEGORIES.length]!,
       taxInformation: h % 2 === 0 ? "GST 18%" : null,
+      lowConfidenceReason:
+        confidenceScore < 70
+          ? "Receipt image was blurry; some fields were only partially legible."
+          : null,
       confidenceScore,
     };
     return { ...result, rawOutput: JSON.stringify(result) };

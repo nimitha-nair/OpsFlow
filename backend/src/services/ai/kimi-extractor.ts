@@ -13,9 +13,11 @@ const SYSTEM_PROMPT =
   "exact shape, with null for any field you cannot read:\n" +
   `{"vendorName": string|null, "amount": number|null, "transactionDate": "YYYY-MM-DD"|null, ` +
   `"currency": string|null, "paymentMethod": string|null, "category": string|null, ` +
-  `"taxInformation": string|null, "confidenceScore": number}\n` +
+  `"taxInformation": string|null, "lowConfidenceReason": string|null, "confidenceScore": number}\n` +
   "amount is the numeric total with no currency symbol. confidenceScore is an " +
-  "integer 0-100 reflecting overall extraction certainty.";
+  "integer 0-100 reflecting overall extraction certainty. When confidenceScore is " +
+  "below 70, set lowConfidenceReason to a brief explanation of what made the receipt " +
+  "hard to read (e.g. blur, glare, cropping); otherwise set it to null.";
 
 /** Real extractor: NVIDIA Build / Kimi-K2.6 Vision. */
 export const kimiExtractor: ExpenseExtractor = {
