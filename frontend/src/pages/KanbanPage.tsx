@@ -121,6 +121,14 @@ export function KanbanPage() {
     const current = tasks.find((t) => t.id === taskId);
     if (!current || current.status === status) return;
 
+    // Completed tasks are read-only for employees; only an admin can reopen them.
+    if (current.status === "DONE" && isEmployee) {
+      toast.error(
+        "This task is completed and read-only. Ask an admin to reopen it.",
+      );
+      return;
+    }
+
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, status } : t)),
     );

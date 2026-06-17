@@ -8,6 +8,7 @@ import {
   SquareKanban,
   User,
   Users,
+  Wallet,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -36,6 +37,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "User Management", icon: Users, to: "/admin/users" },
     { label: "Projects", icon: Briefcase, to: "/admin/projects" },
     { label: "Kanban", icon: SquareKanban, to: "/admin/kanban" },
+    { label: "Expenses", icon: Wallet, to: "/admin/expenses" },
     { label: "Departments", icon: Building2, to: "/admin/departments" },
     { label: "Reports", icon: BarChart3, to: "/admin/reports" },
     { label: "Settings", icon: Settings, to: "/admin/settings" },
@@ -45,6 +47,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "Employees", icon: Users, to: "/hr/employees" },
     { label: "Projects", icon: Briefcase, to: "/hr/projects" },
     { label: "Kanban", icon: SquareKanban, to: "/hr/kanban" },
+    { label: "Expenses", icon: Wallet, to: "/hr/expenses" },
     { label: "Reports", icon: BarChart3, to: "/hr/reports" },
   ],
   EMPLOYEE: [
@@ -53,6 +56,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "My Projects", icon: Briefcase, to: "/employee/projects" },
     { label: "My Tasks", icon: ClipboardList, to: "/employee/tasks" },
     { label: "Kanban", icon: SquareKanban, to: "/employee/kanban" },
+    { label: "My Expenses", icon: Wallet, to: "/employee/expenses" },
   ],
 };
 

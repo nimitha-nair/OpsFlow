@@ -12,6 +12,12 @@ import { EmployeesPage } from "./pages/EmployeesPage";
 import { KanbanPage } from "./pages/KanbanPage";
 import { Login } from "./pages/Login";
 import { ProfilePage } from "./pages/ProfilePage";
+import { ExpenseDetailsPage } from "./pages/expenses/ExpenseDetailsPage";
+import { ExpensesOverviewPage } from "./pages/expenses/ExpensesOverviewPage";
+import { MyExpensesPage } from "./pages/expenses/MyExpensesPage";
+import { PendingReviewsPage } from "./pages/expenses/PendingReviewsPage";
+import { ProjectExpensesPage } from "./pages/expenses/ProjectExpensesPage";
+import { SubmitExpensePage } from "./pages/expenses/SubmitExpensePage";
 import { CreateProjectPage } from "./pages/projects/CreateProjectPage";
 import { EditProjectPage } from "./pages/projects/EditProjectPage";
 import { HrProjectsPage } from "./pages/projects/HrProjectsPage";
@@ -70,6 +76,9 @@ function App() {
         <Route path="projects/:id" element={<ProjectDetailsPage />} />
         <Route path="projects/:id/edit" element={<EditProjectPage />} />
         <Route path="kanban" element={<KanbanPage />} />
+        <Route path="expenses" element={<ExpensesOverviewPage />} />
+        <Route path="expenses/projects" element={<ProjectExpensesPage />} />
+        <Route path="expenses/:id" element={<ExpenseDetailsPage />} />
         <Route path="departments" element={<DepartmentsPage />} />
         <Route
           path="leave"
@@ -95,6 +104,8 @@ function App() {
         <Route path="projects" element={<HrProjectsPage />} />
         <Route path="projects/:id" element={<ProjectViewPage />} />
         <Route path="kanban" element={<KanbanPage />} />
+        <Route path="expenses" element={<PendingReviewsPage />} />
+        <Route path="expenses/:id" element={<ExpenseDetailsPage />} />
         <Route path="employees" element={<EmployeesPage />} />
         <Route
           path="leave"
@@ -117,6 +128,10 @@ function App() {
         <Route path="projects/:id" element={<ProjectViewPage />} />
         <Route path="tasks" element={<MyTasksPage />} />
         <Route path="kanban" element={<KanbanPage />} />
+        <Route path="expenses" element={<MyExpensesPage />} />
+        <Route path="expenses/new" element={<SubmitExpensePage />} />
+        <Route path="expenses/:id/edit" element={<SubmitExpensePage />} />
+        <Route path="expenses/:id" element={<ExpenseDetailsPage />} />
       </Route>
 
       <Route path="/" element={<RootRedirect />} />

@@ -48,4 +48,16 @@ export async function updateProject(
   return data;
 }
 
+/** PATCH /projects/:id/archive (ADMIN) — make read-only. */
+export async function archiveProject(id: string): Promise<Project> {
+  const { data } = await api.patch<Project>(`/projects/${id}/archive`, {});
+  return data;
+}
+
+/** PATCH /projects/:id/unarchive (ADMIN) — restore to editable. */
+export async function unarchiveProject(id: string): Promise<Project> {
+  const { data } = await api.patch<Project>(`/projects/${id}/unarchive`, {});
+  return data;
+}
+
 export { apiErrorMessage };

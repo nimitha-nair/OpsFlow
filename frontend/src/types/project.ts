@@ -17,6 +17,9 @@ export interface Project {
   status: ProjectStatus;
   startDate: string;
   endDate: string;
+  /** When true the project is archived (read-only). */
+  archived: boolean;
+  archivedAt?: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

@@ -70,7 +70,7 @@ export function EmployeeDashboard() {
     <>
       <WelcomeBanner
         title="Employee Dashboard"
-        subtitle="Your projects, tasks, and upcoming deadlines."
+        subtitle="Your projects, tasks, and expenses."
       />
 
       {loading ? (

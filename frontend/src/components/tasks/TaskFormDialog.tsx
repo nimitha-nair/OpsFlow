@@ -140,7 +140,6 @@ function TaskFormBody({
             value={values.title}
             onChange={(e) => set("title", e.target.value)}
             required
-            placeholder="Implement login screen"
           />
         </div>
 
