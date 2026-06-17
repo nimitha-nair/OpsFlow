@@ -36,18 +36,27 @@ export function ExpenseVerificationPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      const a = await getExpenseAnalysis(id);
-      setForm({
-        vendorName: a?.vendorName ?? "",
-        amount: a?.amount != null ? String(a.amount) : "",
-        transactionDate: a?.transactionDate ?? "",
-        currency: a?.currency ?? "INR",
-        paymentMethod: a?.paymentMethod ?? "",
-        category: mapToExpenseCategory(a?.category) ?? "",
-        taxInformation: a?.taxInformation ?? "",
-      });
+      try {
+        const a = await getExpenseAnalysis(id);
+        if (cancelled) return;
+        setForm({
+          vendorName: a?.vendorName ?? "",
+          amount: a?.amount != null ? String(a.amount) : "",
+          transactionDate: a?.transactionDate ?? "",
+          currency: a?.currency ?? "INR",
+          paymentMethod: a?.paymentMethod ?? "",
+          category: mapToExpenseCategory(a?.category) ?? "",
+          taxInformation: a?.taxInformation ?? "",
+        });
+      } catch {
+        if (!cancelled) toast.error("Could not load analysis data.");
+      }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   if (!form) return <div className="p-4 text-sm text-muted-foreground">Loading…</div>;

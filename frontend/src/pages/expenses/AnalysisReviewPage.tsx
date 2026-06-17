@@ -45,12 +45,16 @@ export function AnalysisReviewPage() {
 
   useEffect(() => {
     (async () => {
-      const expense = await getExpense(id);
-      setHasDocument(Boolean(expense.documentId));
-      const existing = await getExpenseAnalysis(id);
-      setAnalysis(existing);
-      if (existing && !isTerminalStatus(existing.status)) {
-        timer.current = window.setInterval(poll, POLL_MS);
+      try {
+        const expense = await getExpense(id);
+        setHasDocument(Boolean(expense.documentId));
+        const existing = await getExpenseAnalysis(id);
+        setAnalysis(existing);
+        if (existing && !isTerminalStatus(existing.status)) {
+          timer.current = window.setInterval(poll, POLL_MS);
+        }
+      } catch {
+        toast.error("Could not load expense data.");
       }
     })();
     return stopPolling;
@@ -128,6 +132,13 @@ export function AnalysisReviewPage() {
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
               Reading your receipt — this can take a few seconds.
+            </p>
+          )}
+
+          {analysis?.status === "LOW_CONFIDENCE" && (
+            <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              AI confidence is low. Please review every field carefully before
+              submitting.
             </p>
           )}
 
