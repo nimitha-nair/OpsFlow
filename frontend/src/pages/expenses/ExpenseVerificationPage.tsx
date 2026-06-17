@@ -13,10 +13,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
+import { ConfidenceMeter } from "../../components/expenses/ConfidenceMeter";
+import { LowConfidenceBanner } from "../../components/expenses/LowConfidenceBanner";
+import { MockAnalysisBadge } from "../../components/expenses/MockAnalysisBadge";
 import { ReceiptPreview } from "../../components/expenses/ReceiptPreview";
 import { getExpenseAnalysis, updateExpenseAnalysis } from "../../lib/expense-analysis-api";
 import { submitExpense } from "../../lib/expenses-api";
-import { mapToExpenseCategory } from "../../types/expenseAnalysis";
+import {
+  deriveLowConfidenceReason,
+  mapToExpenseCategory,
+  type ExpenseAnalysis,
+} from "../../types/expenseAnalysis";
 import { CATEGORY_LABELS, type ExpenseCategory } from "../../types/expense";
 
 interface Form {
@@ -33,6 +40,7 @@ export function ExpenseVerificationPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const [form, setForm] = useState<Form | null>(null);
+  const [analysis, setAnalysis] = useState<ExpenseAnalysis | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -41,6 +49,7 @@ export function ExpenseVerificationPage() {
       try {
         const a = await getExpenseAnalysis(id);
         if (cancelled) return;
+        setAnalysis(a);
         setForm({
           vendorName: a?.vendorName ?? "",
           amount: a?.amount != null ? String(a.amount) : "",
@@ -99,10 +108,17 @@ export function ExpenseVerificationPage() {
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
           <CardTitle className="text-base">Verify extracted values</CardTitle>
+          {analysis?.provider === "mock" && <MockAnalysisBadge />}
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
+          {analysis?.status === "LOW_CONFIDENCE" && (
+            <LowConfidenceBanner reason={deriveLowConfidenceReason(analysis)} />
+          )}
+          {typeof analysis?.confidenceScore === "number" && (
+            <ConfidenceMeter score={analysis.confidenceScore} />
+          )}
           <Labeled label="Vendor">
             <Input value={form.vendorName} onChange={(e) => set("vendorName", e.target.value)} />
           </Labeled>

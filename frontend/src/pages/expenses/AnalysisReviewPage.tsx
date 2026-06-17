@@ -12,10 +12,13 @@ import {
 } from "../../components/ui/card";
 import { AnalysisStatusBadge } from "../../components/expenses/AnalysisStatusBadge";
 import { ConfidenceMeter } from "../../components/expenses/ConfidenceMeter";
+import { LowConfidenceBanner } from "../../components/expenses/LowConfidenceBanner";
+import { MockAnalysisBadge } from "../../components/expenses/MockAnalysisBadge";
 import { ReceiptPreview } from "../../components/expenses/ReceiptPreview";
 import { analyzeExpense, getExpenseAnalysis } from "../../lib/expense-analysis-api";
 import { getExpense } from "../../lib/expenses-api";
 import {
+  deriveLowConfidenceReason,
   isTerminalStatus,
   type ExpenseAnalysis,
 } from "../../types/expenseAnalysis";
@@ -91,9 +94,12 @@ export function AnalysisReviewPage() {
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
           <CardTitle className="text-base">AI analysis</CardTitle>
-          {analysis && <AnalysisStatusBadge status={analysis.status} />}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {analysis?.provider === "mock" && <MockAnalysisBadge />}
+            {analysis && <AnalysisStatusBadge status={analysis.status} />}
+          </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {hasDocument === false && (
@@ -136,10 +142,11 @@ export function AnalysisReviewPage() {
           )}
 
           {analysis?.status === "LOW_CONFIDENCE" && (
-            <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              AI confidence is low. Please review every field carefully before
-              submitting.
-            </p>
+            <LowConfidenceBanner reason={deriveLowConfidenceReason(analysis)} />
+          )}
+
+          {canVerify && typeof analysis?.confidenceScore === "number" && (
+            <ConfidenceMeter score={analysis.confidenceScore} />
           )}
 
           {canVerify && (
@@ -152,10 +159,6 @@ export function AnalysisReviewPage() {
               <Field label="Payment method" value={analysis?.paymentMethod} />
               <Field label="Tax info" value={analysis?.taxInformation} />
             </dl>
-          )}
-
-          {canVerify && typeof analysis?.confidenceScore === "number" && (
-            <ConfidenceMeter score={analysis.confidenceScore} />
           )}
 
           {canVerify && (

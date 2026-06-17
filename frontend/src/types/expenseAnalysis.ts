@@ -12,6 +12,7 @@ export interface ExpenseAnalysis {
   expenseId: string;
   documentId: string;
   status: AnalysisStatus;
+  provider?: "mock" | "kimi";
   modelVersion?: string;
   vendorName?: string;
   amount?: number;
@@ -20,6 +21,7 @@ export interface ExpenseAnalysis {
   paymentMethod?: string;
   category?: string;
   taxInformation?: string;
+  lowConfidenceReason?: string;
   confidenceScore?: number;
   extractedData?: Record<string, unknown>;
   failureReason?: string;
@@ -54,6 +56,47 @@ export const ANALYSIS_STATUS_META: Record<
 
 export function isTerminalStatus(s: AnalysisStatus): boolean {
   return s === "COMPLETED" || s === "LOW_CONFIDENCE" || s === "FAILED";
+}
+
+/** Confidence buckets for prominent color coding. */
+export function confidenceLevel(
+  score: number | undefined,
+): { label: string; tone: "emerald" | "amber" | "red" } {
+  const s = score ?? 0;
+  if (s >= 80) return { label: "High", tone: "emerald" };
+  if (s >= 60) return { label: "Medium", tone: "amber" };
+  return { label: "Low", tone: "red" };
+}
+
+/** The key fields users most need; used to explain a low-confidence result. */
+const KEY_FIELDS: ReadonlyArray<{ key: keyof ExpenseAnalysis; label: string }> = [
+  { key: "vendorName", label: "vendor" },
+  { key: "amount", label: "amount" },
+  { key: "transactionDate", label: "date" },
+  { key: "currency", label: "currency" },
+  { key: "category", label: "category" },
+];
+
+/**
+ * Explain why a result is low confidence: prefer the model's own reason, else
+ * derive one from which key fields came back empty, else a generic message.
+ */
+export function deriveLowConfidenceReason(a: Partial<ExpenseAnalysis>): string {
+  if (a.lowConfidenceReason && a.lowConfidenceReason.trim().length > 0) {
+    return a.lowConfidenceReason;
+  }
+  const missing = KEY_FIELDS.filter((f) => {
+    const v = a[f.key];
+    return v === undefined || v === null || v === "";
+  }).map((f) => f.label);
+  if (missing.length > 0) {
+    const list =
+      missing.length === 1
+        ? missing[0]
+        : `${missing.slice(0, -1).join(", ")} and ${missing[missing.length - 1]}`;
+    return `The ${list} could not be read clearly from the receipt.`;
+  }
+  return "Some values may be inaccurate — please review each field.";
 }
 
 const CATEGORY_VALUES: ExpenseCategory[] = [
