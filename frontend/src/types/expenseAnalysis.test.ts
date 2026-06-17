@@ -38,9 +38,10 @@ describe("mapToExpenseCategory", () => {
 });
 
 describe("confidenceLevel", () => {
-  it("buckets scores into High/Medium/Low with tones", () => {
+  it("buckets scores into High/Medium/Low aligned to the 70 threshold", () => {
     expect(confidenceLevel(95)).toEqual({ label: "High", tone: "emerald" });
-    expect(confidenceLevel(65)).toEqual({ label: "Medium", tone: "amber" });
+    expect(confidenceLevel(75)).toEqual({ label: "Medium", tone: "amber" });
+    expect(confidenceLevel(69)).toEqual({ label: "Low", tone: "red" }); // sub-threshold → red
     expect(confidenceLevel(40)).toEqual({ label: "Low", tone: "red" });
     expect(confidenceLevel(undefined)).toEqual({ label: "Low", tone: "red" });
   });
@@ -71,6 +72,6 @@ describe("deriveLowConfidenceReason", () => {
       currency: "INR",
       category: "TRAVEL",
     });
-    expect(r.length).toBeGreaterThan(0);
+    expect(r).toContain("inaccurate");
   });
 });
