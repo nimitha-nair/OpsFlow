@@ -8,6 +8,7 @@ import {
   Pencil,
   RotateCcw,
   Send,
+  Sparkles,
   Trash2,
   X,
 } from "lucide-react";
@@ -468,6 +469,15 @@ export function ExpenseDetailsPage() {
                     )}
                     Delete
                   </Button>
+                  {expense.documentId && (
+                    <Link
+                      to={`/employee/expenses/${expense.id}/analysis`}
+                      className={buttonVariants({ variant: "outline", size: "sm" })}
+                    >
+                      <Sparkles className="size-4" />
+                      Analyze Receipt
+                    </Link>
+                  )}
                   <Link
                     to={`/employee/expenses/${expense.id}/edit`}
                     className={buttonVariants({ variant: "outline", size: "sm" })}

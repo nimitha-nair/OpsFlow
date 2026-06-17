@@ -12,7 +12,9 @@ import { EmployeesPage } from "./pages/EmployeesPage";
 import { KanbanPage } from "./pages/KanbanPage";
 import { Login } from "./pages/Login";
 import { ProfilePage } from "./pages/ProfilePage";
+import { AnalysisReviewPage } from "./pages/expenses/AnalysisReviewPage";
 import { ExpenseDetailsPage } from "./pages/expenses/ExpenseDetailsPage";
+import { ExpenseVerificationPage } from "./pages/expenses/ExpenseVerificationPage";
 import { ExpensesOverviewPage } from "./pages/expenses/ExpensesOverviewPage";
 import { MyExpensesPage } from "./pages/expenses/MyExpensesPage";
 import { PendingReviewsPage } from "./pages/expenses/PendingReviewsPage";
@@ -131,6 +133,8 @@ function App() {
         <Route path="expenses" element={<MyExpensesPage />} />
         <Route path="expenses/new" element={<SubmitExpensePage />} />
         <Route path="expenses/:id/edit" element={<SubmitExpensePage />} />
+        <Route path="expenses/:id/analysis" element={<AnalysisReviewPage />} />
+        <Route path="expenses/:id/verify" element={<ExpenseVerificationPage />} />
         <Route path="expenses/:id" element={<ExpenseDetailsPage />} />
       </Route>
 
