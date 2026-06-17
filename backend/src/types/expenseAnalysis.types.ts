@@ -24,7 +24,7 @@ export interface ExpenseAnalysisDocument {
   category?: string;
   taxInformation?: string;
   confidenceScore?: number; // 0–100
-  /** Includes { rawOutput, parsed } from the model. */
+  /** Verbatim model output, e.g. { rawOutput } — preserved for audit. */
   extractedData?: Record<string, unknown>;
   failureReason?: string;
   confirmedAt?: Timestamp;

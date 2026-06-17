@@ -177,7 +177,10 @@ export async function analyzeExpense(
     throw new ApiError(403, "You can only analyze your own expenses");
   }
 
-  // Already running — return current state (idempotent).
+  // Already running — return current state (idempotent). Known limitation: this
+  // read-then-write guard is not atomic, so two near-simultaneous /analyze calls
+  // could both start a worker. The client disables the button, so this needs two
+  // raw API calls; an atomic PENDING→PROCESSING transaction would fully close it.
   const existing = await findDocByExpenseId(expenseId);
   if (existing && existing.status === "PROCESSING") {
     return toView(existing);
@@ -192,7 +195,11 @@ export async function analyzeExpense(
 
   const id = await upsertPending(expenseId, expense.documentId);
   // Fire-and-forget background job (long-running Node process per AI_PIPELINE.md).
-  void runAnalysis(id, expenseId, expense.documentId);
+  // The .catch is mandatory: runAnalysis must never reject unhandled, or a
+  // transient Firestore error could crash the whole API process.
+  void runAnalysis(id, expenseId, expense.documentId).catch((err) => {
+    console.error("Analysis worker crashed:", err);
+  });
 
   const pending = await loadDocById(id);
   return toView(pending!);
@@ -232,7 +239,9 @@ export async function updateAnalysis(
 
   if (patch.confirm) {
     updates.confirmedAt = FieldValue.serverTimestamp();
-    // Write verified values back onto the DRAFT expense (source of truth).
+    // Write verified values back onto the expense (source of truth). updateExpense
+    // permits DRAFT and REJECTED expenses, so a corrected rejected expense is also
+    // supported here; it enforces owner + non-locked status.
     const writeBack: UpdateExpenseInput = {};
     const amount = patch.amount ?? doc.amount;
     const currency = patch.currency ?? doc.currency;
