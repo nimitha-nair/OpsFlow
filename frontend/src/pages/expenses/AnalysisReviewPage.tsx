@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { Loader2, Sparkles } from "lucide-react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { ArrowLeft, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "../../components/ui/button";
@@ -31,6 +31,8 @@ const HIGH_CONFIDENCE = 85;
 export function AnalysisReviewPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const autoStart = params.get("analyze") === "1";
   const [hasDocument, setHasDocument] = useState<boolean | null>(null);
   const [projectName, setProjectName] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<ExpenseAnalysis | null>(null);
@@ -64,13 +66,20 @@ export function AnalysisReviewPage() {
         setAnalysis(existing);
         if (existing && !isTerminalStatus(existing.status)) {
           timer.current = window.setInterval(poll, POLL_MS);
+        } else if (!existing && expense.documentId && autoStart) {
+          // Seamless "Save & Analyze": kick off the run on arrival, no extra click.
+          const started = await analyzeExpense(id);
+          setAnalysis(started);
+          if (!isTerminalStatus(started.status)) {
+            timer.current = window.setInterval(poll, POLL_MS);
+          }
         }
       } catch {
         toast.error("Could not load expense data.");
       }
     })();
     return stopPolling;
-  }, [id, poll, stopPolling]);
+  }, [id, poll, stopPolling, autoStart]);
 
   const onAnalyze = async () => {
     setBusy(true);
@@ -94,7 +103,18 @@ export function AnalysisReviewPage() {
   const goVerify = () => navigate(`/employee/expenses/${id}/verify`);
 
   return (
-    <div className="mx-auto grid max-w-7xl gap-6 p-4 lg:grid-cols-5">
+    <div className="mx-auto max-w-7xl p-4">
+      <div className="mb-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate(`/employee/expenses/${id}`)}
+        >
+          <ArrowLeft className="size-4" />
+          Back to expense
+        </Button>
+      </div>
+      <div className="grid gap-6 lg:grid-cols-5">
       {/* Receipt panel — ~60% */}
       <Card className="overflow-hidden lg:col-span-3">
         <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
@@ -199,6 +219,7 @@ export function AnalysisReviewPage() {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

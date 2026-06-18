@@ -38,6 +38,7 @@ import {
   ApprovalStatusBadge,
   ReimbursementBadge,
 } from "../../components/expenses/ExpenseBadges";
+import { AnalysisAuditPanel } from "../../components/expenses/AnalysisAuditPanel";
 import { useAuth } from "../../context/auth-context";
 import { formatDate, formatMoney } from "../../lib/format";
 import { roleBasePath } from "../../lib/navigation";
@@ -135,21 +136,24 @@ export function ExpenseDetailsPage() {
   // Load the review decision from the expenseApprovals audit log whenever the
   // expense is in a reviewed state (also re-runs after an in-session approve/reject).
   useEffect(() => {
+    let cancelled = false;
     const reviewed =
       expense?.approvalStatus === "APPROVED" ||
       expense?.approvalStatus === "REJECTED";
-    if (!expense || !reviewed) {
-      setReviewInfo(null);
-      return;
-    }
-    let cancelled = false;
-    getExpenseReviewInfo(expense.id)
-      .then((info) => {
-        if (!cancelled) setReviewInfo(info);
-      })
-      .catch(() => {
-        /* fall back to denormalized fields on the expense */
+    if (expense && reviewed) {
+      getExpenseReviewInfo(expense.id)
+        .then((info) => {
+          if (!cancelled) setReviewInfo(info);
+        })
+        .catch(() => {
+          /* fall back to denormalized fields on the expense */
+        });
+    } else {
+      // Clear stale review info off the synchronous effect path.
+      Promise.resolve().then(() => {
+        if (!cancelled) setReviewInfo(null);
       });
+    }
     return () => {
       cancelled = true;
     };
@@ -389,6 +393,13 @@ export function ExpenseDetailsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* AI extraction audit trail — visible to HR (during review), Admin, and
+              the owner once the expense leaves draft. Self-hides for manual entries. */}
+          {expense.approvalStatus !== "DRAFT" &&
+            (user?.role === "HR" || user?.role === "ADMIN" || isOwner) && (
+              <AnalysisAuditPanel expense={expense} />
+            )}
 
           {(expense.approvalStatus === "APPROVED" ||
             expense.approvalStatus === "REJECTED") &&

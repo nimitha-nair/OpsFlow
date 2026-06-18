@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Loader2, Save, Send, Upload } from "lucide-react";
+import { Loader2, Save, Send, Sparkles, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -132,7 +132,8 @@ export function SubmitExpensePage() {
     };
   }
 
-  async function maybeUpload(expenseId: string): Promise<void> {
+  /** Upload the chosen file if any. Returns false if an upload was attempted and failed. */
+  async function maybeUpload(expenseId: string): Promise<boolean> {
     if (type === "DOCUMENT" && file) {
       setUploadStatus("uploading");
       try {
@@ -141,11 +142,17 @@ export function SubmitExpensePage() {
       } catch (err) {
         setUploadStatus("error");
         toast.error(apiErrorMessage(err, "Saved, but the file upload failed."));
+        return false;
       }
     }
+    return true;
   }
 
-  async function handleSave(action: "draft" | "submit") {
+  // "Save & Analyze" is available once there will be a document to read: a freshly
+  // chosen file, or an existing one when editing.
+  const canAnalyze = type === "DOCUMENT" && (file !== null || hasDocument);
+
+  async function handleSave(action: "draft" | "submit" | "analyze") {
     if (!canSave) {
       setError("Please complete all required fields.");
       return;
@@ -159,10 +166,21 @@ export function SubmitExpensePage() {
         delete (payload as { isDraft?: boolean }).isDraft;
         await updateExpense(id, payload);
       } else {
-        const created = await createExpense(buildPayload(action === "draft"));
+        // Both "draft" and "analyze" persist as a draft first.
+        const created = await createExpense(buildPayload(action !== "submit"));
         expenseId = created.id;
       }
-      await maybeUpload(expenseId);
+      const uploaded = await maybeUpload(expenseId);
+      if (action === "analyze") {
+        if (!uploaded) {
+          setError("The receipt upload failed, so analysis can't start. Try again.");
+          setBusy(false);
+          return;
+        }
+        toast.success("Draft saved — starting analysis…");
+        navigate(`/employee/expenses/${expenseId}/analysis?analyze=1`);
+        return;
+      }
       if (action === "submit") {
         if (isEdit) await submitExpense(expenseId);
         toast.success("Expense submitted.");
@@ -381,6 +399,22 @@ export function SubmitExpensePage() {
                 <Save className="size-4" />
                 Save Draft
               </Button>
+              {canAnalyze && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => handleSave("analyze")}
+                  disabled={!canSave || busy}
+                  title="Save the draft and run AI analysis on the receipt"
+                >
+                  {busy ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="size-4" />
+                  )}
+                  Save &amp; Analyze
+                </Button>
+              )}
               <Button
                 type="button"
                 onClick={() => handleSave("submit")}

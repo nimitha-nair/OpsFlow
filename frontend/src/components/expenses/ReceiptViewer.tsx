@@ -3,6 +3,7 @@ import {
   Loader2,
   Maximize2,
   MoveHorizontal,
+  ScanLine,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -10,13 +11,28 @@ import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 import { Button } from "../ui/button";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import {
   fetchExpenseDocumentObjectUrl,
   getExpenseDocument,
 } from "../../lib/expenses-api";
-import { ZOOM_MAX, ZOOM_MIN, nextZoom } from "../../lib/viewer-zoom";
+import {
+  ZOOM_MAX,
+  ZOOM_MIN,
+  ZOOM_PRESETS,
+  nudgeZoom,
+  snapZoom,
+} from "../../lib/viewer-zoom";
 
 /** Scale PDF pages are rasterized at — high enough to stay readable when zoomed. */
 const PDF_RENDER_SCALE = 2;
+
+type ViewMode = "fitWidth" | "fitPage" | "zoom";
 
 /** Rasterize a PDF's pages to PNG data URLs. pdf.js is loaded lazily (large). */
 async function renderPdfPages(buf: ArrayBuffer): Promise<string[]> {
@@ -41,17 +57,19 @@ async function renderPdfPages(buf: ArrayBuffer): Promise<string[]> {
 
 /**
  * Unified receipt viewer: renders both images and PDFs as page images inside one
- * zoomable, independently-scrollable, fullscreen-capable shell. Each page wraps an
- * absolutely-positioned overlay layer reserved for future field-highlighting.
+ * zoomable, independently-scrollable, fullscreen-capable shell. Supports discrete
+ * zoom presets (50–300%), Fit Width, Fit Page, and Ctrl/⌘ + mouse-wheel zoom. Each
+ * page wraps an absolutely-positioned overlay layer reserved for field-highlighting.
  */
 export function ReceiptViewer({ expenseId }: { expenseId: string }) {
   const [pages, setPages] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
-  const [fitWidth, setFitWidth] = useState(true);
+  const [mode, setMode] = useState<ViewMode>("fitWidth");
   const [isFull, setIsFull] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,10 +110,28 @@ export function ReceiptViewer({ expenseId }: { expenseId: string }) {
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
 
-  const zoomBy = useCallback((dir: "in" | "out") => {
-    setFitWidth(false);
-    setZoom((z) => nextZoom(z, dir));
+  // Ctrl/⌘ + wheel zoom. Registered natively (non-passive) so preventDefault works
+  // and the browser's page-zoom gesture doesn't fire instead.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return; // plain wheel scrolls normally
+      e.preventDefault();
+      setMode("zoom");
+      setZoom((z) => nudgeZoom(z, e.deltaY < 0 ? 0.1 : -0.1));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
   }, []);
+
+  const zoomByButton = useCallback(
+    (dir: "in" | "out") => {
+      setMode("zoom");
+      setZoom((z) => snapZoom(mode === "zoom" ? z : 1, dir));
+    },
+    [mode],
+  );
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -105,19 +141,31 @@ export function ReceiptViewer({ expenseId }: { expenseId: string }) {
     }
   }, []);
 
-  const contentWidth = fitWidth ? "100%" : `${Math.round(zoom * 100)}%`;
+  const zoomLabel =
+    mode === "fitWidth" ? "Fit W" : mode === "fitPage" ? "Fit P" : `${Math.round(zoom * 100)}%`;
+
+  const wrapperStyle =
+    mode === "fitWidth"
+      ? { width: "100%", maxWidth: "100%" as const }
+      : mode === "zoom"
+        ? { width: `${Math.round(zoom * 100)}%`, maxWidth: "none" as const }
+        : { width: "auto", maxWidth: "100%" as const };
+
+  // In Fit Page, cap each page's height to the viewport so a whole page is visible.
+  const pageMaxHeight =
+    mode === "fitPage" ? (isFull ? "calc(100vh - 5rem)" : "calc(72vh - 5rem)") : undefined;
 
   return (
     <div
       ref={rootRef}
       className={`flex ${isFull ? "h-screen" : "h-[72vh]"} flex-col overflow-hidden rounded-md border bg-background`}
     >
-      <div className="flex items-center gap-1 border-b bg-muted/40 p-2">
+      <div className="flex flex-wrap items-center gap-1 border-b bg-muted/40 p-2">
         <Button
           variant="outline"
           size="sm"
-          onClick={() => zoomBy("out")}
-          disabled={!fitWidth && zoom <= ZOOM_MIN}
+          onClick={() => zoomByButton("out")}
+          disabled={mode === "zoom" && zoom <= ZOOM_MIN}
           title="Zoom out"
         >
           <ZoomOut className="size-4" />
@@ -126,24 +174,51 @@ export function ReceiptViewer({ expenseId }: { expenseId: string }) {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => zoomBy("in")}
-          disabled={!fitWidth && zoom >= ZOOM_MAX}
+          onClick={() => zoomByButton("in")}
+          disabled={mode === "zoom" && zoom >= ZOOM_MAX}
           title="Zoom in"
         >
           <ZoomIn className="size-4" />
           <span className="sr-only">Zoom in</span>
         </Button>
-        <span className="min-w-12 text-center text-xs tabular-nums text-muted-foreground">
-          {fitWidth ? "Fit" : `${Math.round(zoom * 100)}%`}
-        </span>
+
+        <Select
+          value={mode === "zoom" ? String(zoom) : ""}
+          onValueChange={(v) => {
+            if (!v) return;
+            setMode("zoom");
+            setZoom(Number(v));
+          }}
+        >
+          <SelectTrigger size="sm" className="w-24" aria-label="Zoom level">
+            <SelectValue placeholder={zoomLabel}>{zoomLabel}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {ZOOM_PRESETS.map((p) => (
+              <SelectItem key={p} value={String(p)}>
+                {Math.round(p * 100)}%
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <Button
-          variant={fitWidth ? "secondary" : "outline"}
+          variant={mode === "fitWidth" ? "secondary" : "outline"}
           size="sm"
-          onClick={() => setFitWidth(true)}
+          onClick={() => setMode("fitWidth")}
           title="Fit width"
         >
           <MoveHorizontal className="size-4" />
           Fit width
+        </Button>
+        <Button
+          variant={mode === "fitPage" ? "secondary" : "outline"}
+          size="sm"
+          onClick={() => setMode("fitPage")}
+          title="Fit whole page"
+        >
+          <ScanLine className="size-4" />
+          Fit page
         </Button>
         <div className="ml-auto">
           <Button
@@ -158,7 +233,7 @@ export function ReceiptViewer({ expenseId }: { expenseId: string }) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto bg-muted/20 p-3">
+      <div ref={scrollRef} className="flex-1 overflow-auto bg-muted/20 p-3">
         {loading ? (
           <div className="flex h-full items-center justify-center">
             <Loader2 className="size-6 animate-spin text-muted-foreground" />
@@ -168,16 +243,18 @@ export function ReceiptViewer({ expenseId }: { expenseId: string }) {
             {error ?? "No receipt to preview"}
           </div>
         ) : (
-          <div
-            className="mx-auto flex flex-col gap-3"
-            style={{ width: contentWidth, maxWidth: "100%" }}
-          >
+          <div className="mx-auto flex flex-col items-center gap-3" style={wrapperStyle}>
             {pages.map((src, i) => (
               <div key={i} className="relative shadow-sm">
                 <img
                   src={src}
                   alt={`Receipt page ${i + 1}`}
-                  className="block h-auto w-full rounded-sm border bg-white"
+                  className="block rounded-sm border bg-white"
+                  style={
+                    mode === "fitPage"
+                      ? { maxHeight: pageMaxHeight, width: "auto", maxWidth: "100%" }
+                      : { height: "auto", width: "100%" }
+                  }
                 />
                 {/* Overlay layer reserved for future field-highlighting (#12). */}
                 <div

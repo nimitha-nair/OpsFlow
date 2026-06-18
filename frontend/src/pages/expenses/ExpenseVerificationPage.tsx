@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
+import { LoadingState } from "../../components/common/LoadingState";
 import {
   Select,
   SelectContent,
@@ -36,6 +38,9 @@ interface Form {
   taxInformation: string;
 }
 
+/** Keep unsaved verify edits across Back-to-analysis round-trips. */
+const draftKey = (id: string) => `expense-verify-draft:${id}`;
+
 export function ExpenseVerificationPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
@@ -50,15 +55,26 @@ export function ExpenseVerificationPage() {
         const a = await getExpenseAnalysis(id);
         if (cancelled) return;
         setAnalysis(a);
-        setForm({
-          vendorName: a?.vendorName ?? "",
-          amount: a?.amount != null ? String(a.amount) : "",
-          transactionDate: a?.transactionDate ?? "",
-          currency: a?.currency ?? "INR",
-          paymentMethod: a?.paymentMethod ?? "",
-          category: mapToExpenseCategory(a?.category) ?? "",
-          taxInformation: a?.taxInformation ?? "",
-        });
+        // Restore in-progress edits (e.g. after "Back to analysis"); otherwise
+        // hydrate from the analysis.
+        let restored: Form | null = null;
+        try {
+          const saved = sessionStorage.getItem(draftKey(id));
+          if (saved) restored = JSON.parse(saved) as Form;
+        } catch {
+          restored = null;
+        }
+        setForm(
+          restored ?? {
+            vendorName: a?.vendorName ?? "",
+            amount: a?.amount != null ? String(a.amount) : "",
+            transactionDate: a?.transactionDate ?? "",
+            currency: a?.currency ?? "INR",
+            paymentMethod: a?.paymentMethod ?? "",
+            category: mapToExpenseCategory(a?.category) ?? "",
+            taxInformation: a?.taxInformation ?? "",
+          },
+        );
       } catch {
         if (!cancelled) toast.error("Could not load analysis data.");
       }
@@ -68,10 +84,19 @@ export function ExpenseVerificationPage() {
     };
   }, [id]);
 
-  if (!form) return <div className="p-4 text-sm text-muted-foreground">Loading…</div>;
+  if (!form) return <LoadingState label="Loading analysis…" />;
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) =>
-    setForm((f) => (f ? { ...f, [k]: v } : f));
+    setForm((f) => {
+      if (!f) return f;
+      const next = { ...f, [k]: v };
+      try {
+        sessionStorage.setItem(draftKey(id), JSON.stringify(next));
+      } catch {
+        /* storage unavailable — edits simply won't persist across navigation */
+      }
+      return next;
+    });
 
   const confirmAndSubmit = async () => {
     setSaving(true);
@@ -87,6 +112,7 @@ export function ExpenseVerificationPage() {
         confirm: true,
       });
       await submitExpense(id);
+      sessionStorage.removeItem(draftKey(id));
       toast.success("Expense submitted for approval.");
       navigate(`/employee/expenses/${id}`);
     } catch {
@@ -155,17 +181,29 @@ export function ExpenseVerificationPage() {
             <Input value={form.taxInformation} onChange={(e) => set("taxInformation", e.target.value)} />
           </Labeled>
 
-          <div className="flex gap-2 pt-2">
+          <div className="flex flex-wrap gap-2 pt-2">
             <Button onClick={confirmAndSubmit} disabled={saving}>
               Confirm &amp; submit for approval
             </Button>
             <Button
-              variant="ghost"
+              variant="outline"
               onClick={() => navigate(`/employee/expenses/${id}/analysis`)}
+              title="Your edits are kept"
             >
-              Back
+              <ArrowLeft className="size-4" />
+              Back to analysis
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => navigate(`/employee/expenses/${id}`)}
+            >
+              <FileText className="size-4" />
+              Back to expense
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Your edits are kept if you go back to review the receipt.
+          </p>
         </CardContent>
       </Card>
     </div>

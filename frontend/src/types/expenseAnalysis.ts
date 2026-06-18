@@ -7,6 +7,19 @@ export type AnalysisStatus =
   | "FAILED"
   | "LOW_CONFIDENCE";
 
+/** Immutable snapshot of the original AI extraction — the audit-trail source. */
+export interface AiExtractionSnapshot {
+  vendorName: string | null;
+  amount: number | null;
+  transactionDate: string | null;
+  currency: string | null;
+  paymentMethod: string | null;
+  category: string | null;
+  taxInformation: string | null;
+  confidenceScore: number;
+  lowConfidenceReason: string | null;
+}
+
 export interface ExpenseAnalysis {
   id: string;
   expenseId: string;
@@ -23,11 +36,41 @@ export interface ExpenseAnalysis {
   taxInformation?: string;
   lowConfidenceReason?: string;
   confidenceScore?: number;
+  /** Original AI extraction, preserved verbatim (present on analyses run after audit tracking). */
+  aiExtraction?: AiExtractionSnapshot;
   extractedData?: Record<string, unknown>;
   failureReason?: string;
   confirmedAt?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Fields compared across Receipt-derived AI output, employee corrections, and final values. */
+export const AUDIT_FIELDS = [
+  { key: "vendorName", label: "Vendor" },
+  { key: "amount", label: "Amount" },
+  { key: "transactionDate", label: "Date" },
+  { key: "currency", label: "Currency" },
+  { key: "paymentMethod", label: "Payment method" },
+  { key: "category", label: "Category" },
+  { key: "taxInformation", label: "Tax info" },
+] as const;
+
+export type AuditFieldKey = (typeof AUDIT_FIELDS)[number]["key"];
+
+/** Normalize a value for display/comparison ("—" for empty). */
+export function auditDisplay(v: string | number | null | undefined): string {
+  if (v === null || v === undefined || v === "") return "—";
+  return String(v);
+}
+
+/** Whether a corrected/final value meaningfully differs from the AI value. */
+export function isCorrected(
+  ai: string | number | null | undefined,
+  corrected: string | number | null | undefined,
+): boolean {
+  if (corrected === undefined || corrected === null || corrected === "") return false;
+  return String(corrected) !== String(ai ?? "");
 }
 
 export interface UpdateAnalysisPayload {
