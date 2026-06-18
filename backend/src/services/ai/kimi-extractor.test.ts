@@ -5,6 +5,8 @@ vi.mock("./document-image", () => ({
 }));
 
 import { kimiExtractor } from "./kimi-extractor";
+import { RetryableExtractionError } from "./retry";
+import { MalformedExtractionError } from "./extraction";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -18,6 +20,34 @@ function mockFetchOnceWithContent(content: string) {
     "fetch",
     vi.fn(async () => ({ ok: true, status: 200, json: async () => json }) as unknown as Response),
   );
+}
+
+/** Stub fetch with an error response (status, optional Retry-After header). */
+function mockFetchError(status: number, headers: Record<string, string> = {}) {
+  const lower = Object.fromEntries(
+    Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]),
+  );
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async () =>
+        ({
+          ok: false,
+          status,
+          headers: { get: (k: string) => lower[k.toLowerCase()] ?? null },
+          text: async () => `error ${status}`,
+        }) as unknown as Response,
+    ),
+  );
+}
+
+/** Capture the error a rejected extract throws. */
+async function extractError(): Promise<unknown> {
+  process.env.NVIDIA_API_KEY = "nvapi-test";
+  return kimiExtractor
+    .extract({ expenseId: "e1", documentId: "d1" })
+    .then(() => undefined)
+    .catch((e) => e);
 }
 
 interface ChatMessage {
@@ -66,5 +96,52 @@ describe("kimiExtractor", () => {
     await expect(
       kimiExtractor.extract({ expenseId: "e1", documentId: "d1" }),
     ).rejects.toThrow(/NVIDIA_API_KEY/);
+  });
+});
+
+describe("kimiExtractor error classification", () => {
+  it("429 WITH Retry-After → retryable, parsed delay", async () => {
+    mockFetchError(429, { "Retry-After": "2" });
+    const err = await extractError();
+    expect(err).toBeInstanceOf(RetryableExtractionError);
+    expect((err as RetryableExtractionError).retryAfterMs).toBe(2000);
+  });
+
+  it("429 WITHOUT Retry-After → retryable, no delay hint", async () => {
+    mockFetchError(429);
+    const err = await extractError();
+    expect(err).toBeInstanceOf(RetryableExtractionError);
+    expect((err as RetryableExtractionError).retryAfterMs).toBeUndefined();
+  });
+
+  it("500 → retryable", async () => {
+    mockFetchError(500);
+    const err = await extractError();
+    expect(err).toBeInstanceOf(RetryableExtractionError);
+  });
+
+  it("network failure / timeout → retryable", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("The operation was aborted"); // AbortError-like / ECONNRESET
+      }),
+    );
+    const err = await extractError();
+    expect(err).toBeInstanceOf(RetryableExtractionError);
+  });
+
+  it("malformed JSON response → terminal (NOT retryable)", async () => {
+    mockFetchOnceWithContent("this is not json");
+    const err = await extractError();
+    expect(err).toBeInstanceOf(MalformedExtractionError);
+    expect(err).not.toBeInstanceOf(RetryableExtractionError);
+  });
+
+  it("401 invalid API key → terminal (NOT retryable)", async () => {
+    mockFetchError(401);
+    const err = await extractError();
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(RetryableExtractionError);
   });
 });

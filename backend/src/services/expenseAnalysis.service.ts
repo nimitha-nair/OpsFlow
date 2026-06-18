@@ -9,10 +9,13 @@ import {
   type UpdateExpenseInput,
 } from "./expense.service";
 import { getExtractor } from "./ai/expense-extractor";
+import { statusForConfidence } from "./ai/extraction";
+import { runWithRetry } from "./ai/retry";
 import {
-  MalformedExtractionError,
-  statusForConfidence,
-} from "./ai/extraction";
+  isAnalysisEditable,
+  snapshotFromExtraction,
+} from "./ai/analysis-audit";
+import { claimWithin, type ClaimResult } from "./ai/analysis-claim";
 import { mapToExpenseCategory } from "./ai/category-map";
 import type {
   AnalysisStatus,
@@ -78,6 +81,20 @@ export async function getAnalysisByExpenseId(
   return doc ? toView(doc) : null;
 }
 
+/**
+ * Remove any analysis tied to an expense. Called when the receipt is replaced or
+ * removed: the prior extraction described a document that no longer exists, so it
+ * must not linger (stale vendor/amount pointing at the old file). The expense is
+ * always DRAFT/REJECTED at this point, so there is no submitted audit record to
+ * preserve — the employee simply re-runs analysis against the new receipt.
+ */
+export async function deleteAnalysisForExpense(expenseId: string): Promise<void> {
+  const existing = await findDocByExpenseId(expenseId);
+  if (existing) {
+    await db.collection(ANALYSIS_COLLECTION).doc(existing.id).delete();
+  }
+}
+
 /** Create or reset the analysis row to PENDING, returning the row id. */
 async function upsertPending(
   expenseId: string,
@@ -115,63 +132,111 @@ async function setFailed(id: string, reason: string): Promise<void> {
   });
 }
 
-/** Background worker: extract, validate, persist terminal status. */
+/**
+ * Atomically claim the analysis row for a run. The read + the PROCESSING write
+ * happen in one Firestore transaction, so two near-simultaneous /analyze calls
+ * serialize and exactly one gets `claimed: true`; the loser observes the row is
+ * already in flight and is rejected without starting a second worker.
+ */
+async function claimForRun(
+  expenseId: string,
+  documentId: string,
+  provider: "mock" | "kimi",
+): Promise<ClaimResult> {
+  const col = db.collection(ANALYSIS_COLLECTION);
+  const query = col.where("expenseId", "==", expenseId).limit(1);
+  return db.runTransaction(async (tx) => {
+    return claimWithin({
+      async readByExpense() {
+        const snap = await tx.get(query);
+        if (snap.empty) return null;
+        const d = snap.docs[0]!;
+        return { id: d.id, status: d.data().status as AnalysisStatus };
+      },
+      async create() {
+        const ref = col.doc();
+        tx.set(ref, {
+          expenseId,
+          documentId,
+          provider,
+          status: "PROCESSING" as AnalysisStatus,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        return ref.id;
+      },
+      async reclaim(id) {
+        tx.update(col.doc(id), {
+          documentId,
+          provider,
+          status: "PROCESSING" as AnalysisStatus,
+          failureReason: FieldValue.delete(),
+          lowConfidenceReason: FieldValue.delete(),
+          confirmedAt: FieldValue.delete(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      },
+    });
+  });
+}
+
+/**
+ * Background worker: extract, validate, persist terminal status. The row is
+ * already PROCESSING (set atomically by claimForRun), so the worker goes straight
+ * to extraction.
+ */
 async function runAnalysis(
   id: string,
   expenseId: string,
   documentId: string,
 ): Promise<void> {
-  await db.collection(ANALYSIS_COLLECTION).doc(id).update({
-    status: "PROCESSING" as AnalysisStatus,
-    updatedAt: FieldValue.serverTimestamp(),
-  });
-
   const cfg = getAiConfig();
   const extractor = getExtractor();
 
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
-    try {
-      const r = await extractor.extract({ expenseId, documentId });
-      const status = statusForConfidence(
-        r.confidenceScore,
-        cfg.confidenceThreshold,
-      );
-      await db.collection(ANALYSIS_COLLECTION).doc(id).update({
-        status,
-        modelVersion: cfg.nvidiaModel,
-        vendorName: r.vendorName ?? FieldValue.delete(),
-        amount: r.amount ?? FieldValue.delete(),
-        transactionDate: r.transactionDate ?? FieldValue.delete(),
-        currency: r.currency ?? FieldValue.delete(),
-        paymentMethod: r.paymentMethod ?? FieldValue.delete(),
-        category: r.category ?? FieldValue.delete(),
-        taxInformation: r.taxInformation ?? FieldValue.delete(),
-        lowConfidenceReason: r.lowConfidenceReason ?? FieldValue.delete(),
-        confidenceScore: r.confidenceScore,
-        extractedData: { rawOutput: r.rawOutput },
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-      return;
-    } catch (err) {
-      // Malformed model output is terminal — do not retry.
-      if (err instanceof MalformedExtractionError) {
-        await setFailed(id, err.message);
-        return;
-      }
-      // Transient (network/API) — retry, then fail.
-      if (attempt === MAX_RETRIES) {
-        const reason = err instanceof Error ? err.message : "Analysis failed";
-        await setFailed(id, reason);
-        return;
-      }
-    }
+  try {
+    // Retry only transient failures (429 / 5xx / network) with Retry-After-aware
+    // exponential backoff + jitter; terminal errors (malformed output, auth,
+    // unsupported document) propagate to the catch and fail without retrying.
+    const r = await runWithRetry(
+      () => extractor.extract({ expenseId, documentId }),
+      { maxRetries: MAX_RETRIES },
+    );
+    const status = statusForConfidence(r.confidenceScore, cfg.confidenceThreshold);
+    await db.collection(ANALYSIS_COLLECTION).doc(id).update({
+      status,
+      modelVersion: cfg.nvidiaModel,
+      vendorName: r.vendorName ?? FieldValue.delete(),
+      amount: r.amount ?? FieldValue.delete(),
+      transactionDate: r.transactionDate ?? FieldValue.delete(),
+      currency: r.currency ?? FieldValue.delete(),
+      paymentMethod: r.paymentMethod ?? FieldValue.delete(),
+      category: r.category ?? FieldValue.delete(),
+      taxInformation: r.taxInformation ?? FieldValue.delete(),
+      lowConfidenceReason: r.lowConfidenceReason ?? FieldValue.delete(),
+      confidenceScore: r.confidenceScore,
+      // Immutable original AI extraction — never touched by employee edits.
+      // It is the audit source for the Receipt-vs-AI-vs-corrected comparison.
+      aiExtraction: snapshotFromExtraction(r),
+      // A fresh run supersedes any prior confirmation.
+      confirmedAt: FieldValue.delete(),
+      extractedData: { rawOutput: r.rawOutput },
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : "Analysis failed";
+    await setFailed(id, reason);
   }
 }
 
 /**
  * Trigger analysis for an expense's document. Returns immediately with the row
- * in PENDING/PROCESSING (or FAILED if there is no document); the extraction runs
- * in the background and the client polls getAnalysisByExpenseId.
+ * in PROCESSING (or FAILED if there is no document); the extraction runs in the
+ * background and the client polls getAnalysisByExpenseId.
+ *
+ * Concurrency: the PROCESSING transition is claimed atomically (claimForRun), so
+ * only one run can be active per expense and a duplicate request that arrives
+ * while a run is in flight is rejected without starting a second worker — it just
+ * gets the in-flight row back (idempotent).
  */
 export async function analyzeExpense(
   expenseId: string,
@@ -182,15 +247,6 @@ export async function analyzeExpense(
     throw new ApiError(403, "You can only analyze your own expenses");
   }
 
-  // Already running — return current state (idempotent). Known limitation: this
-  // read-then-write guard is not atomic, so two near-simultaneous /analyze calls
-  // could both start a worker. The client disables the button, so this needs two
-  // raw API calls; an atomic PENDING→PROCESSING transaction would fully close it.
-  const existing = await findDocByExpenseId(expenseId);
-  if (existing && existing.status === "PROCESSING") {
-    return toView(existing);
-  }
-
   if (!expense.documentId) {
     const id = await upsertPending(expenseId, "");
     await setFailed(id, "No document to analyze");
@@ -198,16 +254,23 @@ export async function analyzeExpense(
     return toView(failed!);
   }
 
-  const id = await upsertPending(expenseId, expense.documentId);
-  // Fire-and-forget background job (long-running Node process per AI_PIPELINE.md).
-  // The .catch is mandatory: runAnalysis must never reject unhandled, or a
-  // transient Firestore error could crash the whole API process.
-  void runAnalysis(id, expenseId, expense.documentId).catch((err) => {
-    console.error("Analysis worker crashed:", err);
-  });
+  const provider = getAiConfig().provider;
+  const claim = await claimForRun(expenseId, expense.documentId, provider);
 
-  const pending = await loadDocById(id);
-  return toView(pending!);
+  // Only the caller that won the claim starts the worker — this is what prevents
+  // concurrent worker execution. A rejected duplicate falls through and returns
+  // the already-in-flight row.
+  if (claim.claimed) {
+    // Fire-and-forget background job (long-running Node process per AI_PIPELINE.md).
+    // The .catch is mandatory: runAnalysis must never reject unhandled, or a
+    // transient Firestore error could crash the whole API process.
+    void runAnalysis(claim.id, expenseId, expense.documentId).catch((err) => {
+      console.error("Analysis worker crashed:", err);
+    });
+  }
+
+  const row = await loadDocById(claim.id);
+  return toView(row!);
 }
 
 /**
@@ -222,6 +285,15 @@ export async function updateAnalysis(
   const expense = await requireExpense(expenseId);
   if (expense.employeeId !== ownerId) {
     throw new ApiError(403, "You can only edit your own analysis");
+  }
+  // Freeze the analysis once the expense leaves the editable states. Without this
+  // an owner could rewrite the recorded extraction after submission/approval and
+  // corrupt the audit trail. Mirrors updateExpense's DRAFT/REJECTED rule.
+  if (!isAnalysisEditable(expense.approvalStatus)) {
+    throw new ApiError(
+      400,
+      "This analysis is locked because the expense has been submitted",
+    );
   }
   const doc = await findDocByExpenseId(expenseId);
   if (!doc) {

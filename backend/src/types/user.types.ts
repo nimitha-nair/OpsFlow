@@ -24,6 +24,8 @@ export interface UserDocument {
   passwordHash: string;
   role: UserRole;
   department?: string;
+  /** Job title / designation, distinct from `role` (the access level). */
+  position?: string;
   isActive: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -39,6 +41,8 @@ export interface PublicUser {
   email: string;
   role: UserRole;
   department?: string;
+  /** Job title / designation, distinct from `role`. */
+  position?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

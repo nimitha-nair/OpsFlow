@@ -15,6 +15,7 @@ export interface CreateUserInput {
   password: string;
   role: UserRole;
   department?: string;
+  position?: string;
   isActive?: boolean;
 }
 
@@ -23,6 +24,7 @@ export interface UpdateUserInput {
   email?: string;
   role?: UserRole;
   department?: string;
+  position?: string;
 }
 
 export interface ListUsersParams {
@@ -53,7 +55,7 @@ function timestampToIso(value: Timestamp): string {
 
 /** Project a stored document to the password-free public shape. */
 function toPublicUser(user: UserDocument): PublicUser {
-  const base: PublicUser = {
+  const result: PublicUser = {
     id: user.id,
     name: user.name,
     email: user.email,
@@ -62,9 +64,13 @@ function toPublicUser(user: UserDocument): PublicUser {
     createdAt: timestampToIso(user.createdAt),
     updatedAt: timestampToIso(user.updatedAt),
   };
-  return user.department !== undefined
-    ? { ...base, department: user.department }
-    : base;
+  if (user.department !== undefined) {
+    result.department = user.department;
+  }
+  if (user.position !== undefined) {
+    result.position = user.position;
+  }
+  return result;
 }
 
 function normalizeEmail(email: string): string {
@@ -173,6 +179,9 @@ export async function createUser(input: CreateUserInput): Promise<PublicUser> {
   if (input.department !== undefined) {
     data.department = input.department.trim();
   }
+  if (input.position !== undefined) {
+    data.position = input.position.trim();
+  }
 
   const ref = await db.collection(USERS_COLLECTION).add(data);
   const created = await getUserDocById(ref.id);
@@ -204,6 +213,10 @@ export async function updateUser(
 
   if (input.department !== undefined) {
     updates.department = input.department.trim();
+  }
+
+  if (input.position !== undefined) {
+    updates.position = input.position.trim();
   }
 
   if (input.role !== undefined && input.role !== user.role) {

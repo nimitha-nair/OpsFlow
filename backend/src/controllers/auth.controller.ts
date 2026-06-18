@@ -1,28 +1,15 @@
 import type { Request, Response } from "express";
 
 import { AuthError, loginWithCredentials } from "../services/auth.service";
+import type { LoginInput } from "../validation/auth.schema";
 
 /**
  * POST /auth/login
- * Validates the request body, delegates authentication to the service, and
- * returns the login response. Never leaks why authentication failed.
+ * Request body is validated upstream by the `validate` middleware; this handler
+ * delegates to the service and never leaks why authentication failed.
  */
 export async function login(req: Request, res: Response): Promise<Response> {
-  const { email, password } = (req.body ?? {}) as {
-    email?: unknown;
-    password?: unknown;
-  };
-
-  if (
-    typeof email !== "string" ||
-    typeof password !== "string" ||
-    email.trim() === "" ||
-    password === ""
-  ) {
-    return res
-      .status(400)
-      .json({ error: "Email and password are required" });
-  }
+  const { email, password } = req.valid?.body as LoginInput;
 
   try {
     const result = await loginWithCredentials(email, password);

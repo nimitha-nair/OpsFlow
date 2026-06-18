@@ -6,6 +6,12 @@ declare global {
   namespace Express {
     interface Request {
       user?: JwtPayload;
+      /** Parsed/validated request data, populated by the `validate` middleware. */
+      valid?: {
+        body?: unknown;
+        params?: unknown;
+        query?: unknown;
+      };
     }
   }
 }

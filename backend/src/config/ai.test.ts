@@ -3,7 +3,7 @@ import { getAiConfig } from "./ai";
 
 const KEYS = [
   "AI_PROVIDER", "NVIDIA_API_KEY", "NVIDIA_BASE_URL",
-  "NVIDIA_MODEL", "AI_CONFIDENCE_THRESHOLD",
+  "NVIDIA_MODEL", "AI_CONFIDENCE_THRESHOLD", "NVIDIA_TIMEOUT_MS",
 ];
 
 afterEach(() => {
@@ -13,7 +13,7 @@ afterEach(() => {
 describe("getAiConfig", () => {
   it("defaults to the mock provider and documented values", () => {
     const cfg = getAiConfig();
-    expect(cfg.provider).toBe("mock");
+    expect(cfg.provider).toBe("kimi");
     expect(cfg.nvidiaBaseUrl).toBe("https://integrate.api.nvidia.com/v1");
     expect(cfg.nvidiaModel).toBe("moonshotai/kimi-k2.6");
     expect(cfg.confidenceThreshold).toBe(70);

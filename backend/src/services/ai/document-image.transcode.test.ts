@@ -1,15 +1,18 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-// Mocked so the helper reads a real on-disk temp image we control.
+// Mocked so the helper reads a real on-disk temp image we control. `read()`
+// returns the bytes (the resolver is now backend-agnostic — no absolutePath).
 const resolved = { absolutePath: "", mimeType: "image/webp", originalFileName: "r.webp" };
 vi.mock("../expense-document.service", () => ({
   resolveExpenseDocumentFile: vi.fn(async () => ({
-    ...resolved,
+    mimeType: resolved.mimeType,
+    originalFileName: resolved.originalFileName,
+    read: async () => readFile(resolved.absolutePath),
     stream: () => ({}) as unknown,
   })),
 }));
