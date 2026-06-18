@@ -39,6 +39,7 @@ import {
   ReimbursementBadge,
 } from "../../components/expenses/ExpenseBadges";
 import { AnalysisAuditPanel } from "../../components/expenses/AnalysisAuditPanel";
+import { ReviewWorkbench } from "../../components/expenses/ReviewWorkbench";
 import { useAuth } from "../../context/auth-context";
 import { formatDate, formatMoney } from "../../lib/format";
 import { roleBasePath } from "../../lib/navigation";
@@ -306,6 +307,42 @@ export function ExpenseDetailsPage() {
           description={error ?? "This expense could not be found."}
           onRetry={() => setReloadKey((k) => k + 1)}
         />
+      ) : user?.role === "HR" || user?.role === "ADMIN" ? (
+        // HR/Admin review workbench: receipt on the left, AI audit trail and
+        // approval controls on the right — review and decide without navigating.
+        <ReviewWorkbench expense={expense}>
+          <ReviewSummaryCard
+            expense={expense}
+            projectName={projectName}
+            docMeta={docMeta}
+            onDownload={handleDownloadDocument}
+            downloading={docDownloading}
+          />
+          {expense.approvalStatus !== "DRAFT" && (
+            <AnalysisAuditPanel expense={expense} />
+          )}
+          {(expense.approvalStatus === "APPROVED" ||
+            expense.approvalStatus === "REJECTED") && (
+            <DecisionCard expense={expense} reviewInfo={reviewInfo} />
+          )}
+          {canManageReimbursement && (
+            <ReimbursementControls
+              expense={expense}
+              reviewing={reviewing}
+              onChange={handleReimbursement}
+            />
+          )}
+          {canReview && (
+            <ReviewActions
+              expense={expense}
+              remarks={remarks}
+              setRemarks={setRemarks}
+              reviewing={reviewing}
+              onStartReview={handleStartReview}
+              onReview={handleReview}
+            />
+          )}
+        </ReviewWorkbench>
       ) : (
         <div className="flex flex-col gap-4">
           <Card>
@@ -394,70 +431,16 @@ export function ExpenseDetailsPage() {
             </CardContent>
           </Card>
 
-          {/* AI extraction audit trail — visible to HR (during review), Admin, and
-              the owner once the expense leaves draft. Self-hides for manual entries. */}
-          {expense.approvalStatus !== "DRAFT" &&
-            (user?.role === "HR" || user?.role === "ADMIN" || isOwner) && (
-              <AnalysisAuditPanel expense={expense} />
-            )}
+          {/* AI extraction audit trail for the owner once the expense leaves
+              draft (HR/Admin get it in the review workbench above). */}
+          {expense.approvalStatus !== "DRAFT" && isOwner && (
+            <AnalysisAuditPanel expense={expense} />
+          )}
 
           {(expense.approvalStatus === "APPROVED" ||
-            expense.approvalStatus === "REJECTED") &&
-            (() => {
-              const isRejected = expense.approvalStatus === "REJECTED";
-              const reviewedBy =
-                reviewInfo?.reviewerName ?? expense.reviewedByName ?? "—";
-              const reviewedOn = reviewInfo?.reviewedAt ?? expense.reviewedAt;
-              const remarks = reviewInfo?.remarks ?? expense.reviewRemarks ?? "";
-              return (
-                <Card
-                  className={cn(
-                    "border-l-4",
-                    isRejected ? "border-l-red-500" : "border-l-emerald-500",
-                  )}
-                >
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      {isRejected ? (
-                        <X className="size-4 text-red-500" />
-                      ) : (
-                        <Check className="size-4 text-emerald-500" />
-                      )}
-                      Review Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-3">
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                      <div className="flex flex-col gap-1">
-                        <dt className="text-xs font-medium text-muted-foreground">
-                          Status
-                        </dt>
-                        <dd>
-                          <ApprovalStatusBadge status={expense.approvalStatus} />
-                        </dd>
-                      </div>
-                      <Field label="Reviewed By" value={reviewedBy} />
-                      <Field
-                        label="Reviewed On"
-                        value={reviewedOn ? formatDate(reviewedOn) : "—"}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-xs font-medium text-muted-foreground">
-                        {isRejected ? "Rejection Reason" : "Remarks"}
-                      </span>
-                      <p className="whitespace-pre-wrap text-sm text-foreground">
-                        {remarks.trim()
-                          ? remarks
-                          : isRejected
-                            ? "No reason provided."
-                            : "No remarks."}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })()}
+            expense.approvalStatus === "REJECTED") && (
+            <DecisionCard expense={expense} reviewInfo={reviewInfo} />
+          )}
 
           {isOwnerDraft && (
             <Card>
@@ -537,97 +520,252 @@ export function ExpenseDetailsPage() {
             </Card>
           )}
 
-          {canManageReimbursement && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Reimbursement</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-wrap items-center gap-3">
-                <Label htmlFor="reimbursement" className="text-sm">
-                  Status
-                </Label>
-                <Select
-                  value={expense.reimbursementStatus}
-                  onValueChange={(v) =>
-                    v && handleReimbursement(v as ReimbursementStatus)
-                  }
-                  disabled={reviewing}
-                >
-                  <SelectTrigger id="reimbursement" className="w-48">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {REIMBURSEMENT_STATUSES.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {REIMBURSEMENT_LABELS[s]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </CardContent>
-            </Card>
-          )}
-
-          {canReview && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Review</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                {expense.approvalStatus === "SUBMITTED" && (
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 p-3">
-                    <p className="text-sm text-muted-foreground">
-                      Claim this expense to mark it as under review.
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleStartReview}
-                      disabled={reviewing}
-                    >
-                      Start Review
-                    </Button>
-                  </div>
-                )}
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="remarks">
-                    Remarks{" "}
-                    <span className="font-normal text-muted-foreground">
-                      (required to reject)
-                    </span>
-                  </Label>
-                  <Textarea
-                    id="remarks"
-                    value={remarks}
-                    onChange={(e) => setRemarks(e.target.value)}
-                    rows={2}
-                    placeholder="Add a note for the employee…"
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => handleReview("reject")}
-                    disabled={reviewing}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <X className="size-4" />
-                    Reject
-                  </Button>
-                  <Button onClick={() => handleReview("approve")} disabled={reviewing}>
-                    {reviewing ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Check className="size-4" />
-                    )}
-                    Approve
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
       )}
     </>
+  );
+}
+
+/** Read-only review decision (approved/rejected) with reviewer + remarks. */
+function DecisionCard({
+  expense,
+  reviewInfo,
+}: {
+  expense: Expense;
+  reviewInfo: ReviewInfo | null;
+}) {
+  const isRejected = expense.approvalStatus === "REJECTED";
+  const reviewedBy = reviewInfo?.reviewerName ?? expense.reviewedByName ?? "—";
+  const reviewedOn = reviewInfo?.reviewedAt ?? expense.reviewedAt;
+  const remarks = reviewInfo?.remarks ?? expense.reviewRemarks ?? "";
+  return (
+    <Card
+      className={cn(
+        "border-l-4",
+        isRejected ? "border-l-red-500" : "border-l-emerald-500",
+      )}
+    >
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          {isRejected ? (
+            <X className="size-4 text-red-500" />
+          ) : (
+            <Check className="size-4 text-emerald-500" />
+          )}
+          Review Information
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="flex flex-col gap-1">
+            <dt className="text-xs font-medium text-muted-foreground">Status</dt>
+            <dd>
+              <ApprovalStatusBadge status={expense.approvalStatus} />
+            </dd>
+          </div>
+          <Field label="Reviewed By" value={reviewedBy} />
+          <Field
+            label="Reviewed On"
+            value={reviewedOn ? formatDate(reviewedOn) : "—"}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-muted-foreground">
+            {isRejected ? "Rejection Reason" : "Remarks"}
+          </span>
+          <p className="whitespace-pre-wrap text-sm text-foreground">
+            {remarks.trim()
+              ? remarks
+              : isRejected
+                ? "No reason provided."
+                : "No remarks."}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** ADMIN-only reimbursement-status control (approved expenses). */
+function ReimbursementControls({
+  expense,
+  reviewing,
+  onChange,
+}: {
+  expense: Expense;
+  reviewing: boolean;
+  onChange: (status: ReimbursementStatus) => void;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Reimbursement</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-wrap items-center gap-3">
+        <Label htmlFor="reimbursement" className="text-sm">
+          Status
+        </Label>
+        <Select
+          value={expense.reimbursementStatus}
+          onValueChange={(v) => v && onChange(v as ReimbursementStatus)}
+          disabled={reviewing}
+        >
+          <SelectTrigger id="reimbursement" className="w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {REIMBURSEMENT_STATUSES.map((s) => (
+              <SelectItem key={s} value={s}>
+                {REIMBURSEMENT_LABELS[s]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** HR-only approve/reject controls (pending expenses). */
+function ReviewActions({
+  expense,
+  remarks,
+  setRemarks,
+  reviewing,
+  onStartReview,
+  onReview,
+}: {
+  expense: Expense;
+  remarks: string;
+  setRemarks: (v: string) => void;
+  reviewing: boolean;
+  onStartReview: () => void;
+  onReview: (action: "approve" | "reject") => void;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Review</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        {expense.approvalStatus === "SUBMITTED" && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 p-3">
+            <p className="text-sm text-muted-foreground">
+              Claim this expense to mark it as under review.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onStartReview}
+              disabled={reviewing}
+            >
+              Start Review
+            </Button>
+          </div>
+        )}
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="remarks">
+            Remarks{" "}
+            <span className="font-normal text-muted-foreground">
+              (required to reject)
+            </span>
+          </Label>
+          <Textarea
+            id="remarks"
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+            rows={2}
+            placeholder="Add a note for the employee…"
+          />
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            onClick={() => onReview("reject")}
+            disabled={reviewing}
+            className="text-destructive hover:text-destructive"
+          >
+            <X className="size-4" />
+            Reject
+          </Button>
+          <Button onClick={() => onReview("approve")} disabled={reviewing}>
+            {reviewing ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Check className="size-4" />
+            )}
+            Approve
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Compact expense summary for the workbench right column (receipt is inline). */
+function ReviewSummaryCard({
+  expense,
+  projectName,
+  docMeta,
+  onDownload,
+  downloading,
+}: {
+  expense: Expense;
+  projectName: string;
+  docMeta: ExpenseFileView | null;
+  onDownload: () => void;
+  downloading: boolean;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-2">
+        <div className="flex flex-col gap-1">
+          <CardTitle className="text-2xl tracking-tight">
+            {formatMoney(expense.amount, expense.currency)}
+          </CardTitle>
+          <span className="text-sm text-muted-foreground">
+            {CATEGORY_LABELS[expense.category]} · {projectName}
+          </span>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <ApprovalStatusBadge status={expense.approvalStatus} />
+          <ReimbursementBadge status={expense.reimbursementStatus} />
+        </div>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <dl className="grid grid-cols-2 gap-4">
+          <Field label="Type" value={TYPE_LABELS[expense.type]} />
+          <Field label="Expense date" value={formatDate(expense.expenseDate)} />
+          <Field label="Submitted" value={formatDate(expense.createdAt)} />
+          <Field label="Category" value={CATEGORY_LABELS[expense.category]} />
+        </dl>
+        {expense.description && (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-muted-foreground">
+              Description
+            </span>
+            <p className="whitespace-pre-wrap text-sm text-foreground">
+              {expense.description}
+            </p>
+          </div>
+        )}
+        {expense.documentId && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-start"
+            onClick={onDownload}
+            disabled={downloading}
+          >
+            {downloading ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Download className="size-4" />
+            )}
+            Download original{docMeta ? ` (${docMeta.originalFileName})` : ""}
+          </Button>
+        )}
+      </CardContent>
+    </Card>
   );
 }
