@@ -5,7 +5,6 @@ import {
   ClipboardList,
   HandCoins,
   LayoutDashboard,
-  Settings,
   SquareKanban,
   User,
   Users,
@@ -46,7 +45,6 @@ export const navByRole: Record<Role, NavItem[]> = {
     },
     { label: "Departments", icon: Building2, to: "/admin/departments" },
     { label: "Reports", icon: BarChart3, to: "/admin/reports" },
-    { label: "Settings", icon: Settings, to: "/admin/settings" },
   ],
   HR: [
     { label: "Dashboard", icon: LayoutDashboard, to: "/hr", end: true },

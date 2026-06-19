@@ -95,10 +95,6 @@ function App() {
           element={<ModulePlaceholder title="Leave Management" />}
         />
         <Route path="reports" element={<ReportsPage />} />
-        <Route
-          path="settings"
-          element={<ModulePlaceholder title="Settings" />}
-        />
       </Route>
 
       {/* HR */}
