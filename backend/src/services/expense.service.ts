@@ -20,6 +20,7 @@ import {
 } from "./project.service";
 import { isProjectMember } from "./projectMember.service";
 import { getUserById } from "./user.service";
+import { assertSubmittable } from "./expense.submit-gate";
 
 const EXPENSES_COLLECTION = "expenses";
 const APPROVALS_COLLECTION = "expenseApprovals";
@@ -299,6 +300,10 @@ export async function submitExpense(
   } else {
     throw new ApiError(400, "Only draft or rejected expenses can be submitted");
   }
+
+  // AI-first drafts may have been created without amount/date/category; require
+  // them now (the verify/confirm step fills them in).
+  assertSubmittable(expense);
 
   if (expense.scope === "PROJECT") {
     if (!expense.projectId) {
