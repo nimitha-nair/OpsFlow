@@ -16,6 +16,28 @@ import type {
 
 const ZERO: StatusTotals = { count: 0, amount: 0 };
 
+/**
+ * Tally count + summed amount per approval status from raw expense rows, keeping
+ * only the `reported` statuses (DRAFT is excluded). Pure so the overview KPIs can
+ * be computed in memory without a filtered `sum()` aggregation (which needs a
+ * composite index per status).
+ */
+export function tallyByStatus(
+  rows: Array<{ approvalStatus?: string; amount?: number }>,
+  reported: readonly ApprovalStatus[],
+): Partial<Record<ApprovalStatus, StatusTotals>> {
+  const out: Partial<Record<ApprovalStatus, StatusTotals>> = {};
+  for (const r of rows) {
+    const status = r.approvalStatus as ApprovalStatus | undefined;
+    if (!status || !reported.includes(status)) continue;
+    const cur = out[status] ?? { count: 0, amount: 0 };
+    cur.count += 1;
+    cur.amount += typeof r.amount === "number" ? r.amount : 0;
+    out[status] = cur;
+  }
+  return out;
+}
+
 /** Round to 2dp to avoid floating-point drift when summing currency amounts. */
 function round2(n: number): number {
   return Math.round(n * 100) / 100;

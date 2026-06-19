@@ -6,6 +6,7 @@ import authRoutes from "./routes/auth.routes";
 import exampleRoutes from "./routes/example.routes";
 import expenseRoutes from "./routes/expense.routes";
 import projectRoutes from "./routes/project.routes";
+import reportsRoutes from "./routes/reports.routes";
 import taskRoutes from "./routes/task.routes";
 import userRoutes from "./routes/user.routes";
 import { authenticate } from "./middleware/auth.middleware";
@@ -32,6 +33,7 @@ app.use("/users", userRoutes);
 app.use("/projects", projectRoutes);
 app.use("/tasks", taskRoutes);
 app.use("/expenses", expenseRoutes);
+app.use("/reports", reportsRoutes);
 app.use("/example", exampleRoutes);
 
 app.get("/test-protected", authenticate, (req, res) => {

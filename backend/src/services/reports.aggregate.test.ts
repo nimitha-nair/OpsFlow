@@ -10,6 +10,7 @@ import {
   monthKeys,
   splitByScope,
   summarizeProjects,
+  tallyByStatus,
   type ProjectLike,
 } from "./reports.aggregate";
 import type {
@@ -395,5 +396,29 @@ describe("buildAiAnalytics adoption", () => {
     };
     const r = buildAiAnalytics([legacy], REF, 12, ["AI"]);
     expect(r.adoption.multiDocExpenses).toBe(0);
+  });
+});
+
+describe("tallyByStatus", () => {
+  const REPORTED = ["SUBMITTED", "PENDING_REVIEW", "APPROVED", "REJECTED"] as const;
+
+  it("tallies count + amount per reported status and excludes DRAFT", () => {
+    const out = tallyByStatus(
+      [
+        { approvalStatus: "APPROVED", amount: 100 },
+        { approvalStatus: "APPROVED", amount: 50 },
+        { approvalStatus: "REJECTED", amount: 20 },
+        { approvalStatus: "DRAFT", amount: 999 },
+        { approvalStatus: "APPROVED" }, // missing amount → 0
+      ],
+      REPORTED,
+    );
+    expect(out.APPROVED).toEqual({ count: 3, amount: 150 });
+    expect(out.REJECTED).toEqual({ count: 1, amount: 20 });
+    expect(out.DRAFT).toBeUndefined();
+  });
+
+  it("returns an empty object for no rows", () => {
+    expect(tallyByStatus([], REPORTED)).toEqual({});
   });
 });

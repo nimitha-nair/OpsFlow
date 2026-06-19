@@ -1,4 +1,4 @@
-import { AggregateField, Timestamp } from "firebase-admin/firestore";
+import { Timestamp } from "firebase-admin/firestore";
 
 import { db } from "../config/firebase";
 import type { ApprovalStatus } from "../types/expense.types";
@@ -23,6 +23,7 @@ import {
   monthKeys,
   splitByScope,
   summarizeProjects,
+  tallyByStatus,
   type ProjectLike,
 } from "./reports.aggregate";
 import { hasCorrections } from "./ai/analysis-audit";
@@ -47,45 +48,23 @@ const REPORTED_STATUSES: ApprovalStatus[] = [
 ];
 
 /**
- * Count + summed amount for one status via a server-side Firestore aggregation.
- * This does NOT read the matching documents — count/sum are computed index-side
- * (~1 read per 1000 entries), so there is no full-collection scan.
- */
-async function statusTotals(status: ApprovalStatus): Promise<StatusTotals> {
-  const snap = await db
-    .collection(EXPENSES_COLLECTION)
-    .where("approvalStatus", "==", status)
-    .aggregate({
-      count: AggregateField.count(),
-      amount: AggregateField.sum("amount"),
-    })
-    .get();
-  const data = snap.data();
-  return {
-    count: typeof data.count === "number" ? data.count : 0,
-    amount: typeof data.amount === "number" ? data.amount : 0,
-  };
-}
-
-/**
- * Overview KPIs (Total / Approved / Pending / Rejected). One aggregation query
- * per non-DRAFT status (4 total), run concurrently; the pure composer derives
- * pending (SUBMITTED + PENDING_REVIEW) and total (all non-DRAFT).
+ * Overview KPIs (Total / Approved / Pending / Rejected). Reads the expenses
+ * collection once and tallies count + amount per non-DRAFT status in memory; the
+ * pure composer derives pending (SUBMITTED + PENDING_REVIEW) and total.
+ *
+ * This intentionally avoids a filtered `sum()` aggregation, which requires a
+ * composite index (approvalStatus, amount) per status and threw
+ * FAILED_PRECONDITION when those indexes were not deployed.
  */
 export async function getOverviewReport(): Promise<OverviewReport> {
-  const entries = await Promise.all(
-    REPORTED_STATUSES.map(
-      async (status) => [status, await statusTotals(status)] as const,
-    ),
+  const snap = await db.collection(EXPENSES_COLLECTION).get();
+  const rows = snap.docs.map(
+    (d) => d.data() as { approvalStatus?: string; amount?: number },
   );
-  const byStatus = Object.fromEntries(entries) as Partial<
-    Record<ApprovalStatus, StatusTotals>
-  >;
-
   return {
     generatedAt: new Date().toISOString(),
     currency: "INR",
-    kpis: composeOverviewKpis(byStatus),
+    kpis: composeOverviewKpis(tallyByStatus(rows, REPORTED_STATUSES)),
   };
 }
 
@@ -93,11 +72,11 @@ export async function getOverviewReport(): Promise<OverviewReport> {
  * Expenses analytics over the trailing `months` (clamped 1–24): spend by
  * category, monthly trend, and project-vs-general split — APPROVED expenses only.
  *
- * One windowed, indexed query (`approvalStatus == APPROVED` AND
- * `expenseDate >= cutoff`, ordered by `expenseDate`) reads only the approved
- * expenses inside the window — not the whole collection. Requires the composite
- * index (approvalStatus ASC, expenseDate ASC) in firestore.indexes.json. All
- * three breakdowns are then computed in memory from that single result set.
+ * Uses a single-field query (`approvalStatus == APPROVED`, auto-indexed) and
+ * filters the trailing-window by `expenseDate` in memory. This deliberately
+ * avoids the composite index (approvalStatus, expenseDate), so the report works
+ * regardless of index deployment (it threw FAILED_PRECONDITION otherwise). The
+ * three breakdowns are computed in memory from the result set.
  */
 export async function getExpensesReport(
   monthsInput: number,
@@ -111,24 +90,25 @@ export async function getExpensesReport(
   const snap = await db
     .collection(EXPENSES_COLLECTION)
     .where("approvalStatus", "==", "APPROVED")
-    .where("expenseDate", ">=", from)
-    .orderBy("expenseDate", "asc")
     .get();
 
-  const rows: ApprovedExpenseRow[] = snap.docs.map((d) => {
-    const x = d.data() as {
-      category?: string;
-      amount?: number;
-      scope?: string;
-      expenseDate?: string;
-    };
-    return {
-      category: typeof x.category === "string" ? x.category : "MISCELLANEOUS",
-      amount: typeof x.amount === "number" ? x.amount : 0,
-      scope: x.scope === "GENERAL" ? "GENERAL" : "PROJECT",
-      expenseDate: typeof x.expenseDate === "string" ? x.expenseDate : from,
-    };
-  });
+  const rows: ApprovedExpenseRow[] = snap.docs
+    .map((d) => {
+      const x = d.data() as {
+        category?: string;
+        amount?: number;
+        scope?: string;
+        expenseDate?: string;
+      };
+      return {
+        category: typeof x.category === "string" ? x.category : "MISCELLANEOUS",
+        amount: typeof x.amount === "number" ? x.amount : 0,
+        scope: x.scope === "GENERAL" ? "GENERAL" : "PROJECT",
+        expenseDate: typeof x.expenseDate === "string" ? x.expenseDate : from,
+      } as ApprovedExpenseRow;
+    })
+    // Trailing-window filter in memory (avoids the composite-index range query).
+    .filter((r) => r.expenseDate >= from);
 
   return {
     range: { from, to, months },

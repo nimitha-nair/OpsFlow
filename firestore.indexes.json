@@ -1,13 +1,4 @@
 {
-  "indexes": [
-    {
-      "collectionGroup": "expenses",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "approvalStatus", "order": "ASCENDING" },
-        { "fieldPath": "expenseDate", "order": "ASCENDING" }
-      ]
-    }
-  ],
+  "indexes": [],
   "fieldOverrides": []
 }
