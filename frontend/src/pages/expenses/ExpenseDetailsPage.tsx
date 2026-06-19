@@ -6,6 +6,7 @@ import {
   FileText,
   Loader2,
   Pencil,
+  Printer,
   RotateCcw,
   Send,
   Sparkles,
@@ -275,6 +276,17 @@ export function ExpenseDetailsPage() {
           { label: "Expenses", to: `${base}/expenses` },
           { label: "Details" },
         ]}
+        actions={
+          expense && expense.approvalStatus !== "DRAFT" ? (
+            <Link
+              to={`${base}/expenses/${expense.id}/report`}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              <Printer className="size-4" />
+              Export PDF
+            </Link>
+          ) : undefined
+        }
       />
 
       {loading ? (

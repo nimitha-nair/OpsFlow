@@ -134,3 +134,24 @@
   display: flex;
   flex-direction: column;
 }
+
+/* Print-to-PDF: show only the report subtree, hide all app chrome. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  [data-print-root],
+  [data-print-root] * {
+    visibility: visible;
+  }
+  [data-print-root] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

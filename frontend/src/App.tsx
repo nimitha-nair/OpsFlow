@@ -21,6 +21,7 @@ import { MyExpensesPage } from "./pages/expenses/MyExpensesPage";
 import { PendingReviewsPage } from "./pages/expenses/PendingReviewsPage";
 import { ProjectExpensesPage } from "./pages/expenses/ProjectExpensesPage";
 import { ReimbursementsPage } from "./pages/expenses/ReimbursementsPage";
+import { ExpenseReportPage } from "./pages/expenses/ExpenseReportPage";
 import { SubmitExpensePage } from "./pages/expenses/SubmitExpensePage";
 import { CreateProjectPage } from "./pages/projects/CreateProjectPage";
 import { EditProjectPage } from "./pages/projects/EditProjectPage";
@@ -86,6 +87,7 @@ function App() {
           path="expenses/reimbursements"
           element={<ReimbursementsPage />}
         />
+        <Route path="expenses/:id/report" element={<ExpenseReportPage />} />
         <Route path="expenses/:id" element={<ExpenseDetailsPage />} />
         <Route path="departments" element={<DepartmentsPage />} />
         <Route
@@ -113,6 +115,7 @@ function App() {
         <Route path="projects/:id" element={<ProjectViewPage />} />
         <Route path="kanban" element={<KanbanPage />} />
         <Route path="expenses" element={<PendingReviewsPage />} />
+        <Route path="expenses/:id/report" element={<ExpenseReportPage />} />
         <Route path="expenses/:id" element={<ExpenseDetailsPage />} />
         <Route path="employees" element={<EmployeesPage />} />
         <Route
@@ -141,6 +144,7 @@ function App() {
         <Route path="expenses/:id/edit" element={<SubmitExpensePage />} />
         <Route path="expenses/:id/analysis" element={<AnalysisReviewPage />} />
         <Route path="expenses/:id/verify" element={<ExpenseVerificationPage />} />
+        <Route path="expenses/:id/report" element={<ExpenseReportPage />} />
         <Route path="expenses/:id" element={<ExpenseDetailsPage />} />
       </Route>
 
