@@ -22,17 +22,31 @@ const storage = multer.diskStorage({
   },
 });
 
+/** Maximum number of documents that may be attached to one expense. */
+export const MAX_DOCS = 5;
+
+const fileFilter: multer.Options["fileFilter"] = (_req, file, cb) => {
+  if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error("Unsupported file type. Allowed: JPG, JPEG, PNG, WEBP, PDF"));
+  }
+};
+
 const multerUpload = multer({
   storage,
   limits: { fileSize: MAX_FILE_BYTES, files: 1 },
-  fileFilter: (_req, file, cb) => {
-    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error("Unsupported file type. Allowed: JPG, JPEG, PNG, WEBP, PDF"));
-    }
-  },
+  fileFilter,
 }).single("file");
+
+const multerFields = multer({
+  storage,
+  limits: { fileSize: MAX_FILE_BYTES, files: MAX_DOCS },
+  fileFilter,
+}).fields([
+  { name: "files", maxCount: MAX_DOCS },
+  { name: "file", maxCount: 1 },
+]);
 
 /**
  * Parse a single multipart "file" field, writing it to local disk via multer's
@@ -59,6 +73,44 @@ export function uploadReceipt(
         .json({ error: err instanceof Error ? err.message : "Invalid upload" });
       return;
     }
+    next();
+  });
+}
+
+/**
+ * Parse one-or-many multipart files. Accepts a `files[]` field (multi-select) and
+ * a legacy single `file` field; merges both into `req.uploaded` (an array). Maps
+ * multer errors to consistent HTTP responses (413 too large, 400 otherwise).
+ */
+export function uploadReceipts(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  multerFields(req, res, (err: unknown) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          res.status(413).json({ error: "File too large (max 5 MB)" });
+          return;
+        }
+        if (err.code === "LIMIT_FILE_COUNT") {
+          res.status(400).json({ error: `Too many files (max ${MAX_DOCS})` });
+          return;
+        }
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      res
+        .status(400)
+        .json({ error: err instanceof Error ? err.message : "Invalid upload" });
+      return;
+    }
+    const grouped = (req.files ?? {}) as Record<string, Express.Multer.File[]>;
+    (req as Request & { uploaded?: Express.Multer.File[] }).uploaded = [
+      ...(grouped.files ?? []),
+      ...(grouped.file ?? []),
+    ];
     next();
   });
 }
