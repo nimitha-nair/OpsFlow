@@ -82,6 +82,7 @@ export interface UpdateAnalysisPayload {
   category?: string;
   taxInformation?: string;
   description?: string;
+  projectId?: string;
   confirm?: boolean;
 }
 

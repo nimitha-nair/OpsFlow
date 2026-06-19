@@ -36,6 +36,7 @@ export interface UpdateAnalysisInput {
   category?: string;
   taxInformation?: string;
   description?: string;
+  projectId?: string;
   confirm?: boolean;
 }
 
@@ -351,6 +352,9 @@ export async function updateAnalysis(
     } else if (vendor && (!expense.description || expense.description.trim() === "")) {
       writeBack.description = vendor;
     }
+    // Project allocation chosen in the verify step (PROJECT scope). updateExpense
+    // validates membership + presence for PROJECT scope.
+    if (patch.projectId) writeBack.projectId = patch.projectId;
     if (Object.keys(writeBack).length > 0) {
       await updateExpense(expenseId, ownerId, writeBack);
     }

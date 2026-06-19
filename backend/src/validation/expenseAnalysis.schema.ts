@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { dateString } from "./common";
+import { dateString, firestoreId } from "./common";
 
 /** PATCH /expenses/:id/analysis — employee edits + optional confirm. */
 export const updateAnalysisBody = z
@@ -14,6 +14,8 @@ export const updateAnalysisBody = z
     taxInformation: z.string().trim().max(200).optional(),
     /** Verified description; written back to the expense on confirm. */
     description: z.string().trim().max(2000).optional(),
+    /** Project allocation, assigned at the verify step for PROJECT-scope expenses. */
+    projectId: firestoreId.optional(),
     confirm: z.boolean().optional().default(false),
   })
   .strict();
