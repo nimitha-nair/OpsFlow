@@ -185,7 +185,7 @@ export function ReimbursementsPage() {
                       {expense.reimbursementStatus === "PAID" ? (
                         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                           <Lock className="size-3" />
-                          Paid — locked
+                          Paid 
                         </span>
                       ) : (
                         <div className="flex flex-wrap gap-2">
