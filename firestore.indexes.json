@@ -7,14 +7,6 @@
         { "fieldPath": "approvalStatus", "order": "ASCENDING" },
         { "fieldPath": "expenseDate", "order": "ASCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "expenseDocuments",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "expenseId", "order": "ASCENDING" },
-        { "fieldPath": "uploadedAt", "order": "ASCENDING" }
-      ]
     }
   ],
   "fieldOverrides": []

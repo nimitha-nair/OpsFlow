@@ -12,3 +12,15 @@ export function deriveDocumentIds(expense: {
   }
   return expense.documentId ? [expense.documentId] : [];
 }
+
+/**
+ * Sort document views oldest-first by their ISO `uploadedAt`. Done in memory so
+ * the listing query needs only a single-field (`expenseId`) equality filter — no
+ * composite Firestore index — making the receipt viewer robust regardless of
+ * index deployment.
+ */
+export function sortByUploadedAtAsc<T extends { uploadedAt: string }>(
+  items: T[],
+): T[] {
+  return [...items].sort((a, b) => a.uploadedAt.localeCompare(b.uploadedAt));
+}

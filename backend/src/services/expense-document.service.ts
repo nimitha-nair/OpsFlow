@@ -7,6 +7,7 @@ import type {
   ExpenseFileView,
 } from "../types/expense.types";
 import { getExpenseStorage } from "./expense-storage";
+import { sortByUploadedAtAsc } from "./expense-documents.read";
 
 // Re-exported so the upload middleware (multer destination) keeps a single import.
 export { EXPENSE_UPLOAD_DIR } from "./expense-storage";
@@ -100,18 +101,22 @@ export async function saveExpenseDocument(
   return toFileView(doc);
 }
 
-/** All document metadata for an expense, oldest first (primary first). */
+/**
+ * All document metadata for an expense, oldest first (primary first). Sorts in
+ * memory so the query needs only a single-field `expenseId` filter — no composite
+ * index — so the receipt viewer works regardless of index deployment.
+ */
 export async function listExpenseDocuments(
   expenseId: string,
 ): Promise<ExpenseFileView[]> {
   const snap = await db
     .collection(DOCUMENTS_COLLECTION)
     .where("expenseId", "==", expenseId)
-    .orderBy("uploadedAt", "asc")
     .get();
-  return snap.docs.map((d) =>
+  const views = snap.docs.map((d) =>
     toFileView({ id: d.id, ...(d.data() as Omit<ExpenseFileDocument, "id">) }),
   );
+  return sortByUploadedAtAsc(views);
 }
 
 /** A document record by its id, or null if it does not exist. */
