@@ -17,17 +17,25 @@ const categorySchema = z.enum(EXPENSE_CATEGORIES);
 const typeSchema = z.enum(EXPENSE_TYPES);
 const scopeSchema = z.enum(EXPENSE_SCOPES);
 
-/** POST /expenses (EMPLOYEE) */
+/**
+ * POST /expenses (EMPLOYEE)
+ *
+ * AI-first flow: amount/category/expenseDate/description are optional at creation
+ * — they are extracted by AI and confirmed in the verification step (which writes
+ * them back). `type` defaults to DOCUMENT. The manual fallback still sends all
+ * fields. A submit-time gate (see `assertSubmittable`) enforces completeness
+ * before the expense leaves DRAFT/REJECTED.
+ */
 export const createExpenseBody = z
   .object({
     scope: scopeSchema,
     projectId: firestoreId.optional(),
-    type: typeSchema,
-    category: categorySchema,
-    amount: z.number().finite().positive(),
+    type: typeSchema.default("DOCUMENT"),
+    category: categorySchema.optional(),
+    amount: z.number().finite().positive().optional(),
     currency: z.string().trim().min(1).max(8).default("INR"),
-    description: z.string().trim().min(1).max(2000),
-    expenseDate: dateString,
+    description: z.string().trim().max(2000).optional(),
+    expenseDate: dateString.optional(),
     /** Save as a draft instead of submitting for review. */
     isDraft: z.boolean().optional().default(false),
   })

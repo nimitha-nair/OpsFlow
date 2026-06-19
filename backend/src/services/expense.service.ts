@@ -33,12 +33,14 @@ export interface CreateExpenseInput {
   employeeId: string;
   scope: ExpenseScope;
   projectId?: string;
-  type: ExpenseType;
-  category: ExpenseCategory;
-  amount: number;
+  /** Defaults to DOCUMENT (AI path); CASH signals the manual fallback. */
+  type?: ExpenseType;
+  /** Optional on the AI path — filled by extraction/verification. */
+  category?: ExpenseCategory;
+  amount?: number;
   currency: string;
-  description: string;
-  expenseDate: string;
+  description?: string;
+  expenseDate?: string;
   isDraft?: boolean;
 }
 
@@ -182,17 +184,22 @@ export async function createExpense(
   input: CreateExpenseInput,
 ): Promise<Expense> {
   const now = FieldValue.serverTimestamp();
+  const type = input.type ?? "DOCUMENT";
   const data: Record<string, unknown> = {
     employeeId: input.employeeId,
     scope: input.scope,
-    type: input.type,
-    category: input.category,
-    amount: input.amount,
+    type,
+    // AI-path defaults: amount/date/category are filled at verify/confirm. The
+    // submit gate (assertSubmittable) blocks submission until they are real.
+    category: input.category ?? "MISCELLANEOUS",
+    amount: input.amount ?? 0,
     currency: input.currency,
-    description: input.description.trim(),
-    expenseDate: input.expenseDate,
+    description: (input.description ?? "").trim(),
+    expenseDate: input.expenseDate ?? new Date().toISOString().slice(0, 10),
     approvalStatus: (input.isDraft ? "DRAFT" : "SUBMITTED") as ApprovalStatus,
     reimbursementStatus: "PENDING",
+    // Drives AI adoption analytics (forward-only): CASH = manual fallback path.
+    creationMethod: type === "CASH" ? "MANUAL" : "AI",
     createdAt: now,
     updatedAt: now,
   };
