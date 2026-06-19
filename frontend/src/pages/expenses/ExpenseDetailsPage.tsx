@@ -158,6 +158,9 @@ export function ExpenseDetailsPage() {
   const isOwner = user?.role === "EMPLOYEE" && expense?.employeeId === user.id;
   const isOwnerDraft = isOwner && expense?.approvalStatus === "DRAFT";
   const isOwnerRejected = isOwner && expense?.approvalStatus === "REJECTED";
+  // Manual = entered without a receipt → no AI extraction, no receipt to review.
+  const isManual =
+    expense?.creationMethod === "MANUAL" || !expense?.documentId;
   const [deleting, setDeleting] = useState(false);
 
   async function handleSubmitDraft() {
@@ -281,6 +284,33 @@ export function ExpenseDetailsPage() {
           description={error ?? "This expense could not be found."}
           onRetry={() => setReloadKey((k) => k + 1)}
         />
+      ) : user?.role === "HR" && isManual ? (
+        // Manual expense — no receipt, no AI extraction. Full-width review of the
+        // submitted values (no empty receipt panel).
+        <div className="flex flex-col gap-4">
+          <ReviewSummaryCard
+            expense={expense}
+            projectName={projectName}
+            docMeta={docMeta}
+            onDownload={handleDownloadDocument}
+            downloading={docDownloading}
+          />
+          <ManualReviewNote method={expense.creationMethod} />
+          {(expense.approvalStatus === "APPROVED" ||
+            expense.approvalStatus === "REJECTED") && (
+            <DecisionCard expense={expense} reviewInfo={reviewInfo} />
+          )}
+          {canReview && (
+            <ReviewActions
+              expense={expense}
+              remarks={remarks}
+              setRemarks={setRemarks}
+              reviewing={reviewing}
+              onStartReview={handleStartReview}
+              onReview={handleReview}
+            />
+          )}
+        </div>
       ) : user?.role === "HR" ? (
         // HR review workbench: receipt on the left, AI audit trail and approval
         // controls on the right — review and decide without navigating.
@@ -326,7 +356,11 @@ export function ExpenseDetailsPage() {
             expense.approvalStatus === "REJECTED") && (
             <DecisionCard expense={expense} reviewInfo={reviewInfo} />
           )}
-          <AiAuditCard expense={expense} />
+          {isManual ? (
+            <ManualReviewNote method={expense.creationMethod} />
+          ) : (
+            <AiAuditCard expense={expense} />
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-4">
@@ -567,6 +601,25 @@ function DecisionCard({
                 : "No remarks."}
           </p>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Reviewer-facing note for manual expenses — no receipt, no AI extraction. */
+function ManualReviewNote({ method }: { method?: "AI" | "MANUAL" }) {
+  return (
+    <Card className="border-l-4 border-l-amber-400">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+        <CardTitle className="text-base">Manual entry</CardTitle>
+        <CreationMethodBadge method={method ?? "MANUAL"} />
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground">
+          This expense was entered manually with no receipt, so there is no AI
+          extraction to cross-check. Verify the submitted values directly —
+          additional review may be required.
+        </p>
       </CardContent>
     </Card>
   );

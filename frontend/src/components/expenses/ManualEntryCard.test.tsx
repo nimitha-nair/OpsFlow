@@ -19,13 +19,14 @@ describe("ManualEntryCard", () => {
     expect(onOpen).toHaveBeenCalled();
   });
 
-  it("renders children and the review note when open", () => {
+  it("renders children when open and does NOT show reviewer-facing warnings", () => {
     render(
       <ManualEntryCard open onOpen={() => {}}>
         <div>manual form</div>
       </ManualEntryCard>,
     );
     expect(screen.getByText("manual form")).toBeInTheDocument();
-    expect(screen.getByText(/additional review/i)).toBeInTheDocument();
+    // The "may require additional review" concept belongs to HR, not the employee.
+    expect(screen.queryByText(/additional review/i)).not.toBeInTheDocument();
   });
 });
