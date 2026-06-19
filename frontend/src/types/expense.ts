@@ -42,6 +42,8 @@ export interface Expense {
   approvalStatus: ApprovalStatus;
   reimbursementStatus: ReimbursementStatus;
   documentId?: string;
+  /** All attached documents (primary first). `documentId` mirrors documentIds[0]. */
+  documentIds?: string[];
   /** Review outcome (present once approved/rejected). */
   reviewRemarks?: string;
   reviewedById?: string;

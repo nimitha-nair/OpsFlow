@@ -169,6 +169,54 @@ export async function getExpenseDocument(
   return data;
 }
 
+/** POST /expenses/:id/documents — multipart upload of one or many files. */
+export async function uploadExpenseDocuments(
+  id: string,
+  files: File[],
+): Promise<ExpenseFileView[]> {
+  const form = new FormData();
+  files.forEach((f) => form.append("files", f));
+  const { data } = await api.post<ExpenseFileView[]>(
+    `/expenses/${id}/documents`,
+    form,
+  );
+  return data;
+}
+
+/** GET /expenses/:id/documents — all attached documents. */
+export async function listExpenseDocuments(
+  id: string,
+): Promise<ExpenseFileView[]> {
+  const { data } = await api.get<{ data: ExpenseFileView[] }>(
+    `/expenses/${id}/documents`,
+  );
+  return data.data;
+}
+
+/** DELETE /expenses/:id/documents/:docId — remove one document. */
+export async function deleteExpenseDocumentById(
+  id: string,
+  docId: string,
+): Promise<void> {
+  await api.delete(`/expenses/${id}/documents/${docId}`);
+}
+
+/**
+ * Fetch a specific document's bytes (authenticated) and return a temporary object
+ * URL. The caller must revoke it with URL.revokeObjectURL.
+ */
+export async function fetchExpenseDocByIdObjectUrl(
+  id: string,
+  docId: string,
+  download = false,
+): Promise<string> {
+  const { data } = await api.get<Blob>(`/expenses/${id}/documents/${docId}/file`, {
+    params: download ? { download: 1 } : undefined,
+    responseType: "blob",
+  });
+  return URL.createObjectURL(data);
+}
+
 /**
  * Fetch the document bytes (authenticated) and return a temporary object URL.
  * The caller is responsible for revoking it with URL.revokeObjectURL.
