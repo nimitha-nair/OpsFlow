@@ -1,0 +1,34 @@
+/*
+ * Indigo / violet accent scoped to the expense screens via the `.expense-scope`
+ * wrapper. This intentionally does NOT touch the global shadcn tokens in
+ * index.css — only elements inside an `.expense-scope` container pick up the
+ * accent, so the rest of the app keeps its neutral theme.
+ */
+.expense-scope {
+  --x-primary: oklch(0.51 0.21 277); /* indigo-600 */
+  --x-primary-hover: oklch(0.46 0.21 277); /* indigo-700 */
+  --x-primary-foreground: oklch(0.985 0 0);
+  --x-ai: oklch(0.62 0.22 300); /* violet-500 */
+  --x-success: oklch(0.7 0.16 162); /* emerald-500 */
+}
+
+.expense-scope .btn-primary {
+  background-color: var(--x-primary);
+  color: var(--x-primary-foreground);
+}
+.expense-scope .btn-primary:hover:not(:disabled) {
+  background-color: var(--x-primary-hover);
+}
+
+.expense-scope .text-ai {
+  color: var(--x-ai);
+}
+.expense-scope .text-success {
+  color: var(--x-success);
+}
+.expense-scope .ring-ai {
+  box-shadow: 0 0 0 2px var(--x-ai);
+}
+.expense-scope .bg-ai-soft {
+  background-color: color-mix(in oklab, var(--x-ai) 8%, transparent);
+}
