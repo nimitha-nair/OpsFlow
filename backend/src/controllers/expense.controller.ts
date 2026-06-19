@@ -7,9 +7,11 @@ import UserRole from "../types/roles";
 import type { JwtPayload } from "../types/auth.types";
 import type {
   ExpenseDocument,
+  ExpenseFileView,
   ReimbursementStatus,
 } from "../types/expense.types";
 import {
+  addExpenseDocumentId,
   approveExpense,
   createExpense,
   deleteDraftExpense,
@@ -22,8 +24,8 @@ import {
   listProjectsSpending,
   getProjectSpending,
   rejectExpense,
+  removeExpenseDocumentId,
   requireExpense,
-  setExpenseDocumentId,
   setReimbursementStatus,
   startReview,
   submitExpense,
@@ -31,11 +33,15 @@ import {
 } from "../services/expense.service";
 import {
   deleteExpenseDocument,
+  getDocumentById,
   getExpenseDocumentMeta,
+  listExpenseDocuments,
   resolveExpenseDocumentFile,
   saveExpenseDocument,
 } from "../services/expense-document.service";
 import { deleteAnalysisForExpense } from "../services/expenseAnalysis.service";
+import { MAX_DOCS } from "../middleware/upload";
+import { deriveDocumentIds } from "../services/expense-documents.read";
 import type {
   CreateExpenseInput,
   ExpenseStatusFilter,
@@ -354,13 +360,19 @@ async function discardUpload(file?: Express.Multer.File): Promise<void> {
   }
 }
 
-/** POST /expenses/:id/documents — EMPLOYEE uploads a receipt for their expense. */
-export async function postExpenseDocument(
+/**
+ * POST /expenses/:id/documents — EMPLOYEE uploads one or many receipts. Documents
+ * accumulate (up to MAX_DOCS); new uploads invalidate any prior analysis since it
+ * described a different document set.
+ */
+export async function postExpenseDocuments(
   req: Request,
   res: Response,
 ): Promise<Response> {
+  const uploaded =
+    (req as Request & { uploaded?: Express.Multer.File[] }).uploaded ?? [];
   if (!req.user) {
-    await discardUpload(req.file);
+    await Promise.all(uploaded.map(discardUpload));
     return res.status(401).json({ error: "Authentication required" });
   }
   try {
@@ -368,45 +380,149 @@ export async function postExpenseDocument(
     const expense = await requireExpense(id);
 
     if (expense.employeeId !== req.user.userId) {
-      await discardUpload(req.file);
+      await Promise.all(uploaded.map(discardUpload));
       return res
         .status(403)
         .json({ error: "You can only attach documents to your own expenses" });
     }
     // Documents are editable exactly when the expense is: DRAFT or REJECTED. A
-    // submitted/under-review/approved expense must not have its receipt swapped.
+    // submitted/under-review/approved expense must not have its receipts swapped.
     if (
       expense.approvalStatus !== "DRAFT" &&
       expense.approvalStatus !== "REJECTED"
     ) {
-      await discardUpload(req.file);
+      await Promise.all(uploaded.map(discardUpload));
       return res
         .status(400)
         .json({ error: "Cannot attach a document to a submitted or reviewed expense" });
     }
-    if (!req.file) {
-      return res.status(400).json({ error: "A file is required" });
+    if (uploaded.length === 0) {
+      return res.status(400).json({ error: "At least one file is required" });
+    }
+    const existing = deriveDocumentIds(expense).length;
+    if (existing + uploaded.length > MAX_DOCS) {
+      await Promise.all(uploaded.map(discardUpload));
+      return res
+        .status(400)
+        .json({ error: `Too many documents (max ${MAX_DOCS})` });
     }
 
-    // Replacing an existing document: drop the old file + record first, and
-    // invalidate any prior analysis (it described the now-removed receipt).
-    if (expense.documentId) {
-      await deleteExpenseDocument(expense.documentId);
-      await deleteAnalysisForExpense(id);
+    const views: ExpenseFileView[] = [];
+    for (const f of uploaded) {
+      const view = await saveExpenseDocument({
+        expenseId: id,
+        uploadedBy: req.user.userId,
+        fileName: f.filename,
+        originalFileName: f.originalname,
+        mimeType: f.mimetype,
+        fileSize: f.size,
+      });
+      await addExpenseDocumentId(id, view.id);
+      views.push(view);
     }
-
-    const view = await saveExpenseDocument({
-      expenseId: id,
-      uploadedBy: req.user.userId,
-      fileName: req.file.filename,
-      originalFileName: req.file.originalname,
-      mimeType: req.file.mimetype,
-      fileSize: req.file.size,
-    });
-    await setExpenseDocumentId(id, view.id);
-    return res.status(201).json(view);
+    // New documents invalidate any prior analysis (it described a different set).
+    await deleteAnalysisForExpense(id);
+    return res.status(201).json(views);
   } catch (err) {
-    await discardUpload(req.file);
+    await Promise.all(uploaded.map(discardUpload));
+    return handleError(res, err);
+  }
+}
+
+/** GET /expenses/:id/documents — owner / HR / ADMIN: all attached documents. */
+export async function getExpenseDocuments(
+  req: Request,
+  res: Response,
+): Promise<Response> {
+  if (!req.user) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  try {
+    const { id } = req.valid?.params as IdParams;
+    const expense = await requireExpense(id);
+    if (!canView(expense, req.user)) {
+      return res
+        .status(403)
+        .json({ error: "You do not have access to this expense" });
+    }
+    return res.status(200).json({ data: await listExpenseDocuments(id) });
+  } catch (err) {
+    return handleError(res, err);
+  }
+}
+
+/**
+ * GET /expenses/:id/documents/:docId/file — stream one document's bytes.
+ * `?download=1` forces an attachment; otherwise renders inline.
+ */
+export async function getExpenseDocumentFileById(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  if (!req.user) {
+    res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+  try {
+    const { id, docId } = req.valid?.params as IdParams & { docId: string };
+    const expense = await requireExpense(id);
+    if (!canView(expense, req.user)) {
+      res.status(403).json({ error: "You do not have access to this document" });
+      return;
+    }
+    const doc = await getDocumentById(docId);
+    if (!doc || doc.expenseId !== id) {
+      res.status(404).json({ error: "Document not found" });
+      return;
+    }
+    const file = await resolveExpenseDocumentFile(docId);
+    const disposition = req.query.download === "1" ? "attachment" : "inline";
+    const safeName = file.originalFileName.replace(/["\\]/g, "_");
+
+    res.setHeader("Content-Type", file.mimeType);
+    res.setHeader(
+      "Content-Disposition",
+      `${disposition}; filename="${safeName}"`,
+    );
+    file.stream().pipe(res);
+  } catch (err) {
+    handleError(res, err);
+  }
+}
+
+/** DELETE /expenses/:id/documents/:docId — remove one document (DRAFT/REJECTED). */
+export async function deleteExpenseDocumentById(
+  req: Request,
+  res: Response,
+): Promise<Response> {
+  if (!req.user) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  try {
+    const { id, docId } = req.valid?.params as IdParams & { docId: string };
+    const expense = await requireExpense(id);
+    if (expense.employeeId !== req.user.userId) {
+      return res
+        .status(403)
+        .json({ error: "You can only edit your own expenses" });
+    }
+    if (
+      expense.approvalStatus !== "DRAFT" &&
+      expense.approvalStatus !== "REJECTED"
+    ) {
+      return res
+        .status(400)
+        .json({ error: "Cannot modify a submitted or reviewed expense" });
+    }
+    const doc = await getDocumentById(docId);
+    if (!doc || doc.expenseId !== id) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+    await deleteExpenseDocument(docId);
+    await removeExpenseDocumentId(id, docId);
+    await deleteAnalysisForExpense(id);
+    return res.status(204).send();
+  } catch (err) {
     return handleError(res, err);
   }
 }

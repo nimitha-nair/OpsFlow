@@ -97,3 +97,6 @@ export const listExpensesQuery = z.object({
 
 /** Params for /expenses/project/:projectId */
 export const expenseProjectParams = z.object({ projectId: firestoreId });
+
+/** Params for /expenses/:id/documents/:docId */
+export const expenseDocParams = z.object({ id: firestoreId, docId: firestoreId });

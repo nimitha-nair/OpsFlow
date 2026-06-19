@@ -2,12 +2,13 @@ import { Router } from "express";
 
 import { authenticate } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/rbac.middleware";
-import { uploadReceipt } from "../middleware/upload";
+import { uploadReceipts } from "../middleware/upload";
 import { validate } from "../middleware/validate";
 import { idParams } from "../validation/common";
 import {
   approveExpenseBody,
   createExpenseBody,
+  expenseDocParams,
   expenseProjectParams,
   listExpensesQuery,
   reimbursementBody,
@@ -34,7 +35,10 @@ import {
   patchReject,
   patchStartReview,
   postExpense,
-  postExpenseDocument,
+  postExpenseDocuments,
+  getExpenseDocuments,
+  getExpenseDocumentFileById,
+  deleteExpenseDocumentById,
   postSubmitExpense,
 } from "../controllers/expense.controller";
 import {
@@ -136,14 +140,41 @@ router.delete(
   deleteExpense,
 );
 
-// EMPLOYEE — upload a receipt/invoice for their expense.
+// EMPLOYEE — upload one or many receipts/invoices for their expense.
 router.post(
   "/:id/documents",
   authenticate,
   authorize(UserRole.EMPLOYEE),
   validate({ params: idParams }),
-  uploadReceipt,
-  postExpenseDocument,
+  uploadReceipts,
+  postExpenseDocuments,
+);
+
+// owner / HR / ADMIN(non-draft) — list all attached documents.
+router.get(
+  "/:id/documents",
+  authenticate,
+  authorize(UserRole.ADMIN, UserRole.HR, UserRole.EMPLOYEE),
+  validate({ params: idParams }),
+  getExpenseDocuments,
+);
+
+// owner / HR / ADMIN(non-draft) — stream one document by id (view/download).
+router.get(
+  "/:id/documents/:docId/file",
+  authenticate,
+  authorize(UserRole.ADMIN, UserRole.HR, UserRole.EMPLOYEE),
+  validate({ params: expenseDocParams }),
+  getExpenseDocumentFileById,
+);
+
+// EMPLOYEE — remove one document from their DRAFT/REJECTED expense.
+router.delete(
+  "/:id/documents/:docId",
+  authenticate,
+  authorize(UserRole.EMPLOYEE),
+  validate({ params: expenseDocParams }),
+  deleteExpenseDocumentById,
 );
 
 // owner / HR / ADMIN — latest review decision (status, reviewer, date, remarks).
