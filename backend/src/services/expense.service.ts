@@ -348,6 +348,40 @@ export async function setExpenseDocumentId(
   });
 }
 
+/** Append a document to the expense's list; set it primary if none yet. */
+export async function addExpenseDocumentId(
+  expenseId: string,
+  documentId: string,
+): Promise<void> {
+  const ref = db.collection(EXPENSES_COLLECTION).doc(expenseId);
+  const snap = await ref.get();
+  const data = snap.data() as ExpenseDocument | undefined;
+  await ref.update({
+    documentIds: FieldValue.arrayUnion(documentId),
+    ...(data?.documentId ? {} : { documentId }),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+}
+
+/** Remove a document from the expense; re-point or clear the primary pointer. */
+export async function removeExpenseDocumentId(
+  expenseId: string,
+  documentId: string,
+): Promise<void> {
+  const ref = db.collection(EXPENSES_COLLECTION).doc(expenseId);
+  const snap = await ref.get();
+  const data = snap.data() as ExpenseDocument | undefined;
+  const remaining = (data?.documentIds ?? []).filter((d) => d !== documentId);
+  const updates: Record<string, unknown> = {
+    documentIds: FieldValue.arrayRemove(documentId),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  if (data?.documentId === documentId) {
+    updates.documentId = remaining[0] ?? FieldValue.delete();
+  }
+  await ref.update(updates);
+}
+
 /** Expenses submitted by an employee, newest first (includes drafts). */
 export async function listMyExpenses(employeeId: string): Promise<Expense[]> {
   const snapshot = await db

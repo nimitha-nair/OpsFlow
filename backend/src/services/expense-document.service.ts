@@ -100,6 +100,20 @@ export async function saveExpenseDocument(
   return toFileView(doc);
 }
 
+/** All document metadata for an expense, oldest first (primary first). */
+export async function listExpenseDocuments(
+  expenseId: string,
+): Promise<ExpenseFileView[]> {
+  const snap = await db
+    .collection(DOCUMENTS_COLLECTION)
+    .where("expenseId", "==", expenseId)
+    .orderBy("uploadedAt", "asc")
+    .get();
+  return snap.docs.map((d) =>
+    toFileView({ id: d.id, ...(d.data() as Omit<ExpenseFileDocument, "id">) }),
+  );
+}
+
 /** A document record by its id, or null if it does not exist. */
 export async function getDocumentById(
   documentId: string,
