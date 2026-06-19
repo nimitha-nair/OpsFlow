@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FileText, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -13,6 +13,8 @@ interface ReceiptDropzoneProps {
   onChange: (files: File[]) => void;
   max?: number;
   disabled?: boolean;
+  /** Optional id on the hidden file input so an external <label> can open it. */
+  inputId?: string;
 }
 
 /**
@@ -25,24 +27,25 @@ export function ReceiptDropzone({
   onChange,
   max = MAX_FILES,
   disabled = false,
+  inputId,
 }: ReceiptDropzoneProps) {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const urls = useRef<Map<File, string>>(new Map());
-
-  function previewUrl(f: File): string | null {
-    if (!f.type.startsWith("image/")) return null;
-    if (!urls.current.has(f)) urls.current.set(f, URL.createObjectURL(f));
-    return urls.current.get(f) ?? null;
-  }
+  // Object URLs for image thumbnails, aligned to `files` by index. Revoked when
+  // the set changes (or on unmount) by the cleanup effect below.
+  const previews = useMemo(
+    () =>
+      files.map((f) =>
+        f.type.startsWith("image/") ? URL.createObjectURL(f) : null,
+      ),
+    [files],
+  );
 
   useEffect(() => {
-    const map = urls.current;
     return () => {
-      map.forEach((u) => URL.revokeObjectURL(u));
-      map.clear();
+      previews.forEach((u) => u && URL.revokeObjectURL(u));
     };
-  }, []);
+  }, [previews]);
 
   function add(incoming: File[]) {
     if (disabled) return;
@@ -52,14 +55,6 @@ export function ReceiptDropzone({
   }
 
   function remove(idx: number) {
-    const f = files[idx];
-    if (f) {
-      const u = urls.current.get(f);
-      if (u) {
-        URL.revokeObjectURL(u);
-        urls.current.delete(f);
-      }
-    }
     onChange(files.filter((_, i) => i !== idx));
   }
 
@@ -109,6 +104,7 @@ export function ReceiptDropzone({
 
       <input
         ref={inputRef}
+        id={inputId}
         type="file"
         multiple
         accept={ACCEPTED_MIME.join(",")}
@@ -126,9 +122,9 @@ export function ReceiptDropzone({
               key={`${f.name}-${f.size}-${i}`}
               className="relative flex items-center gap-2 rounded-md border bg-muted/30 p-2"
             >
-              {previewUrl(f) ? (
+              {previews[i] ? (
                 <img
-                  src={previewUrl(f) ?? undefined}
+                  src={previews[i] ?? undefined}
                   alt=""
                   className="size-10 shrink-0 rounded object-cover"
                 />

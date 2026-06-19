@@ -56,12 +56,14 @@ export interface Expense {
 export interface CreateExpensePayload {
   scope: ExpenseScope;
   projectId?: string;
-  type: ExpenseType;
-  category: ExpenseCategory;
-  amount: number;
+  /** Defaults to DOCUMENT (AI path) on the server; CASH = manual fallback. */
+  type?: ExpenseType;
+  /** Optional on the AI path — filled by extraction/verification. */
+  category?: ExpenseCategory;
+  amount?: number;
   currency: string;
-  description: string;
-  expenseDate: string;
+  description?: string;
+  expenseDate?: string;
   isDraft?: boolean;
 }
 
