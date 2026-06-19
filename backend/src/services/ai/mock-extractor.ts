@@ -21,13 +21,15 @@ function hash(s: string): number {
  */
 export const mockExtractor: ExpenseExtractor = {
   async extract(input: ExtractionInput): Promise<ExtractionResult> {
-    const h = hash(input.expenseId);
+    // Vary by the document being analyzed (per-document extraction) so a
+    // multi-document expense gets a distinct, summable amount per file. Falls
+    // back to expenseId when no document id is supplied.
+    const docKey = input.documentIds?.[0] ?? input.documentId ?? "";
+    const h = hash(`${input.expenseId}:${docKey}`);
     const amount = 100 + (h % 9900) / 10; // 100.0 – 1090.0
     const day = (h % 28) + 1;
     const transactionDate = `2026-06-${String(day).padStart(2, "0")}`;
-    // Spread 50–99 must straddle the default 70 threshold for the mock test's
-    // single-char ids (a–h, hashes 97–104): a–c → 97–99, d–h → 50–54. If you
-    // change this formula, re-check mock-extractor.test.ts "varies confidence".
+    // Spread 50–99 so both COMPLETED and LOW_CONFIDENCE states are reachable.
     const confidenceScore = 50 + (h % 50); // 50 – 99
     const result = {
       // Non-null assertions: the arrays are constant and non-empty, so the

@@ -12,28 +12,44 @@ describe("mockExtractor", () => {
     expect(r.rawOutput.length).toBeGreaterThan(0);
   });
 
-  it("is deterministic for the same expenseId", async () => {
+  it("is deterministic for the same expense + document", async () => {
     const a = await mockExtractor.extract({ expenseId: "same", documentId: "d1" });
-    const b = await mockExtractor.extract({ expenseId: "same", documentId: "d2" });
+    const b = await mockExtractor.extract({ expenseId: "same", documentId: "d1" });
     expect(a).toEqual(b);
   });
 
-  it("varies confidence by expenseId so both COMPLETED and LOW_CONFIDENCE occur", async () => {
-    const ids = ["a", "b", "c", "d", "e", "f", "g", "h"];
+  it("varies per document so multi-document amounts are distinct and summable", async () => {
+    const a = await mockExtractor.extract({ expenseId: "exp", documentId: "doc-1" });
+    const b = await mockExtractor.extract({ expenseId: "exp", documentId: "doc-2" });
+    expect(a.amount).not.toBe(b.amount);
+  });
+
+  it("varies confidence so both COMPLETED and LOW_CONFIDENCE occur", async () => {
+    // Robust: 20 distinct documents almost certainly straddle the 70 threshold,
+    // without depending on exact hash tuning.
     const scores = await Promise.all(
-      ids.map((id) => mockExtractor.extract({ expenseId: id, documentId: "d" })),
+      Array.from({ length: 20 }, (_, i) =>
+        mockExtractor.extract({ expenseId: "exp", documentId: `doc-${i}` }),
+      ),
     );
     const values = scores.map((s) => s.confidenceScore);
     expect(Math.max(...values)).toBeGreaterThanOrEqual(70);
     expect(Math.min(...values)).toBeLessThan(70);
   });
 
-  it("includes a lowConfidenceReason only for low-confidence results", async () => {
-    const low = await mockExtractor.extract({ expenseId: "d", documentId: "x" }); // 50
-    const high = await mockExtractor.extract({ expenseId: "c", documentId: "x" }); // 99
-    expect(low.confidenceScore).toBeLessThan(70);
-    expect(typeof low.lowConfidenceReason).toBe("string");
-    expect(high.confidenceScore).toBeGreaterThanOrEqual(70);
-    expect(high.lowConfidenceReason).toBeNull();
+  it("includes a lowConfidenceReason exactly when confidence is low", async () => {
+    // Invariant check across many documents (no dependence on specific hashes).
+    const results = await Promise.all(
+      Array.from({ length: 20 }, (_, i) =>
+        mockExtractor.extract({ expenseId: "exp", documentId: `doc-${i}` }),
+      ),
+    );
+    for (const r of results) {
+      if (r.confidenceScore < 70) {
+        expect(typeof r.lowConfidenceReason).toBe("string");
+      } else {
+        expect(r.lowConfidenceReason).toBeNull();
+      }
+    }
   });
 });

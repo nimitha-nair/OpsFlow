@@ -28,6 +28,21 @@ export interface AiExtractionSnapshot {
   lowConfidenceReason: string | null;
 }
 
+/**
+ * Per-document extraction in a multi-document analysis. The top-level analysis
+ * fields hold the COMBINED (aggregated) values; this is the per-file breakdown.
+ */
+export interface PerDocumentExtraction {
+  documentId: string;
+  vendorName: string | null;
+  amount: number | null;
+  transactionDate: string | null;
+  currency: string | null;
+  category: string | null;
+  taxInformation: string | null;
+  confidenceScore: number;
+}
+
 /** Internal analysis record as stored in Firestore (`expenseAnalysis`). */
 export interface ExpenseAnalysisDocument {
   id: string;
@@ -35,6 +50,8 @@ export interface ExpenseAnalysisDocument {
   documentId: string;
   /** All analyzed documents (primary mirrored in documentId). */
   documentIds?: string[];
+  /** Per-document breakdown; top-level fields are the combined/aggregated values. */
+  documents?: PerDocumentExtraction[];
   status: AnalysisStatus;
   /** Which extractor produced this result — used to flag synthetic mock data. */
   provider?: "mock" | "kimi";
@@ -70,6 +87,8 @@ export interface ExpenseAnalysis {
   documentId: string;
   /** All analyzed documents (primary mirrored in documentId). */
   documentIds?: string[];
+  /** Per-document breakdown; top-level fields are the combined/aggregated values. */
+  documents?: PerDocumentExtraction[];
   status: AnalysisStatus;
   /** Which extractor produced this result — used to flag synthetic mock data. */
   provider?: "mock" | "kimi";

@@ -10,7 +10,8 @@ import {
 } from "./expense.service";
 import { deriveDocumentIds } from "./expense-documents.read";
 import { getExtractor } from "./ai/expense-extractor";
-import { statusForConfidence } from "./ai/extraction";
+import { statusForConfidence, type ExtractionResult } from "./ai/extraction";
+import { aggregateExtractions } from "./ai/aggregate";
 import { runWithRetry } from "./ai/retry";
 import {
   isAnalysisEditable,
@@ -22,6 +23,7 @@ import type {
   AnalysisStatus,
   ExpenseAnalysis,
   ExpenseAnalysisDocument,
+  PerDocumentExtraction,
 } from "../types/expenseAnalysis.types";
 
 const ANALYSIS_COLLECTION = "expenseAnalysis";
@@ -202,17 +204,38 @@ async function runAnalysis(
   const startedAt = Date.now();
 
   try {
-    // Retry only transient failures (429 / 5xx / network) with Retry-After-aware
-    // exponential backoff + jitter; terminal errors (malformed output, auth,
-    // unsupported document) propagate to the catch and fail without retrying.
-    const r = await runWithRetry(
-      () => extractor.extract({ expenseId, documentId, documentIds }),
-      { maxRetries: MAX_RETRIES },
-    );
+    // Analyze EACH document separately so totals are deterministic (sum of
+    // per-document amounts) and a per-document breakdown is available. A multi-page
+    // PDF is one document → one extraction (all its pages go to the model together).
+    // Retry only transient failures (429 / 5xx / network); terminal errors
+    // (malformed output, auth, unsupported document) propagate to the catch.
+    const perDoc: ExtractionResult[] = [];
+    for (const docId of documentIds) {
+      const res = await runWithRetry(
+        () => extractor.extract({ expenseId, documentId: docId, documentIds: [docId] }),
+        { maxRetries: MAX_RETRIES },
+      );
+      perDoc.push(res);
+    }
+    const r = aggregateExtractions(perDoc);
+    const documents: PerDocumentExtraction[] = documentIds.map((docId, i) => {
+      const d = perDoc[i]!;
+      return {
+        documentId: docId,
+        vendorName: d.vendorName,
+        amount: d.amount,
+        transactionDate: d.transactionDate,
+        currency: d.currency,
+        category: d.category,
+        taxInformation: d.taxInformation,
+        confidenceScore: d.confidenceScore,
+      };
+    });
     const status = statusForConfidence(r.confidenceScore, cfg.confidenceThreshold);
     await db.collection(ANALYSIS_COLLECTION).doc(id).update({
       status,
       documentIds,
+      documents,
       modelVersion: cfg.nvidiaModel,
       // End-to-end extraction time + provider token usage (for AI analytics).
       processingMs: Date.now() - startedAt,
