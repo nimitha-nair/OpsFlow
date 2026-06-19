@@ -21,13 +21,19 @@ import { LowConfidenceBanner } from "../../components/expenses/LowConfidenceBann
 import { MockAnalysisBadge } from "../../components/expenses/MockAnalysisBadge";
 import { ReceiptStrip } from "../../components/expenses/ReceiptStrip";
 import { getExpenseAnalysis, updateExpenseAnalysis } from "../../lib/expense-analysis-api";
-import { submitExpense } from "../../lib/expenses-api";
+import { getExpense, submitExpense } from "../../lib/expenses-api";
+import { listMyProjects } from "../../lib/projects-api";
 import {
   deriveLowConfidenceReason,
   mapToExpenseCategory,
   type ExpenseAnalysis,
 } from "../../types/expenseAnalysis";
-import { CATEGORY_LABELS, type ExpenseCategory } from "../../types/expense";
+import {
+  CATEGORY_LABELS,
+  type ExpenseCategory,
+  type ExpenseScope,
+} from "../../types/expense";
+import type { Project } from "../../types/project";
 
 interface Form {
   vendorName: string;
@@ -38,6 +44,7 @@ interface Form {
   category: ExpenseCategory | "";
   taxInformation: string;
   description: string;
+  projectId: string;
 }
 
 /** Keep unsaved verify edits across Back-to-analysis round-trips. */
@@ -48,17 +55,31 @@ export function ExpenseVerificationPage() {
   const navigate = useNavigate();
   const [form, setForm] = useState<Form | null>(null);
   const [analysis, setAnalysis] = useState<ExpenseAnalysis | null>(null);
+  const [scope, setScope] = useState<ExpenseScope | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const a = await getExpenseAnalysis(id);
+        const [a, expense] = await Promise.all([
+          getExpenseAnalysis(id),
+          getExpense(id),
+        ]);
         if (cancelled) return;
         setAnalysis(a);
+        setScope(expense.scope);
+        // Project allocation (PROJECT scope) is chosen here; load the options.
+        if (expense.scope === "PROJECT") {
+          listMyProjects()
+            .then((p) => {
+              if (!cancelled) setProjects(p);
+            })
+            .catch(() => undefined);
+        }
         // Restore in-progress edits (e.g. after "Back to analysis"); otherwise
-        // hydrate from the analysis.
+        // hydrate from the analysis + expense.
         let restored: Form | null = null;
         try {
           const saved = sessionStorage.getItem(draftKey(id));
@@ -78,6 +99,7 @@ export function ExpenseVerificationPage() {
             // Default the description to the vendor so AI-first drafts (created
             // without one) get a sensible, editable starting point.
             description: a?.vendorName ?? "",
+            projectId: expense.projectId ?? "",
           },
         );
       } catch {
@@ -103,7 +125,14 @@ export function ExpenseVerificationPage() {
       return next;
     });
 
+  // PROJECT-scope expenses must be allocated to a project before submitting.
+  const needsProject = scope === "PROJECT" && !form.projectId;
+
   const confirmAndSubmit = async () => {
+    if (needsProject) {
+      toast.error("Select a project to allocate this expense to.");
+      return;
+    }
     setSaving(true);
     try {
       await updateExpenseAnalysis(id, {
@@ -115,6 +144,7 @@ export function ExpenseVerificationPage() {
         category: form.category || undefined,
         taxInformation: form.taxInformation || undefined,
         description: form.description || undefined,
+        projectId: form.projectId || undefined,
         confirm: true,
       });
       await submitExpense(id);
@@ -198,8 +228,43 @@ export function ExpenseVerificationPage() {
             />
           </Labeled>
 
+          {scope === "PROJECT" && (
+            <div className="flex flex-col gap-1 rounded-md border bg-ai-soft p-3">
+              <Label className="text-sm font-semibold">Project Allocation</Label>
+              <p className="pb-1 text-xs text-muted-foreground">
+                AI doesn&apos;t pick the project — choose where this expense is
+                allocated.
+              </p>
+              <Select
+                value={form.projectId}
+                onValueChange={(v) => set("projectId", v ?? "")}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.length === 0 ? (
+                    <SelectItem value="__none" disabled>
+                      You are not assigned to any project
+                    </SelectItem>
+                  ) : (
+                    projects.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-2 pt-2">
-            <Button className="btn-primary" onClick={confirmAndSubmit} disabled={saving}>
+            <Button
+              className="btn-primary"
+              onClick={confirmAndSubmit}
+              disabled={saving || needsProject}
+            >
               Confirm &amp; submit for approval
             </Button>
             <Button
