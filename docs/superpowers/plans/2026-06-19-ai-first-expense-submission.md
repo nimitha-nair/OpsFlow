@@ -1505,3 +1505,182 @@ git commit -m "feat(reports): display AI adoption metrics"
 ## Self-review notes (coverage map)
 
 - Spec §1 multi-file backend → Phase 1. Spec §3 AI merge + multi-page PDF → Phase 2. Spec §6/§"relaxed creation" → Phase 3. Spec §2/§4 upload-first + required fields + theme → Phase 4. Spec §5 verify refresh + multi-doc strip → Phase 5. Spec §"AI adoption metrics" → Phase 6. Backward-compat + rollback called out per phase. Description backfill → Task 3.3. 5-doc/3-page/8-image caps → Tasks 1.3/1.4/2.1/2.2. Indigo/violet scoped → Task 4.1.
+
+---
+
+# Revision 2 — Phases 7–10 (role-aligned UX & workflow)
+
+> Builds on committed Phases 1–6. See spec "Revision 2" for decisions R1–R9.
+> Same conventions: TDD where logic exists, commit per task, typecheck + tests green
+> before moving on. Backend: `cd backend && npm run typecheck && npm test`.
+> Frontend: `cd frontend && npx tsc -b --noEmit && npm run lint && npm test`.
+
+## Phase 7 — Scope cards, deferred project, manual-entry card, AI for all receipts
+
+**Outcome:** Create page leads with the receipt (both scopes), a segmented scope-card
+selector replaces the dropdown, project selection is optional at creation, and manual
+entry is a clearly-discoverable secondary card. AI/Analyze available for both scopes.
+
+**Backward-compat / risk:** Relaxing PROJECT-draft creation must not let an incomplete
+PROJECT expense be *submitted* — the existing submit gate already requires `projectId`
+for PROJECT, so integrity holds. Manual path unchanged in behavior.
+
+**Rollback:** Revert the phase commits; create page returns to the Phase-4 version.
+
+### Task 7.1: Relax PROJECT-draft creation (defer projectId)
+
+**Files:**
+- Modify: `backend/src/validation/expense.schema.ts`, `backend/src/services/expense.service.ts`
+- Test: `backend/src/validation/expense.schema.test.ts` (extend)
+
+- [ ] **Step 1 (test):** add a case asserting `createExpenseBody.safeParse({ scope: "PROJECT", isDraft: true })` succeeds.
+- [ ] **Step 2:** run → FAIL (current refine rejects it).
+- [ ] **Step 3:** in `expense.schema.ts`, remove the `.refine(... projectId required for PROJECT ...)` from `createExpenseBody` only (keep it on `updateExpenseBody`). Comment: projectId enforced at submit, not creation.
+- [ ] **Step 4:** in `createExpense`, validate the project only when supplied:
+
+```ts
+if (input.scope === "PROJECT" && input.projectId) {
+  await assertProjectNotArchived(input.projectId);
+  await assertProjectAssignment(input.projectId, input.employeeId);
+  data.projectId = input.projectId;
+}
+```
+
+- [ ] **Step 5:** schema test + `npm test` + typecheck → green. (`submitExpense` already blocks PROJECT submit without a project.)
+- [ ] **Step 6:** commit `feat(expenses): allow deferred project assignment on PROJECT drafts`.
+
+### Task 7.2: projectId in the analysis-confirm writeback
+
+**Files:** Modify `backend/src/validation/expenseAnalysis.schema.ts`, `backend/src/services/expenseAnalysis.service.ts`, `frontend/src/types/expenseAnalysis.ts`
+
+- [ ] **Step 1:** `updateAnalysisBody` — add `projectId: firestoreId.optional()` (import `firestoreId` from `./common`).
+- [ ] **Step 2:** `UpdateAnalysisInput` — add `projectId?: string`.
+- [ ] **Step 3:** in the `updateAnalysis` confirm block, before the `updateExpense` call: `if (patch.projectId) writeBack.projectId = patch.projectId;`. `updateExpense` validates membership + presence for PROJECT scope.
+- [ ] **Step 4:** frontend `UpdateAnalysisPayload` — add `projectId?: string`.
+- [ ] **Step 5:** typecheck + backend `npm test`. Commit `feat(expenses): assign project via analysis confirm`.
+
+### Task 7.3: ScopeSelector segmented cards
+
+**Files:** Create `frontend/src/components/expenses/ScopeSelector.tsx` + `.test.tsx`
+
+**Interface:** `ScopeSelector({ value, onChange }: { value: ExpenseScope; onChange: (s: ExpenseScope) => void })` — two cards (General / Project), each label + one-line description; selected card has the indigo ring; keyboard + `aria-pressed` accessible.
+
+- [ ] **Step 1 (test):** render `value="GENERAL"`; clicking "Project Expense" calls `onChange("PROJECT")`; both options present.
+- [ ] **Step 2:** run → FAIL.
+- [ ] **Step 3:** implement — two `<button type="button" aria-pressed>` cards in `grid grid-cols-2 gap-3`; General = "Personal / operational expense", Project = "Allocate to a project budget"; selected uses `border-[var(--x-primary)] ring-ai`.
+- [ ] **Step 4:** test PASS + typecheck + lint. Commit `feat(expenses): segmented scope selector cards`.
+
+### Task 7.4: ManualEntryCard (collapsed secondary card)
+
+**Files:** Create `frontend/src/components/expenses/ManualEntryCard.tsx` + `.test.tsx`
+
+**Interface:** `ManualEntryCard({ open, onOpen, children })` — closed: muted secondary card "Can't provide a receipt? Create a manual expense instead." + `[ Enter Manually ]` calling `onOpen`; open: renders `children` + a note "Manual expenses have no receipt and may require additional review."
+
+- [ ] **Step 1 (test):** closed shows the Enter Manually button; click calls `onOpen`. Open renders children + the review note.
+- [ ] **Step 2:** run → FAIL.
+- [ ] **Step 3:** implement (Card/CardContent, lucide `PencilLine`/`Info`, `bg-muted/30` secondary styling — not indigo, so it never competes with Upload).
+- [ ] **Step 4:** test + typecheck + lint. Commit `feat(expenses): manual-entry secondary card`.
+
+### Task 7.5: Rewire SubmitExpensePage
+
+**Files:** Modify `frontend/src/pages/expenses/SubmitExpensePage.tsx`
+
+- [ ] **Step 1:** replace the scope `<Select>` with `<ScopeSelector value={scope} onChange={setScope} />`.
+- [ ] **Step 2:** make the project select optional at create for PROJECT scope (helper "Assign now, or after reviewing the receipt"). `aiReady = files.length > 0` for both scopes; `handleAnalyze` creates the draft with `scope` (+ `projectId` only if chosen) and uploads.
+- [ ] **Step 3:** replace the inline link with `<ManualEntryCard open={manualMode} onOpen={() => setManualMode(true)}>{manualFields}</ManualEntryCard>`. Manual submit still sends `type:"CASH"` + full fields; `manualReady` still requires a project when scope is PROJECT (manual path assigns at entry).
+- [ ] **Step 4:** typecheck + lint + `npm test`. Manual verify: General + Project receipt both analyze; manual card reveals the form. Commit `feat(expenses): receipt-first create with scope cards + manual card`.
+
+## Phase 8 — Verify: Assign Project step (project scope)
+
+**Outcome:** Project-scope expenses show an "Assign Project" select on the verify page
+(required before submit), pre-filled if already chosen; Confirm & Submit writes
+`projectId` (via Task 7.2) then submits. General scope unchanged.
+
+**Rollback:** Revert; verify page returns to the Phase-5 version.
+
+### Task 8.1: Assign-Project control on the verify page
+
+**Files:** Modify `frontend/src/pages/expenses/ExpenseVerificationPage.tsx` (consume `getExpense`, `listMyProjects`)
+
+- [ ] **Step 1:** on load, `getExpense(id)` to read `scope` + existing `projectId`; `listMyProjects()` when scope is PROJECT. Add `projectId` to `Form`, pre-filled.
+- [ ] **Step 2:** when `scope === "PROJECT"`, render a required **Assign Project** `<Select>` with helper "AI doesn't pick the project — choose where this expense is allocated." Disable Confirm & submit until a project is selected.
+- [ ] **Step 3:** include `projectId: form.projectId || undefined` in the `updateExpenseAnalysis(confirm:true)` patch.
+- [ ] **Step 4:** typecheck + lint + `npm test`. Manual verify: project-scope requires a project before submit; general unaffected. Commit `feat(expenses): assign project in the verification step`.
+
+## Phase 9 — Manual-review flag (HR visibility)
+
+**Outcome:** Manual / no-receipt expenses are flagged so HR can see + filter them. Reuses
+`creationMethod` (`MANUAL`), now exposed on the client. Forward-only.
+
+**Rollback:** Revert; badge/filter disappear; data unaffected.
+
+### Task 9.1: Expose creationMethod to the client
+
+**Files:** Modify `backend/src/services/expense.service.ts` (`toPublicExpense`), `frontend/src/types/expense.ts`
+
+- [ ] **Step 1:** in `toPublicExpense`: `if (expense.creationMethod !== undefined) result.creationMethod = expense.creationMethod;`
+- [ ] **Step 2:** frontend `Expense` type — add `creationMethod?: "AI" | "MANUAL";`.
+- [ ] **Step 3:** backend typecheck + `npm test`; frontend typecheck. Commit `feat(expenses): expose creationMethod on the public expense`.
+
+### Task 9.2: Manual badge + filter on the HR review list
+
+**Files:** Modify the HR review list (`frontend/src/pages/expenses/PendingReviewsPage.tsx`) / `ExpensesTable.tsx`; add a `ManualBadge` in `frontend/src/components/expenses/ExpenseBadges.tsx`
+
+- [ ] **Step 1:** add `ManualBadge` (amber outline, "Manual") shown when `expense.creationMethod === "MANUAL"`.
+- [ ] **Step 2:** render it in the HR review row next to the status badge; add a client-side "Manual only" toggle that filters the loaded rows.
+- [ ] **Step 3:** typecheck + lint + `npm test`. Manual verify: a CASH/manual expense shows the badge; the filter narrows the list. Commit `feat(expenses): flag manual expenses for HR review`.
+
+## Phase 10 — Admin experience: audit detail, reimbursement relocation, export, nav
+
+**Outcome:** Admin gets an audit/investigation detail (collapsible AI Audit card, no
+approve/reject, no reimbursement), a dedicated Reimbursements screen, Export CSV on the
+overview, and aligned nav. HR/Employee unchanged except the manual badge.
+
+**Rollback:** Revert; Admin detail returns to the shared workbench; overview regains the
+reimbursement column.
+
+### Task 10.1: Collapsible AiAuditCard for Admin detail
+
+**Files:** Create `frontend/src/components/expenses/AiAuditCard.tsx`; modify `frontend/src/pages/expenses/ExpenseDetailsPage.tsx`
+
+**Interface:** `AiAuditCard({ expense }: { expense: Expense })` — a Card whose header button toggles open/closed (default **closed**, `aria-expanded`); when open shows `<ReceiptStrip expenseId={expense.id} />` + `<AnalysisAuditPanel expense={expense} />`.
+
+- [ ] **Step 1 (test):** default collapsed (audit table absent); clicking the header expands it (mock `getExpenseAnalysis` + `listExpenseDocuments`).
+- [ ] **Step 2:** run → FAIL.
+- [ ] **Step 3:** implement (header "AI Audit" + chevron; collapsed by default).
+- [ ] **Step 4:** in `ExpenseDetailsPage`, split HR vs ADMIN (currently shared). **ADMIN:** `ReviewSummaryCard` + read-only `DecisionCard` + `<AiAuditCard expense={expense} />` — no `ReviewActions`, no `ReimbursementControls`. **HR:** unchanged (`ReviewWorkbench` + `AnalysisAuditPanel` + `ReviewActions`).
+- [ ] **Step 5:** test + typecheck + lint + `npm test`. Commit `feat(expenses): collapsible AI Audit card for admins`.
+
+### Task 10.2: Admin Reimbursements page + nav; remove reimbursement from detail/overview
+
+**Files:** Create `frontend/src/pages/expenses/ReimbursementsPage.tsx`; modify `frontend/src/App.tsx`, `frontend/src/lib/navigation.ts`, `frontend/src/pages/expenses/ExpensesOverviewPage.tsx`
+
+- [ ] **Step 1:** `ReimbursementsPage` — `listReviewExpenses("APPROVED")` in a table with a per-row reimbursement `<Select>` calling `updateReimbursementStatus`. Route `/admin/expenses/reimbursements`, ADMIN-only.
+- [ ] **Step 2:** add nav item "Reimbursements" → `/admin/expenses/reimbursements` to the ADMIN array in `navigation.ts`.
+- [ ] **Step 3:** in `ExpensesOverviewPage`, pass `showReimbursement={false}` (drop the column).
+- [ ] **Step 4:** typecheck + lint + `npm test`. Manual verify: reimbursement gone from Admin detail/overview; the Reimbursements page sets status. Commit `feat(expenses): dedicated admin reimbursements screen`.
+
+### Task 10.3: Export CSV on the Admin overview
+
+**Files:** Create `frontend/src/lib/expenses-csv.ts` + `.test.ts`; modify `frontend/src/pages/expenses/ExpensesOverviewPage.tsx`
+
+**Interface (pure):** `toExpensesCsv(rows: Expense[], lookups: { project: (id?: string) => string }): string` — header + one line per expense (date, employee, project, category, type, amount, currency, status, reimbursement, createdAt), RFC-4180 escaped.
+
+- [ ] **Step 1 (test):** two rows → header + 2 lines; a value with a comma/quote is wrapped in quotes with `"` doubled.
+- [ ] **Step 2:** run → FAIL.
+- [ ] **Step 3:** implement `toExpensesCsv` (pure string building).
+- [ ] **Step 4:** add an **Export CSV** button that builds the CSV from loaded rows + downloads it (Blob + object URL + revoke), filename `expenses-<date>.csv` (date passed in from the client).
+- [ ] **Step 5:** csv test + typecheck + lint + `npm test`. Commit `feat(expenses): admin CSV export of expenses`.
+
+### Task 10.4: Navigation alignment pass
+
+**Files:** Modify `frontend/src/lib/navigation.ts` (verify `App.tsx`)
+
+- [ ] **Step 1:** confirm each role's nav reflects its responsibilities (Employee: My Expenses; HR: Review; Admin: Expenses + Reimbursements + Reports). Remove any Admin nav/action Admin never performs. The Reimbursements item is the only additive change; otherwise a verification pass.
+- [ ] **Step 2:** typecheck + lint + build; manual verify each sidebar. Commit `chore(nav): align role navigation with responsibilities` (only if changes were needed).
+
+## Revision-2 cross-cutting verification
+
+- `cd backend && npm run typecheck && npm test` → green.
+- `cd frontend && npx tsc -b --noEmit && npm run lint && npm test` → green; `npm run build` succeeds.
+- Manual E2E per role: Employee (General + Project receipt flows, manual card, assign-project at verify); HR (manual badge + filter, review unchanged); Admin (collapsible audit, Reimbursements page, Export CSV, no reimbursement on detail/overview).

@@ -255,3 +255,80 @@ existing Reports AI tab. RBAC unchanged.
   caps.
 - Kimi merge quality across heterogeneous docs (receipt + email) is probabilistic;
   the verify step remains the human gate.
+
+---
+
+# Revision 2 — Role-aligned UX & workflow refinements (2026-06-19)
+
+**Status:** Approved (pending plan review). Phases 1–6 are implemented and committed;
+this revision adds Phases 7–10 on top and refines a few earlier behaviors. Where it
+conflicts with earlier text, **this revision supersedes it.**
+
+## Confirmed decisions (Revision 2)
+
+| # | Topic | Decision |
+|---|---|---|
+| R1 | AI availability | **AI analysis is available for ALL receipt-based expenses, including Project.** No backend restriction, no hiding Analyze for Project. AI is unavailable only in the manual/no-receipt path. (This supersedes the earlier "General-only" idea.) |
+| R2 | Project assignment | Project scope adds an **Assign Project** step: Upload → Analyze → Verify → **Assign Project** → Submit. Project/budget/cost-center stay user decisions; AI never picks them. Project may be chosen at creation *or* deferred to the verify step; it is required only at submit. |
+| R3 | Scope selector | Replace the scope **dropdown** with a **segmented card selector** (General vs Project), each with a label + one-line description; selected state visually obvious. |
+| R4 | Manual entry | Replace the small text link with a **collapsed secondary card** ("Can't provide a receipt? Create a manual expense instead. [Enter Manually]") — secondary visual weight, clearly discoverable, never competing with Upload. |
+| R5 | Manual review flag | Manual / no-receipt expenses are **flagged for extra review**: a forward-only signal HR can see (a "Manual" badge on the review list) and filter by. Reuses the existing `creationMethod` (`MANUAL`). |
+| R6 | Admin AI Audit | Admin expense detail gets a **collapsible "AI Audit" card (default collapsed)** containing the receipt viewer + the existing `AnalysisAuditPanel` content (original AI extraction, employee corrections, final values, confidence, provider, model version, low-confidence reason, highlighted diffs). HR keeps its review-focused workbench unchanged. |
+| R7 | Reimbursement relocation | **Keep reimbursement, but remove it from Admin expense detail + overview.** Move it to a dedicated **Admin → Reimbursements** screen (approved expenses, status control). Status **badges** (read-only) remain where they inform (employee My Expenses). |
+| R8 | Admin actions | Admin experience = **View · Audit · Export · Reports**. Implement a **CSV Export** of the admin expense list now. **Override is deferred** (not built; no non-functional buttons). Admin no longer shows approve/reject (HR owns that) or reimbursement controls on detail/overview. |
+| R9 | Navigation | Each role's nav/actions align to its responsibilities: Employee (Submit/Drafts/Analysis/Verify), HR (Review/Approve-Reject/Compare), Admin (Reports/Audit/Reimbursements/Export/Analytics). Add an Admin **Reimbursements** nav item; remove the reimbursement column from the Admin overview. |
+
+## Workflow (revised)
+
+```
+General Expense:   Upload Receipt → Analyze → Verify → Submit
+Project Expense:   Upload Receipt → Analyze → Verify → Assign Project → Submit
+Manual (no receipt, either scope):  Enter details manually → Submit   (flagged for extra review)
+```
+
+AI extracts vendor, amount, date, category, currency, tax info. AI never selects
+project, budget, or cost-center — those remain explicit user decisions.
+
+## Backend implications
+
+- **Relax `createExpenseBody` + `createExpense`** so a PROJECT-scope draft can be
+  created **without** `projectId` (deferred assignment). Membership is validated
+  only when a `projectId` is supplied; the existing **submit gate already requires
+  `projectId` for PROJECT** scope, so integrity holds.
+- **Extend the analysis-confirm writeback** (`updateAnalysisBody` + `UpdateAnalysisInput`
+  + service) with `projectId`, so the verify "Assign Project" step writes it back to
+  the expense on confirm. `updateExpense` already validates project membership.
+- **Expose `creationMethod`** on the client (`toPublicExpense` passthrough + frontend
+  `Expense` type) so HR can see/filter the manual flag.
+- **No AI restriction by scope** — `analyzeExpense` stays scope-agnostic.
+- New nothing for reimbursement (endpoint already exists, ADMIN-only) — only the UI
+  relocates.
+
+## Frontend implications
+
+- `ScopeSelector` component (segmented cards) replaces the scope dropdown on create.
+- `ManualEntryCard` (collapsed secondary card) replaces the inline link; reveals the
+  manual form and explains manual expenses may need extra review.
+- Create flow: receipt-first for both scopes; project select optional at create.
+- Verify flow: project-scope expenses get an **Assign Project** select (required to
+  submit), pre-filled if already chosen; Confirm now also writes `projectId`.
+- HR review list: "Manual" badge + a filter.
+- Admin expense detail: audit-investigation layout with a **collapsible AI Audit card**;
+  no approve/reject, no reimbursement.
+- New **Admin Reimbursements** page + nav item; remove reimbursement column/controls
+  from Admin overview/detail; add **Export CSV** to the Admin overview.
+
+## Out of scope (Revision 2)
+
+- Admin **Override** of decisions/final values (deferred — revisit later).
+- Any change to HR's review-and-decide experience beyond the manual-flag badge/filter.
+- Reimbursement business logic (statuses unchanged; only the screen moves).
+
+## Testing (Revision 2)
+
+- Backend: relaxed PROJECT-draft creation (no projectId) + submit-gate still blocks;
+  `projectId` writeback on confirm (with membership validation); `creationMethod` in
+  the public expense.
+- Frontend: `ScopeSelector` selection; `ManualEntryCard` reveal; create flow for both
+  scopes; verify Assign-Project gating for project scope; HR manual-badge/filter; Admin
+  collapsible audit; Admin Reimbursements page; CSV export content.
