@@ -6,9 +6,16 @@ import { clearAuth, getStoredToken } from "./storage";
  * Base URL for the backend API.
  * - In dev, defaults to "/api", which the Vite proxy forwards to the backend
  *   (see vite.config.ts) — this avoids CORS without backend changes.
- * - In production, set VITE_API_BASE_URL to the deployed backend origin.
+ * - In production (Cloudflare Pages), set the API origin via env:
+ *     VITE_API_BASE_URL (preferred) or VITE_API_URL (alias),
+ *   e.g. "https://api.example.com" — the Cloudflare Tunnel hostname.
+ *   Alternatively keep "/api" and proxy it to the tunnel with a Pages
+ *   `_redirects` rule (same-origin, no CORS). See docs/DEPLOYMENT.md.
  */
-const baseURL = import.meta.env.VITE_API_BASE_URL ?? "/api";
+const baseURL =
+  import.meta.env.VITE_API_BASE_URL ??
+  import.meta.env.VITE_API_URL ??
+  "/api";
 
 export const api = axios.create({ baseURL });
 

@@ -11,22 +11,48 @@ import taskRoutes from "./routes/task.routes";
 import userRoutes from "./routes/user.routes";
 import { authenticate } from "./middleware/auth.middleware";
 import { apiRateLimiter } from "./middleware/rate-limit";
+import { cors } from "./middleware/cors";
 
 const app = express();
 
-// Security headers (CSP, HSTS, no-sniff, frameguard, etc.) and hide the stack.
+// Trust the reverse proxy in front of us (Cloudflare Tunnel / cloudflared) so
+// `req.ip` and rate limiting use the real client IP from X-Forwarded-For rather
+// than the tunnel's loopback address. Configurable: TRUST_PROXY may be a hop
+// count (e.g. "1"), "true"/"false", or an express trust-proxy string. Defaults to
+// 1 in production (one proxy hop = cloudflared) and off in development.
+const trustProxyEnv = process.env.TRUST_PROXY;
+const trustProxy =
+  trustProxyEnv === undefined
+    ? process.env.NODE_ENV === "production"
+      ? 1
+      : false
+    : trustProxyEnv === "true"
+      ? 1
+      : trustProxyEnv === "false"
+        ? false
+        : /^\d+$/.test(trustProxyEnv)
+          ? Number(trustProxyEnv)
+          : trustProxyEnv;
+app.set("trust proxy", trustProxy);
+
+// Hide the stack and apply security headers. CORP is relaxed to cross-origin so
+// the Cloudflare Pages frontend (a different origin) can fetch API resources.
 app.disable("x-powered-by");
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
+
+// CORS first: answers preflight and sets headers before auth/rate-limit/routes.
+app.use(cors);
+
+// Health check (before the rate limiter so uptime/tunnel probes never throttle).
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok" });
+});
 
 // Baseline rate limit across the whole API.
 app.use(apiRateLimiter);
 
 // Parse JSON with a strict size cap to limit payload-based abuse.
 app.use(express.json({ limit: "100kb" }));
-
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok" });
-});
 
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);

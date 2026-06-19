@@ -1,0 +1,15 @@
+# Cloudflare Pages redirects — OPTIONAL same-origin API proxy.
+#
+# Rename this file to `_redirects` (no extension) to proxy API calls through the
+# Pages domain instead of calling the tunnel cross-origin. With this in place,
+# leave VITE_API_BASE_URL unset so the app uses the default "/api" base — every
+# request stays same-origin and NO CORS configuration is needed on the backend.
+#
+# Replace the destination with your Cloudflare Tunnel hostname.
+# The 200 status makes it a transparent proxy (rewrite), not a 30x redirect, so
+# the Authorization header and request method are preserved.
+
+/api/*  https://api.example.com/:splat  200
+
+# SPA fallback — serve index.html for client-side routes (keep this LAST).
+/*      /index.html                     200
