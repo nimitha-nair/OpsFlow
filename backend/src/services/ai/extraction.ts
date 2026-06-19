@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+/** Token usage as reported by the provider (Kimi/NVIDIA), when available. */
+export interface TokenUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
 /** Canonical, provider-agnostic extractor output. */
 export interface ExtractionResult {
   vendorName: string | null;
@@ -13,11 +20,16 @@ export interface ExtractionResult {
   lowConfidenceReason: string | null;
   confidenceScore: number; // 0–100
   rawOutput: string; // verbatim model content
+  /** Provider token usage when reported (Kimi); absent for the mock extractor. */
+  usage?: TokenUsage | null;
 }
 
 export interface ExtractionInput {
   expenseId: string;
+  /** Primary document (back-compat for single-document callers). */
   documentId: string;
+  /** Full document set for multi-document analysis (preferred when present). */
+  documentIds?: string[];
 }
 
 /** Thrown when the model output cannot be parsed/validated into a result. */

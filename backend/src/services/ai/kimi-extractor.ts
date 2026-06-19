@@ -1,25 +1,29 @@
 import { getAiConfig } from "../../config/ai";
 import type { ExpenseExtractor } from "./expense-extractor";
-import { toKimiImageDataUri } from "./document-image";
+import { toKimiImageDataUrisForDocuments } from "./document-images";
+import { buildKimiMessages } from "./kimi-request";
 import {
   MalformedExtractionError,
   parseModelJson,
   type ExtractionInput,
   type ExtractionResult,
+  type TokenUsage,
 } from "./extraction";
 import { RetryableExtractionError, parseRetryAfterMs } from "./retry";
 
-const SYSTEM_PROMPT =
-  "You are an expense-receipt extraction engine. Read the receipt/invoice image " +
-  "and return ONLY a strict JSON object — no prose, no markdown fences. Use this " +
-  "exact shape, with null for any field you cannot read:\n" +
-  `{"vendorName": string|null, "amount": number|null, "transactionDate": "YYYY-MM-DD"|null, ` +
-  `"currency": string|null, "paymentMethod": string|null, "category": string|null, ` +
-  `"taxInformation": string|null, "lowConfidenceReason": string|null, "confidenceScore": number}\n` +
-  "amount is the numeric total with no currency symbol. confidenceScore is an " +
-  "integer 0-100 reflecting overall extraction certainty. When confidenceScore is " +
-  "below 70, set lowConfidenceReason to a brief explanation of what made the receipt " +
-  "hard to read (e.g. blur, glare, cropping); otherwise set it to null.";
+/** Parse an OpenAI-style `usage` block into TokenUsage, or null if absent. */
+function parseUsage(u: unknown): TokenUsage | null {
+  if (!u || typeof u !== "object") return null;
+  const o = u as Record<string, unknown>;
+  const total = o.total_tokens;
+  if (typeof total !== "number") return null;
+  return {
+    promptTokens: typeof o.prompt_tokens === "number" ? o.prompt_tokens : 0,
+    completionTokens:
+      typeof o.completion_tokens === "number" ? o.completion_tokens : 0,
+    totalTokens: total,
+  };
+}
 
 /** Full call result, exposed for the verification harness (raw + parsed). */
 export interface KimiCallResult {
@@ -32,12 +36,13 @@ export interface KimiCallResult {
 }
 
 /**
- * Call NVIDIA Build with a pre-built image data URI and return the raw response,
- * the raw model content, and the parsed extraction. Shared by the production
- * extractor and the CLI verification harness so the prompt/request never drift.
+ * Call NVIDIA Build with one-or-many pre-built image data URIs and return the raw
+ * response, the raw model content, and the parsed extraction. Shared by the
+ * production extractor and the CLI verification harness so the prompt/request
+ * never drift.
  */
-export async function kimiExtractFromDataUri(
-  dataUri: string,
+export async function kimiExtractFromDataUris(
+  dataUris: string[],
 ): Promise<KimiCallResult> {
   const cfg = getAiConfig();
   if (!cfg.nvidiaApiKey) {
@@ -61,16 +66,7 @@ export async function kimiExtractFromDataUri(
         },
         body: JSON.stringify({
           model: cfg.nvidiaModel,
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            {
-              role: "user",
-              content: [
-                { type: "text", text: "Extract the expense data from this receipt." },
-                { type: "image_url", image_url: { url: dataUri } },
-              ],
-            },
-          ],
+          messages: buildKimiMessages(dataUris),
           temperature: 0,
           max_tokens: 1024,
           response_format: { type: "json_object" },
@@ -116,6 +112,7 @@ export async function kimiExtractFromDataUri(
 
     const data = (await res.json()) as {
       choices?: Array<{ message?: { content?: string } }>;
+      usage?: unknown;
     };
     const content = data.choices?.[0]?.message?.content;
     if (!content) {
@@ -124,17 +121,34 @@ export async function kimiExtractFromDataUri(
     }
     // parseModelJson throws MalformedExtractionError on bad JSON (terminal).
     const result = parseModelJson(content);
+    result.usage = parseUsage(data.usage);
     return { rawResponse: data, content, result };
   }
+}
+
+/**
+ * Back-compat single-image wrapper around {@link kimiExtractFromDataUris}. Used by
+ * the CLI verification harness (`try-kimi.ts`).
+ */
+export async function kimiExtractFromDataUri(
+  dataUri: string,
+): Promise<KimiCallResult> {
+  return kimiExtractFromDataUris([dataUri]);
 }
 
 /** Real extractor: NVIDIA Build / Kimi-K2.6 Vision. */
 export const kimiExtractor: ExpenseExtractor = {
   async extract(input: ExtractionInput): Promise<ExtractionResult> {
-    // toKimiImageDataUri throws on unsupported/unreadable documents — a terminal
-    // error we do NOT wrap as retryable.
-    const dataUri = await toKimiImageDataUri(input.documentId);
-    const { result } = await kimiExtractFromDataUri(dataUri);
+    const ids =
+      input.documentIds && input.documentIds.length > 0
+        ? input.documentIds
+        : input.documentId
+          ? [input.documentId]
+          : [];
+    // toKimiImageDataUrisForDocuments throws on unsupported/unreadable documents —
+    // a terminal error we do NOT wrap as retryable.
+    const dataUris = await toKimiImageDataUrisForDocuments(ids);
+    const { result } = await kimiExtractFromDataUris(dataUris);
     return result;
   },
 };
