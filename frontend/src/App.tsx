@@ -12,6 +12,7 @@ import { EmployeesPage } from "./pages/EmployeesPage";
 import { KanbanPage } from "./pages/KanbanPage";
 import { Login } from "./pages/Login";
 import { ProfilePage } from "./pages/ProfilePage";
+import { ReportsPage } from "./pages/ReportsPage";
 import { AnalysisReviewPage } from "./pages/expenses/AnalysisReviewPage";
 import { ExpenseDetailsPage } from "./pages/expenses/ExpenseDetailsPage";
 import { ExpenseVerificationPage } from "./pages/expenses/ExpenseVerificationPage";
@@ -19,6 +20,7 @@ import { ExpensesOverviewPage } from "./pages/expenses/ExpensesOverviewPage";
 import { MyExpensesPage } from "./pages/expenses/MyExpensesPage";
 import { PendingReviewsPage } from "./pages/expenses/PendingReviewsPage";
 import { ProjectExpensesPage } from "./pages/expenses/ProjectExpensesPage";
+import { ReimbursementsPage } from "./pages/expenses/ReimbursementsPage";
 import { SubmitExpensePage } from "./pages/expenses/SubmitExpensePage";
 import { CreateProjectPage } from "./pages/projects/CreateProjectPage";
 import { EditProjectPage } from "./pages/projects/EditProjectPage";
@@ -80,13 +82,17 @@ function App() {
         <Route path="kanban" element={<KanbanPage />} />
         <Route path="expenses" element={<ExpensesOverviewPage />} />
         <Route path="expenses/projects" element={<ProjectExpensesPage />} />
+        <Route
+          path="expenses/reimbursements"
+          element={<ReimbursementsPage />}
+        />
         <Route path="expenses/:id" element={<ExpenseDetailsPage />} />
         <Route path="departments" element={<DepartmentsPage />} />
         <Route
           path="leave"
           element={<ModulePlaceholder title="Leave Management" />}
         />
-        <Route path="reports" element={<ModulePlaceholder title="Reports" />} />
+        <Route path="reports" element={<ReportsPage />} />
         <Route
           path="settings"
           element={<ModulePlaceholder title="Settings" />}
@@ -113,7 +119,7 @@ function App() {
           path="leave"
           element={<ModulePlaceholder title="Leave Management" />}
         />
-        <Route path="reports" element={<ModulePlaceholder title="Reports" />} />
+        <Route path="reports" element={<ReportsPage />} />
       </Route>
 
       {/* EMPLOYEE */}

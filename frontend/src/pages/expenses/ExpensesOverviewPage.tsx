@@ -231,7 +231,6 @@ export function ExpensesOverviewPage() {
                 getEmployeeName={getEmployeeName}
                 getProjectName={getProjectName}
                 basePath="/admin/expenses"
-                showReimbursement
               />
             )}
           </Card>
