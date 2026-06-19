@@ -3,12 +3,13 @@ import { Link } from "react-router-dom";
 import {
   CheckCircle2,
   Clock,
+  Download,
   Search,
   Wallet,
   XCircle,
 } from "lucide-react";
 
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,6 +26,7 @@ import { PageHeader } from "../../components/layout/PageHeader";
 import { StatCard } from "../../components/dashboard/StatCard";
 import { ExpensesTable } from "../../components/expenses/ExpensesTable";
 import { apiErrorMessage, listReviewExpenses } from "../../lib/expenses-api";
+import { downloadCsv, toExpensesCsv } from "../../lib/expenses-csv";
 import { listProjects } from "../../lib/projects-api";
 import { listUsers } from "../../lib/users-api";
 import {
@@ -127,6 +129,15 @@ export function ExpensesOverviewPage() {
     });
   }, [expenses, status, category, projectId, search, getEmployeeName, getProjectName]);
 
+  function handleExport() {
+    const csv = toExpensesCsv(visible, {
+      employee: getEmployeeName,
+      project: (pid) => (pid ? getProjectName(pid) : "General"),
+    });
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadCsv(`expenses-${stamp}.csv`, csv);
+  }
+
   return (
     <>
       <PageHeader
@@ -134,12 +145,23 @@ export function ExpensesOverviewPage() {
         description="Complete expense lifecycle across the organization."
         breadcrumbs={[{ label: "Admin", to: "/admin" }, { label: "Expenses" }]}
         actions={
-          <Link
-            to="/admin/expenses/projects"
-            className={buttonVariants({ variant: "outline", size: "sm" })}
-          >
-            Project Spending
-          </Link>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExport}
+              disabled={visible.length === 0}
+            >
+              <Download className="size-4" />
+              Export CSV
+            </Button>
+            <Link
+              to="/admin/expenses/projects"
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              Project Spending
+            </Link>
+          </div>
         }
       />
 
