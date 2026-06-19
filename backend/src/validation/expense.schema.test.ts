@@ -17,9 +17,10 @@ describe("createExpenseBody (AI path)", () => {
     expect(r.success).toBe(true);
   });
 
-  it("still requires projectId for PROJECT scope", () => {
+  it("allows a PROJECT draft with no projectId (deferred assignment)", () => {
+    // Revision 2: project is assigned at the verify step / required only at submit.
     const r = createExpenseBody.safeParse({ scope: "PROJECT", isDraft: true });
-    expect(r.success).toBe(false);
+    expect(r.success).toBe(true);
   });
 
   it("still accepts a full manual payload", () => {

@@ -205,10 +205,9 @@ export async function createExpense(
     updatedAt: now,
   };
 
-  if (input.scope === "PROJECT") {
-    if (!input.projectId) {
-      throw new ApiError(400, "projectId is required for PROJECT expenses");
-    }
+  // Project allocation is optional at creation (deferred to the verify step). When
+  // a project IS supplied, validate it; the submit gate enforces presence later.
+  if (input.scope === "PROJECT" && input.projectId) {
     await assertProjectNotArchived(input.projectId);
     await assertProjectAssignment(input.projectId, input.employeeId);
     data.projectId = input.projectId;

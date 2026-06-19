@@ -39,11 +39,10 @@ export const createExpenseBody = z
     /** Save as a draft instead of submitting for review. */
     isDraft: z.boolean().optional().default(false),
   })
-  .strict()
-  .refine(
-    (v) => v.scope !== "PROJECT" || (!!v.projectId && v.projectId.length > 0),
-    { message: "projectId is required for PROJECT expenses", path: ["projectId"] },
-  );
+  .strict();
+// Note: projectId is NOT required for PROJECT scope at creation. AI-first drafts
+// defer project allocation to the verify step; the submit gate (submitExpense)
+// enforces a project before a PROJECT expense leaves DRAFT.
 
 /** PATCH /expenses/:id (EMPLOYEE — edit own DRAFT) */
 export const updateExpenseBody = z
