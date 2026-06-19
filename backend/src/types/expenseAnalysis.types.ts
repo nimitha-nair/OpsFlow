@@ -33,6 +33,8 @@ export interface ExpenseAnalysisDocument {
   id: string;
   expenseId: string;
   documentId: string;
+  /** All analyzed documents (primary mirrored in documentId). */
+  documentIds?: string[];
   status: AnalysisStatus;
   /** Which extractor produced this result — used to flag synthetic mock data. */
   provider?: "mock" | "kimi";
@@ -49,6 +51,10 @@ export interface ExpenseAnalysisDocument {
   confidenceScore?: number; // 0–100
   /** Immutable original AI extraction — preserved verbatim for the audit trail. */
   aiExtraction?: AiExtractionSnapshot;
+  /** End-to-end extraction duration in ms (populated on successful terminal runs). */
+  processingMs?: number;
+  /** Provider total token usage for the run (Kimi only; absent for mock/legacy). */
+  tokensUsed?: number;
   /** Verbatim model output, e.g. { rawOutput } — preserved for audit. */
   extractedData?: Record<string, unknown>;
   failureReason?: string;
@@ -62,6 +68,8 @@ export interface ExpenseAnalysis {
   id: string;
   expenseId: string;
   documentId: string;
+  /** All analyzed documents (primary mirrored in documentId). */
+  documentIds?: string[];
   status: AnalysisStatus;
   /** Which extractor produced this result — used to flag synthetic mock data. */
   provider?: "mock" | "kimi";
@@ -78,6 +86,8 @@ export interface ExpenseAnalysis {
   confidenceScore?: number;
   /** Immutable original AI extraction — preserved verbatim for the audit trail. */
   aiExtraction?: AiExtractionSnapshot;
+  processingMs?: number;
+  tokensUsed?: number;
   extractedData?: Record<string, unknown>;
   failureReason?: string;
   confirmedAt?: string;

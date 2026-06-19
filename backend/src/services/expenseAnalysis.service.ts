@@ -8,6 +8,7 @@ import {
   updateExpense,
   type UpdateExpenseInput,
 } from "./expense.service";
+import { deriveDocumentIds } from "./expense-documents.read";
 import { getExtractor } from "./ai/expense-extractor";
 import { statusForConfidence } from "./ai/extraction";
 import { runWithRetry } from "./ai/retry";
@@ -142,6 +143,7 @@ async function claimForRun(
   expenseId: string,
   documentId: string,
   provider: "mock" | "kimi",
+  documentIds: string[],
 ): Promise<ClaimResult> {
   const col = db.collection(ANALYSIS_COLLECTION);
   const query = col.where("expenseId", "==", expenseId).limit(1);
@@ -158,6 +160,7 @@ async function claimForRun(
         tx.set(ref, {
           expenseId,
           documentId,
+          documentIds,
           provider,
           status: "PROCESSING" as AnalysisStatus,
           createdAt: FieldValue.serverTimestamp(),
@@ -168,6 +171,7 @@ async function claimForRun(
       async reclaim(id) {
         tx.update(col.doc(id), {
           documentId,
+          documentIds,
           provider,
           status: "PROCESSING" as AnalysisStatus,
           failureReason: FieldValue.delete(),
@@ -189,22 +193,28 @@ async function runAnalysis(
   id: string,
   expenseId: string,
   documentId: string,
+  documentIds: string[],
 ): Promise<void> {
   const cfg = getAiConfig();
   const extractor = getExtractor();
+  const startedAt = Date.now();
 
   try {
     // Retry only transient failures (429 / 5xx / network) with Retry-After-aware
     // exponential backoff + jitter; terminal errors (malformed output, auth,
     // unsupported document) propagate to the catch and fail without retrying.
     const r = await runWithRetry(
-      () => extractor.extract({ expenseId, documentId }),
+      () => extractor.extract({ expenseId, documentId, documentIds }),
       { maxRetries: MAX_RETRIES },
     );
     const status = statusForConfidence(r.confidenceScore, cfg.confidenceThreshold);
     await db.collection(ANALYSIS_COLLECTION).doc(id).update({
       status,
+      documentIds,
       modelVersion: cfg.nvidiaModel,
+      // End-to-end extraction time + provider token usage (for AI analytics).
+      processingMs: Date.now() - startedAt,
+      tokensUsed: r.usage?.totalTokens ?? FieldValue.delete(),
       vendorName: r.vendorName ?? FieldValue.delete(),
       amount: r.amount ?? FieldValue.delete(),
       transactionDate: r.transactionDate ?? FieldValue.delete(),
@@ -247,15 +257,17 @@ export async function analyzeExpense(
     throw new ApiError(403, "You can only analyze your own expenses");
   }
 
-  if (!expense.documentId) {
+  const documentIds = deriveDocumentIds(expense);
+  if (documentIds.length === 0) {
     const id = await upsertPending(expenseId, "");
     await setFailed(id, "No document to analyze");
     const failed = await loadDocById(id);
     return toView(failed!);
   }
+  const primary = documentIds[0]!;
 
   const provider = getAiConfig().provider;
-  const claim = await claimForRun(expenseId, expense.documentId, provider);
+  const claim = await claimForRun(expenseId, primary, provider, documentIds);
 
   // Only the caller that won the claim starts the worker — this is what prevents
   // concurrent worker execution. A rejected duplicate falls through and returns
@@ -264,7 +276,7 @@ export async function analyzeExpense(
     // Fire-and-forget background job (long-running Node process per AI_PIPELINE.md).
     // The .catch is mandatory: runAnalysis must never reject unhandled, or a
     // transient Firestore error could crash the whole API process.
-    void runAnalysis(claim.id, expenseId, expense.documentId).catch((err) => {
+    void runAnalysis(claim.id, expenseId, primary, documentIds).catch((err) => {
       console.error("Analysis worker crashed:", err);
     });
   }

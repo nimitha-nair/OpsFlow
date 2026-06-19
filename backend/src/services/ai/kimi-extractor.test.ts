@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("./document-image", () => ({
-  toKimiImageDataUri: vi.fn(async () => "data:image/jpeg;base64,AAAA"),
+vi.mock("./document-images", () => ({
+  toKimiImageDataUrisForDocuments: vi.fn(async () => ["data:image/jpeg;base64,AAAA"]),
 }));
 
 import { kimiExtractor } from "./kimi-extractor";
