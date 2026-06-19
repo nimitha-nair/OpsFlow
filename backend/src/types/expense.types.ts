@@ -47,6 +47,8 @@ export interface ExpenseDocument {
   approvalStatus: ApprovalStatus;
   reimbursementStatus: ReimbursementStatus;
   documentId?: string;
+  /** All attached documents (primary first). `documentId` mirrors documentIds[0]. */
+  documentIds?: string[];
   /** Review outcome, denormalized for display after approve/reject. */
   reviewRemarks?: string;
   reviewedById?: string;
@@ -71,6 +73,8 @@ export interface Expense {
   approvalStatus: ApprovalStatus;
   reimbursementStatus: ReimbursementStatus;
   documentId?: string;
+  /** All attached documents (primary first). `documentId` mirrors documentIds[0]. */
+  documentIds?: string[];
   reviewRemarks?: string;
   reviewedById?: string;
   reviewedByName?: string;

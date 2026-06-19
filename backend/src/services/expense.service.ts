@@ -112,6 +112,9 @@ function toPublicExpense(expense: ExpenseDocument): Expense {
   if (expense.documentId !== undefined) {
     result.documentId = expense.documentId;
   }
+  if (expense.documentIds !== undefined) {
+    result.documentIds = expense.documentIds;
+  }
   if (expense.reviewRemarks !== undefined) {
     result.reviewRemarks = expense.reviewRemarks;
   }
