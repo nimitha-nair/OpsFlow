@@ -15,7 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { StatCard } from "../dashboard/StatCard";
+import { KpiCard } from "./report-ui";
+import { riseStyle } from "./report-palette";
 import { SectionCard } from "../common/SectionCard";
 import { EmptyState } from "../common/EmptyState";
 import { ErrorState } from "../common/ErrorState";
@@ -27,12 +28,15 @@ import type { ProjectReportRow, ProjectsReport } from "../../types/reports";
 type Sort = "spend" | "utilization";
 const ERROR_MSG = "We couldn't load the project analytics. Please try again.";
 
-/** Bar tone + label by utilization band: >100 over-budget (red), ≥80 near-limit (amber). */
+/** Gradient fill + label by utilization band: >100 over-budget, ≥80 near-limit. */
 function utilBand(util: number | null): { tone: string; badge: string | null } {
-  if (util === null) return { tone: "bg-muted-foreground/40", badge: null };
-  if (util > 100) return { tone: "bg-red-500/80", badge: "Over budget" };
-  if (util >= 80) return { tone: "bg-amber-500/80", badge: "Near limit" };
-  return { tone: "bg-emerald-500/70", badge: null };
+  if (util === null)
+    return { tone: "from-slate-400 to-slate-500", badge: null };
+  if (util > 100)
+    return { tone: "from-rose-500 to-red-500", badge: "Over budget" };
+  if (util >= 80)
+    return { tone: "from-amber-500 to-orange-500", badge: "Near limit" };
+  return { tone: "from-emerald-500 to-teal-500", badge: null };
 }
 
 function sortRows(rows: ProjectReportRow[], sort: Sort): ProjectReportRow[] {
@@ -112,7 +116,7 @@ export function ProjectsTab() {
   const rows = sortRows(data.projects, sort);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
           Approved spend across {totals.projectCount} project
@@ -140,20 +144,32 @@ export function ProjectsTab() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Projects" value={totals.projectCount} icon={FolderKanban} />
-        <StatCard
+      <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
+        <KpiCard
+          index={0}
+          accent="indigo"
+          label="Projects"
+          value={totals.projectCount}
+          icon={FolderKanban}
+        />
+        <KpiCard
+          index={1}
+          accent="sky"
           label="Total budget"
           value={formatMoney(totals.budget, data.currency)}
           icon={Wallet}
         />
-        <StatCard
+        <KpiCard
+          index={2}
+          accent="violet"
           label="Total spent"
           value={formatMoney(totals.spent, data.currency)}
           icon={TrendingUp}
           hint={`${formatMoney(totals.remaining, data.currency)} remaining`}
         />
-        <StatCard
+        <KpiCard
+          index={3}
+          accent="amber"
           label="Over / near budget"
           value={`${totals.overBudgetCount} / ${totals.nearLimitCount}`}
           icon={AlertTriangle}
@@ -173,8 +189,13 @@ export function ProjectsTab() {
           />
         ) : (
           <ul className="flex flex-col gap-4">
-            {rows.map((p) => (
-              <ProjectRow key={p.projectId} project={p} currency={data.currency} />
+            {rows.map((p, i) => (
+              <ProjectRow
+                key={p.projectId}
+                project={p}
+                currency={data.currency}
+                index={i}
+              />
             ))}
           </ul>
         )}
@@ -186,9 +207,11 @@ export function ProjectsTab() {
 function ProjectRow({
   project: p,
   currency,
+  index = 0,
 }: {
   project: ProjectReportRow;
   currency: string;
+  index?: number;
 }) {
   const band = utilBand(p.utilization);
   const barWidth = p.utilization === null ? 0 : Math.min(100, p.utilization);
@@ -221,10 +244,10 @@ function ProjectRow({
           {p.hasBudget ? ` / ${formatMoney(p.budget, currency)}` : " · no budget"}
         </span>
       </div>
-      <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+      <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted/70">
         <div
-          className={`h-full rounded-full ${band.tone} transition-all`}
-          style={{ width: `${barWidth}%` }}
+          className={`r-bar h-full rounded-full bg-gradient-to-r ${band.tone}`}
+          style={{ width: `${barWidth}%`, ...riseStyle(index) }}
         />
       </div>
       <div className="flex items-center justify-between text-xs text-muted-foreground">

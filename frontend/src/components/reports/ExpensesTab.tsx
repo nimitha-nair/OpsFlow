@@ -13,6 +13,8 @@ import { SectionCard } from "../common/SectionCard";
 import { EmptyState } from "../common/EmptyState";
 import { ErrorState } from "../common/ErrorState";
 import { LoadingState } from "../common/LoadingState";
+import { BarList, ColumnChart } from "./charts";
+import { paletteAt } from "./report-palette";
 import { formatDate, formatMoney } from "../../lib/format";
 import { getReportsExpenses } from "../../lib/reports-api";
 import { CATEGORY_LABELS, type ExpenseCategory } from "../../types/expense";
@@ -107,7 +109,7 @@ export function ExpensesTab() {
   const isEmpty = data.spendByCategory.length === 0;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
           Approved spend · {formatDate(data.range.from)} – {formatDate(data.range.to)}
@@ -148,7 +150,7 @@ export function ExpensesTab() {
           description="Try a longer range, or check back once expenses are approved."
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <SectionCard
             title="Spend by category"
             description="Approved spend, highest first"
@@ -176,95 +178,52 @@ export function ExpensesTab() {
 function CategoryBars({ data }: { data: CategorySpend[] }) {
   const max = Math.max(1, ...data.map((d) => d.amount));
   return (
-    <ul className="flex flex-col gap-3">
-      {data.map((d) => (
-        <li key={d.category} className="flex flex-col gap-1">
-          <div className="flex items-center justify-between gap-2 text-sm">
-            <span className="truncate text-foreground">
-              {categoryLabel(d.category)}
-            </span>
-            <span className="shrink-0 tabular-nums text-muted-foreground">
-              {formatMoney(d.amount)} · {d.count}
-            </span>
-          </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary/70"
-              style={{ width: `${(d.amount / max) * 100}%` }}
-            />
-          </div>
-        </li>
-      ))}
-    </ul>
+    <BarList
+      items={data.map((d, i) => ({
+        label: categoryLabel(d.category),
+        valueText: `${formatMoney(d.amount)} · ${d.count}`,
+        ratio: d.amount / max,
+        tone: paletteAt(i),
+      }))}
+    />
   );
 }
 
 function ScopeBars({ data }: { data: ScopeSplit }) {
   const total = data.project + data.general;
   const max = Math.max(1, data.project, data.general);
-  const rows = [
-    { label: "Project", amount: data.project, count: data.projectCount, tone: "bg-primary/70" },
-    { label: "General", amount: data.general, count: data.generalCount, tone: "bg-sky-500/70" },
-  ];
+  const pct = (amount: number) =>
+    total > 0 ? Math.round((amount / total) * 100) : 0;
   return (
-    <ul className="flex flex-col gap-3">
-      {rows.map((r) => {
-        const pct = total > 0 ? Math.round((r.amount / total) * 100) : 0;
-        return (
-          <li key={r.label} className="flex flex-col gap-1">
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="text-foreground">
-                {r.label}{" "}
-                <span className="text-muted-foreground">· {pct}%</span>
-              </span>
-              <span className="shrink-0 tabular-nums text-muted-foreground">
-                {formatMoney(r.amount)} · {r.count}
-              </span>
-            </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className={`h-full rounded-full ${r.tone}`}
-                style={{ width: `${(r.amount / max) * 100}%` }}
-              />
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+    <BarList
+      items={[
+        {
+          label: `Project · ${pct(data.project)}%`,
+          valueText: `${formatMoney(data.project)} · ${data.projectCount}`,
+          ratio: data.project / max,
+          tone: "from-indigo-500 to-violet-500",
+        },
+        {
+          label: `General · ${pct(data.general)}%`,
+          valueText: `${formatMoney(data.general)} · ${data.generalCount}`,
+          ratio: data.general / max,
+          tone: "from-sky-500 to-blue-500",
+        },
+      ]}
+    />
   );
 }
 
 function MonthlyColumns({ data }: { data: MonthlySpend[] }) {
   const max = Math.max(1, ...data.map((d) => d.amount));
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex h-44 items-end gap-1.5">
-        {data.map((m) => {
-          const pct = (m.amount / max) * 100;
-          return (
-            <div
-              key={m.month}
-              className="flex flex-1 items-end justify-center"
-              title={`${monthLabel(m.month, true)} · ${formatMoney(m.amount)} · ${m.count} expense${m.count === 1 ? "" : "s"}`}
-            >
-              <div
-                className="w-full rounded-t bg-primary/70 transition-all"
-                style={{ height: `${m.amount > 0 ? Math.max(pct, 3) : 0}%` }}
-              />
-            </div>
-          );
-        })}
-      </div>
-      <div className="flex gap-1.5">
-        {data.map((m) => (
-          <div
-            key={m.month}
-            className="flex-1 truncate text-center text-[10px] text-muted-foreground"
-          >
-            {monthLabel(m.month)}
-          </div>
-        ))}
-      </div>
-    </div>
+    <ColumnChart
+      items={data.map((m) => ({
+        key: m.month,
+        ratio: m.amount / max,
+        label: monthLabel(m.month),
+        title: `${monthLabel(m.month, true)} · ${formatMoney(m.amount)} · ${m.count} expense${m.count === 1 ? "" : "s"}`,
+      }))}
+    />
   );
 }

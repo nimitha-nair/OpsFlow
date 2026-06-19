@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { StatCard } from "../dashboard/StatCard";
+import { KpiCard } from "./report-ui";
 import { SectionCard } from "../common/SectionCard";
 import { EmptyState } from "../common/EmptyState";
 import { ErrorState } from "../common/ErrorState";
@@ -120,11 +120,11 @@ export function AiAnalyticsTab() {
 
   const sb = data.statusBreakdown;
   const statusItems = [
-    { label: "Completed", count: sb.completed, tone: "bg-emerald-500/70" },
-    { label: "Low confidence", count: sb.lowConfidence, tone: "bg-amber-500/70" },
-    { label: "Failed", count: sb.failed, tone: "bg-red-500/70" },
-    { label: "Processing", count: sb.processing, tone: "bg-sky-500/70" },
-    { label: "Pending", count: sb.pending, tone: "bg-muted-foreground/40" },
+    { label: "Completed", count: sb.completed, tone: "from-emerald-500 to-teal-500" },
+    { label: "Low confidence", count: sb.lowConfidence, tone: "from-amber-500 to-orange-500" },
+    { label: "Failed", count: sb.failed, tone: "from-rose-500 to-red-500" },
+    { label: "Processing", count: sb.processing, tone: "from-sky-500 to-blue-500" },
+    { label: "Pending", count: sb.pending, tone: "from-slate-400 to-slate-500" },
   ].map((s) => ({
     label: s.label,
     valueText: String(s.count),
@@ -151,13 +151,13 @@ export function AiAnalyticsTab() {
       label: "Unchanged (AI accepted)",
       valueText: String(conf.unchanged),
       ratio: conf.confirmed > 0 ? conf.unchanged / conf.confirmed : 0,
-      tone: "bg-emerald-500/70",
+      tone: "from-emerald-500 to-teal-500",
     },
     {
       label: "Corrected by employee",
       valueText: String(conf.corrected),
       ratio: conf.confirmed > 0 ? conf.corrected / conf.confirmed : 0,
-      tone: "bg-amber-500/70",
+      tone: "from-amber-500 to-orange-500",
     },
   ];
 
@@ -167,11 +167,11 @@ export function AiAnalyticsTab() {
     label: monthLabel(p.month),
     ratio: p.lowConfidence / maxTrend,
     title: `${monthLabel(p.month)} · ${p.lowConfidence} low-confidence of ${p.total}`,
-    tone: "bg-amber-500/70",
+    tone: "from-amber-500 to-orange-400",
   }));
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
           {t.total} analyses · {t.confirmed} confirmed
@@ -200,20 +200,22 @@ export function AiAnalyticsTab() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        <StatCard label="Total analyses" value={t.total} icon={Bot} />
-        <StatCard label="Avg confidence" value={pctText(t.averageConfidence)} icon={Gauge} />
-        <StatCard label="Success rate" value={pctText(t.successRate)} icon={CheckCircle2} />
-        <StatCard label="Low confidence" value={pctText(t.lowConfidencePct)} icon={TriangleAlert} />
-        <StatCard label="Failed" value={t.failed} icon={XCircle} />
-        <StatCard
+      <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-6">
+        <KpiCard index={0} accent="indigo" label="Total analyses" value={t.total} icon={Bot} />
+        <KpiCard index={1} accent="sky" label="Avg confidence" value={pctText(t.averageConfidence)} icon={Gauge} />
+        <KpiCard index={2} accent="emerald" label="Success rate" value={pctText(t.successRate)} icon={CheckCircle2} />
+        <KpiCard index={3} accent="amber" label="Low confidence" value={pctText(t.lowConfidencePct)} icon={TriangleAlert} />
+        <KpiCard index={4} accent="rose" label="Failed" value={t.failed} icon={XCircle} />
+        <KpiCard
+          index={5}
+          accent="violet"
           label="Manual corrections"
           value={pctText(t.manualCorrectionRate)}
           icon={PencilLine}
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <SectionCard title="Analysis status breakdown" description="All-time">
           <BarList items={statusItems} />
         </SectionCard>

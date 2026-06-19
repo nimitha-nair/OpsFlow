@@ -17,7 +17,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { PageHeader } from "../components/layout/PageHeader";
-import { StatCard } from "../components/dashboard/StatCard";
+import { KpiCard, type Accent } from "../components/reports/report-ui";
 import { EmptyState } from "../components/common/EmptyState";
 import { ErrorState } from "../components/common/ErrorState";
 import { LoadingState } from "../components/common/LoadingState";
@@ -51,11 +51,12 @@ const KPI_DEFS: {
   key: keyof OverviewKpis;
   label: string;
   icon: LucideIcon;
+  accent: Accent;
 }[] = [
-  { key: "total", label: "Total Expenses", icon: Receipt },
-  { key: "approved", label: "Approved Expenses", icon: CheckCircle2 },
-  { key: "pending", label: "Pending Expenses", icon: Clock },
-  { key: "rejected", label: "Rejected Expenses", icon: XCircle },
+  { key: "total", label: "Total Expenses", icon: Receipt, accent: "indigo" },
+  { key: "approved", label: "Approved Expenses", icon: CheckCircle2, accent: "emerald" },
+  { key: "pending", label: "Pending Expenses", icon: Clock, accent: "amber" },
+  { key: "rejected", label: "Rejected Expenses", icon: XCircle, accent: "rose" },
 ];
 
 export function ReportsPage() {
@@ -119,7 +120,11 @@ export function ReportsPage() {
         breadcrumbs={[{ label: "Reports" }]}
       />
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as string)}>
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setTab(v as string)}
+        className="reports-scope"
+      >
         <TabsList>
           {tabs.map((t) => (
             <TabsTrigger key={t.value} value={t.value}>
@@ -128,7 +133,7 @@ export function ReportsPage() {
           ))}
         </TabsList>
 
-        <TabsContent value="overview" className="mt-4">
+        <TabsContent value="overview" className="mt-6">
           <OverviewTab
             data={data}
             loading={loading}
@@ -139,18 +144,18 @@ export function ReportsPage() {
           />
         </TabsContent>
 
-        <TabsContent value="expenses" className="mt-4">
+        <TabsContent value="expenses" className="mt-6">
           <ExpensesTab />
         </TabsContent>
 
         {tabs.some((t) => t.value === "projects") && (
-          <TabsContent value="projects" className="mt-4">
+          <TabsContent value="projects" className="mt-6">
             <ProjectsTab />
           </TabsContent>
         )}
 
         {tabs.some((t) => t.value === "ai") && (
-          <TabsContent value="ai" className="mt-4">
+          <TabsContent value="ai" className="mt-6">
             <AiAnalyticsTab />
           </TabsContent>
         )}
@@ -188,7 +193,7 @@ function OverviewTab({
   const isEmpty = data.kpis.total.count === 0;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
           Generated at {formatDateTime(data.generatedAt)}
@@ -211,12 +216,14 @@ function OverviewTab({
           description="KPIs will appear here once expenses are submitted."
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {KPI_DEFS.map(({ key, label, icon }) => {
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {KPI_DEFS.map(({ key, label, icon, accent }, i) => {
             const k = data.kpis[key];
             return (
-              <StatCard
+              <KpiCard
                 key={key}
+                index={i}
+                accent={accent}
                 label={label}
                 value={k.count}
                 icon={icon}

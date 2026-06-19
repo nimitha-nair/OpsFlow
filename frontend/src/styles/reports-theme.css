@@ -1,0 +1,79 @@
+/*
+ * Vivid, animated treatment for the Reports module, scoped to `.reports-scope`
+ * so the rest of the app keeps its calm neutral theme. Motion is gated behind
+ * prefers-reduced-motion.
+ */
+
+@keyframes reports-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes reports-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes reports-grow-y {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* Staggered entrance — set --r-i to the item index for a cascade. */
+.reports-scope .r-rise {
+  animation: reports-rise 0.55s cubic-bezier(0.21, 1.02, 0.73, 1) both;
+  animation-delay: calc(var(--r-i, 0) * 60ms);
+}
+
+/* Horizontal bar that grows from the left on mount. */
+.reports-scope .r-bar {
+  transform-origin: left center;
+  animation: reports-grow-x 0.75s cubic-bezier(0.21, 1.02, 0.73, 1) both;
+  animation-delay: calc(var(--r-i, 0) * 50ms);
+}
+
+/* Vertical column that grows from the baseline on mount. */
+.reports-scope .r-col {
+  transform-origin: bottom center;
+  animation: reports-grow-y 0.6s cubic-bezier(0.21, 1.02, 0.73, 1) both;
+  animation-delay: calc(var(--r-i, 0) * 35ms);
+}
+
+/* Card lift on hover for the metric cards. */
+.reports-scope .r-card {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.reports-scope .r-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 30px -14px rgb(0 0 0 / 0.22);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reports-scope .r-rise,
+  .reports-scope .r-bar,
+  .reports-scope .r-col {
+    animation: none;
+  }
+  .reports-scope .r-card {
+    transition: none;
+  }
+  .reports-scope .r-card:hover {
+    transform: none;
+  }
+}
