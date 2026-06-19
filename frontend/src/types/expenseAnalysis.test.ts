@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ANALYSIS_STATUS_META,
+  combinedVendorLabel,
   confidenceLevel,
   deriveLowConfidenceReason,
   isTerminalStatus,
@@ -74,5 +75,34 @@ describe("deriveLowConfidenceReason", () => {
       category: "TRAVEL",
     });
     expect(r).toContain("inaccurate");
+  });
+});
+
+describe("combinedVendorLabel", () => {
+  function d(vendorName: string | null) {
+    return {
+      documentId: "x",
+      vendorName,
+      amount: null,
+      transactionDate: null,
+      currency: "INR",
+      category: null,
+      taxInformation: null,
+      confidenceScore: 90,
+    };
+  }
+
+  it("returns 'Primary + N more' for multiple distinct vendors", () => {
+    expect(
+      combinedVendorLabel([d("Olive & Thyme Bistro"), d("KSRTC")]),
+    ).toBe("Olive & Thyme Bistro + 1 more");
+  });
+
+  it("returns the single vendor when all documents share it", () => {
+    expect(combinedVendorLabel([d("Olive"), d("Olive")])).toBe("Olive");
+  });
+
+  it("falls back to the aggregated vendor when there is no breakdown", () => {
+    expect(combinedVendorLabel(undefined, "Aggregated Co")).toBe("Aggregated Co");
   });
 });

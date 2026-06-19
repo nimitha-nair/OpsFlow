@@ -78,6 +78,33 @@ export function auditDisplay(v: string | number | null | undefined): string {
   return String(v);
 }
 
+/**
+ * Distinct, non-empty vendor names across the per-document breakdown.
+ */
+export function distinctVendors(documents?: PerDocumentExtraction[]): string[] {
+  if (!documents) return [];
+  return [
+    ...new Set(
+      documents.map((d) => d.vendorName).filter((v): v is string => !!v),
+    ),
+  ];
+}
+
+/**
+ * Combined-vendor label for a multi-document expense (Option C): "Primary + N
+ * more" when documents come from different vendors; otherwise the single vendor.
+ * Falls back to `fallback` (the aggregated vendor) when there's no breakdown.
+ */
+export function combinedVendorLabel(
+  documents: PerDocumentExtraction[] | undefined,
+  fallback?: string | null,
+): string {
+  const vendors = distinctVendors(documents);
+  if (vendors.length <= 1) return fallback || vendors[0] || "—";
+  const primary = documents?.[0]?.vendorName || vendors[0]!;
+  return `${primary} + ${vendors.length - 1} more`;
+}
+
 /** Whether a corrected/final value meaningfully differs from the AI value. */
 export function isCorrected(
   ai: string | number | null | undefined,

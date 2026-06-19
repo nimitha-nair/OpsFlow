@@ -21,6 +21,7 @@ import { getExpense } from "../../lib/expenses-api";
 import { getProject } from "../../lib/projects-api";
 import { formatDateTime } from "../../lib/format";
 import {
+  combinedVendorLabel,
   deriveLowConfidenceReason,
   isTerminalStatus,
   type ExpenseAnalysis,
@@ -190,7 +191,13 @@ export function AnalysisReviewPage() {
                 Extracted details
               </h3>
               <dl className="overflow-hidden rounded-md border">
-                <Row label="Vendor" value={analysis?.vendorName} />
+                <Row
+                  label="Vendor"
+                  value={combinedVendorLabel(
+                    analysis?.documents,
+                    analysis?.vendorName,
+                  )}
+                />
                 <Row label="Amount" value={analysis?.amount?.toString()} />
                 <Row label="Date" value={analysis?.transactionDate} />
                 <Row label="Currency" value={analysis?.currency} />

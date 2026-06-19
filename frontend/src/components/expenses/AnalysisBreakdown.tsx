@@ -1,10 +1,12 @@
+import { Layers } from "lucide-react";
+
 import { formatMoney } from "../../lib/format";
 import type { PerDocumentExtraction } from "../../types/expenseAnalysis";
 
 /**
- * Per-document breakdown for a multi-document analysis: one row per uploaded file
- * (vendor / amount / date) plus the combined total (sum of the per-document
- * amounts). Renders nothing for a single-document analysis.
+ * Per-document breakdown for a multi-document expense, presented as an explicit
+ * "merged expense": one line per uploaded file (vendor / date / amount) summing
+ * to a prominent combined total. Renders nothing for a single-document analysis.
  */
 export function AnalysisBreakdown({
   documents,
@@ -18,39 +20,45 @@ export function AnalysisBreakdown({
   const combined = documents.reduce((sum, d) => sum + (d.amount ?? 0), 0);
 
   return (
-    <section className="flex flex-col gap-1">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Per-document breakdown
-      </h3>
-      <div className="overflow-hidden rounded-md border">
-        <table className="w-full text-sm">
-          <tbody>
-            {documents.map((d, i) => (
-              <tr key={d.documentId} className="border-b last:border-b-0">
-                <td className="px-3 py-2 text-muted-foreground">
-                  Document {i + 1}
-                  {d.vendorName ? (
-                    <span className="ml-1 text-foreground">· {d.vendorName}</span>
-                  ) : null}
-                  {d.transactionDate ? (
-                    <span className="ml-1 text-xs text-muted-foreground">
-                      ({d.transactionDate})
-                    </span>
-                  ) : null}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums font-medium text-foreground">
-                  {d.amount != null ? formatMoney(d.amount, d.currency ?? currency) : "—"}
-                </td>
-              </tr>
-            ))}
-            <tr className="bg-muted/40">
-              <td className="px-3 py-2 font-semibold text-foreground">Combined</td>
-              <td className="px-3 py-2 text-right tabular-nums font-semibold text-foreground">
-                {formatMoney(combined, currency)}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+    <section className="overflow-hidden rounded-lg border border-[var(--x-ai)]/40">
+      <header className="flex items-center gap-2 bg-ai-soft px-3 py-2">
+        <Layers className="size-4 text-ai" />
+        <span className="text-sm font-semibold text-foreground">
+          Merged from {documents.length} documents
+        </span>
+      </header>
+      <ul className="divide-y">
+        {documents.map((d, i) => (
+          <li
+            key={d.documentId}
+            className="flex items-start justify-between gap-3 px-3 py-2.5"
+          >
+            <div className="flex min-w-0 flex-col">
+              <span className="text-sm font-medium text-foreground">
+                Document {i + 1}
+                {d.vendorName ? ` · ${d.vendorName}` : ""}
+              </span>
+              {d.transactionDate && (
+                <span className="text-xs text-muted-foreground">
+                  {d.transactionDate}
+                </span>
+              )}
+            </div>
+            <span className="shrink-0 tabular-nums text-sm font-medium text-foreground">
+              {d.amount != null
+                ? formatMoney(d.amount, d.currency ?? currency)
+                : "—"}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <div className="flex items-center justify-between gap-3 border-t bg-muted/50 px-3 py-2.5">
+        <span className="text-sm font-semibold text-foreground">
+          Combined total
+        </span>
+        <span className="tabular-nums text-base font-bold text-foreground">
+          {formatMoney(combined, currency)}
+        </span>
       </div>
     </section>
   );

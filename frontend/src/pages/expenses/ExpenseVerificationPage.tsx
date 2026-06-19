@@ -26,6 +26,7 @@ import { getExpense, submitExpense } from "../../lib/expenses-api";
 import { listMyProjects } from "../../lib/projects-api";
 import {
   deriveLowConfidenceReason,
+  distinctVendors,
   mapToExpenseCategory,
   type ExpenseAnalysis,
 } from "../../types/expenseAnalysis";
@@ -196,6 +197,12 @@ export function ExpenseVerificationPage() {
           )}
           <Labeled label="Vendor">
             <Input value={form.vendorName} onChange={(e) => set("vendorName", e.target.value)} />
+            {distinctVendors(analysis?.documents).length > 1 && (
+              <p className="text-xs text-muted-foreground">
+                {distinctVendors(analysis?.documents).length} vendors across
+                documents — see the breakdown above. This is the primary vendor.
+              </p>
+            )}
           </Labeled>
           <Labeled label="Amount">
             <Input type="number" value={form.amount} onChange={(e) => set("amount", e.target.value)} />
