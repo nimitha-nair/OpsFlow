@@ -77,6 +77,8 @@ export interface Expense {
   documentId?: string;
   /** All attached documents (primary first). `documentId` mirrors documentIds[0]. */
   documentIds?: string[];
+  /** How the expense was created — drives AI adoption analytics (forward-only). */
+  creationMethod?: "AI" | "MANUAL";
   reviewRemarks?: string;
   reviewedById?: string;
   reviewedByName?: string;

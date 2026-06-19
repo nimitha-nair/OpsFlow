@@ -44,6 +44,8 @@ export interface Expense {
   documentId?: string;
   /** All attached documents (primary first). `documentId` mirrors documentIds[0]. */
   documentIds?: string[];
+  /** How the expense was created — "AI" (receipt) or "MANUAL" (no receipt). */
+  creationMethod?: "AI" | "MANUAL";
   /** Review outcome (present once approved/rejected). */
   reviewRemarks?: string;
   reviewedById?: string;
