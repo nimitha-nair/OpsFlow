@@ -2,14 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Wallet } from "lucide-react";
 import { toast } from "sonner";
 
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -31,12 +25,25 @@ import {
 import { listProjects } from "../../lib/projects-api";
 import { listUsers } from "../../lib/users-api";
 import { formatDate, formatMoney } from "../../lib/format";
+import { Lock } from "lucide-react";
+
 import {
   REIMBURSEMENT_LABELS,
   REIMBURSEMENT_STATUSES,
   type Expense,
   type ReimbursementStatus,
 } from "../../types/expense";
+
+/**
+ * Forward-only lifecycle: PENDING → PROCESSING → PAID. Mirrors the backend rule
+ * (`isValidReimbursementTransition`) so the UI only offers valid next statuses.
+ */
+function forwardStatuses(from: ReimbursementStatus): ReimbursementStatus[] {
+  const fromRank = REIMBURSEMENT_STATUSES.indexOf(from);
+  return REIMBURSEMENT_STATUSES.filter(
+    (s) => REIMBURSEMENT_STATUSES.indexOf(s) > fromRank,
+  );
+}
 
 /**
  * Admin-only reimbursement management — the dedicated home for reimbursement
@@ -175,24 +182,28 @@ export function ReimbursementsPage() {
                       />
                     </TableCell>
                     <TableCell>
-                      <Select
-                        value={expense.reimbursementStatus}
-                        onValueChange={(v) =>
-                          v && changeStatus(expense, v as ReimbursementStatus)
-                        }
-                        disabled={savingId === expense.id}
-                      >
-                        <SelectTrigger className="w-44">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {REIMBURSEMENT_STATUSES.map((s) => (
-                            <SelectItem key={s} value={s}>
-                              {REIMBURSEMENT_LABELS[s]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {expense.reimbursementStatus === "PAID" ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                          <Lock className="size-3" />
+                          Paid — locked
+                        </span>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {forwardStatuses(expense.reimbursementStatus).map(
+                            (s) => (
+                              <Button
+                                key={s}
+                                variant="outline"
+                                size="sm"
+                                disabled={savingId === expense.id}
+                                onClick={() => changeStatus(expense, s)}
+                              >
+                                Mark {REIMBURSEMENT_LABELS[s]}
+                              </Button>
+                            ),
+                          )}
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

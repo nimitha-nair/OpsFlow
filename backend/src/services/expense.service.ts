@@ -21,6 +21,7 @@ import {
 import { isProjectMember } from "./projectMember.service";
 import { getUserById } from "./user.service";
 import { assertSubmittable } from "./expense.submit-gate";
+import { isValidReimbursementTransition } from "./reimbursement";
 
 const EXPENSES_COLLECTION = "expenses";
 const APPROVALS_COLLECTION = "expenseApprovals";
@@ -599,6 +600,15 @@ export async function setReimbursementStatus(
     throw new ApiError(
       400,
       "Reimbursement status can only be changed for approved expenses",
+    );
+  }
+  // Forward-only lifecycle: PENDING → PROCESSING → PAID. Reject backward moves and
+  // no-ops; once PAID the status is locked (a reversal must be a separate action).
+  if (!isValidReimbursementTransition(expense.reimbursementStatus, status)) {
+    throw new ApiError(
+      400,
+      `Reimbursement cannot move from ${expense.reimbursementStatus} to ${status}. ` +
+        "Only forward transitions are allowed (PENDING → PROCESSING → PAID).",
     );
   }
   await db.collection(EXPENSES_COLLECTION).doc(id).update({
