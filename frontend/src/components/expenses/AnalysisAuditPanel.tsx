@@ -3,6 +3,7 @@ import { Bot, Loader2 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { AnalysisStatusBadge } from "./AnalysisStatusBadge";
+import { AnalysisBreakdown } from "./AnalysisBreakdown";
 import { ConfidenceMeter } from "./ConfidenceMeter";
 import { LowConfidenceBanner } from "./LowConfidenceBanner";
 import { MockAnalysisBadge } from "./MockAnalysisBadge";
@@ -104,6 +105,11 @@ export function AnalysisAuditPanel({ expense }: { expense: Expense }) {
         {typeof analysis.confidenceScore === "number" && (
           <ConfidenceMeter score={analysis.confidenceScore} />
         )}
+
+        <AnalysisBreakdown
+          documents={analysis.documents}
+          currency={analysis.currency}
+        />
 
         {/* Provenance metadata. */}
         <dl className="grid grid-cols-2 gap-y-1 rounded-md border bg-muted/20 px-3 py-2.5 text-xs sm:grid-cols-4">

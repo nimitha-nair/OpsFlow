@@ -15,6 +15,7 @@ import { ConfidenceMeter } from "../../components/expenses/ConfidenceMeter";
 import { LowConfidenceBanner } from "../../components/expenses/LowConfidenceBanner";
 import { MockAnalysisBadge } from "../../components/expenses/MockAnalysisBadge";
 import { MultiReceiptViewer } from "../../components/expenses/MultiReceiptViewer";
+import { AnalysisBreakdown } from "../../components/expenses/AnalysisBreakdown";
 import { analyzeExpense, getExpenseAnalysis } from "../../lib/expense-analysis-api";
 import { getExpense } from "../../lib/expenses-api";
 import { getProject } from "../../lib/projects-api";
@@ -198,6 +199,13 @@ export function AnalysisReviewPage() {
                 <Row label="Tax info" value={analysis?.taxInformation} />
               </dl>
             </section>
+          )}
+
+          {canVerify && (
+            <AnalysisBreakdown
+              documents={analysis?.documents}
+              currency={analysis?.currency}
+            />
           )}
 
           {/* Confidence below the extracted fields (#7). */}

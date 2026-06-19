@@ -20,6 +20,7 @@ import { ConfidenceMeter } from "../../components/expenses/ConfidenceMeter";
 import { LowConfidenceBanner } from "../../components/expenses/LowConfidenceBanner";
 import { MockAnalysisBadge } from "../../components/expenses/MockAnalysisBadge";
 import { MultiReceiptViewer } from "../../components/expenses/MultiReceiptViewer";
+import { AnalysisBreakdown } from "../../components/expenses/AnalysisBreakdown";
 import { getExpenseAnalysis, updateExpenseAnalysis } from "../../lib/expense-analysis-api";
 import { getExpense, submitExpense } from "../../lib/expenses-api";
 import { listMyProjects } from "../../lib/projects-api";
@@ -183,6 +184,15 @@ export function ExpenseVerificationPage() {
           )}
           {typeof analysis?.confidenceScore === "number" && (
             <ConfidenceMeter score={analysis.confidenceScore} />
+          )}
+          <AnalysisBreakdown
+            documents={analysis?.documents}
+            currency={analysis?.currency}
+          />
+          {analysis?.documents && analysis.documents.length > 1 && (
+            <p className="text-xs text-muted-foreground">
+              The amount below is the combined total of all uploaded documents.
+            </p>
           )}
           <Labeled label="Vendor">
             <Input value={form.vendorName} onChange={(e) => set("vendorName", e.target.value)} />
