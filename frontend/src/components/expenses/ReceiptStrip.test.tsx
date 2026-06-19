@@ -43,6 +43,7 @@ describe("ReceiptStrip", () => {
       expect(screen.getByRole("button", { name: /first\.jpg/i })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /second\.jpg/i })).toBeInTheDocument();
     });
-    expect(fetchExpenseDocByIdObjectUrl).toHaveBeenCalled();
+    // The selected document's bytes load in a follow-up effect — wait for it.
+    await waitFor(() => expect(fetchExpenseDocByIdObjectUrl).toHaveBeenCalled());
   });
 });

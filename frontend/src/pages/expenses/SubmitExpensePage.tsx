@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Loader2, PencilLine, Save, Send, Sparkles, Upload } from "lucide-react";
+import { Loader2, Save, Send, Sparkles, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -19,6 +19,8 @@ import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { ReceiptDropzone } from "../../components/expenses/ReceiptDropzone";
+import { ScopeSelector } from "../../components/expenses/ScopeSelector";
+import { ManualEntryCard } from "../../components/expenses/ManualEntryCard";
 import { listMyProjects } from "../../lib/projects-api";
 import {
   apiErrorMessage,
@@ -30,8 +32,6 @@ import {
 import {
   CATEGORY_LABELS,
   EXPENSE_CATEGORIES,
-  EXPENSE_SCOPES,
-  SCOPE_LABELS,
   type CreateExpensePayload,
   type ExpenseCategory,
   type ExpenseScope,
@@ -54,7 +54,7 @@ export function SubmitExpensePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [scope, setScope] = useState<ExpenseScope>("PROJECT");
+  const [scope, setScope] = useState<ExpenseScope>("GENERAL");
   const [projectId, setProjectId] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   // The manual fallback (and edit mode) reveals amount/date/category/description.
@@ -108,18 +108,24 @@ export function SubmitExpensePage() {
     };
   }, [id, isEdit]);
 
-  const projectReady = scope === "GENERAL" || projectId !== "";
+  // Manual / edit paths require a project up-front for PROJECT scope. The AI path
+  // allows deferring project allocation to the verify step.
+  const projectChosen = scope === "GENERAL" || projectId !== "";
   const amountValue = Number(amount);
   const manualReady =
-    projectReady &&
+    projectChosen &&
     description.trim() !== "" &&
     expenseDate !== "" &&
     Number.isFinite(amountValue) &&
     amountValue > 0;
-  const aiReady = projectReady && files.length > 0;
+  // AI analysis is available for BOTH scopes once a receipt is staged; the project
+  // (for PROJECT scope) is allocated later in the verify step.
+  const aiReady = files.length > 0;
 
-  function projectField(payload: CreateExpensePayload): CreateExpensePayload {
-    return scope === "PROJECT" ? { ...payload, projectId } : payload;
+  function withProject(payload: CreateExpensePayload): CreateExpensePayload {
+    return scope === "PROJECT" && projectId
+      ? { ...payload, projectId }
+      : payload;
   }
 
   /** AI path: create a draft, upload the receipts, then go to analysis. */
@@ -128,12 +134,7 @@ export function SubmitExpensePage() {
     setError(null);
     try {
       const created = await createExpense(
-        projectField({
-          scope,
-          type: "DOCUMENT",
-          currency: "INR",
-          isDraft: true,
-        }),
+        withProject({ scope, type: "DOCUMENT", currency: "INR", isDraft: true }),
       );
       await uploadExpenseDocuments(created.id, files);
       toast.success("Draft saved — starting analysis…");
@@ -150,12 +151,7 @@ export function SubmitExpensePage() {
     setError(null);
     try {
       const created = await createExpense(
-        projectField({
-          scope,
-          type: "DOCUMENT",
-          currency: "INR",
-          isDraft: true,
-        }),
+        withProject({ scope, type: "DOCUMENT", currency: "INR", isDraft: true }),
       );
       if (files.length > 0) await uploadExpenseDocuments(created.id, files);
       toast.success("Draft saved.");
@@ -176,7 +172,7 @@ export function SubmitExpensePage() {
     setError(null);
     try {
       const created = await createExpense(
-        projectField({
+        withProject({
           scope,
           type: "CASH",
           category,
@@ -222,6 +218,111 @@ export function SubmitExpensePage() {
     }
   }
 
+  // Project allocation field — required in the manual/edit paths; optional (and
+  // deferrable) in the AI path.
+  const projectRequired = manualMode || isEdit;
+  const projectField = scope === "PROJECT" && (
+    <div className="flex flex-col gap-2">
+      <Label htmlFor="project">
+        Select Project
+        {projectRequired && <Req />}
+      </Label>
+      <Select value={projectId} onValueChange={(v) => setProjectId(v ?? "")}>
+        <SelectTrigger id="project" className="w-full">
+          <SelectValue placeholder="Select a project" />
+        </SelectTrigger>
+        <SelectContent>
+          {projects.length === 0 ? (
+            <SelectItem value="__none" disabled>
+              You are not assigned to any project
+            </SelectItem>
+          ) : (
+            projects.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.name}
+              </SelectItem>
+            ))
+          )}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        {projectRequired
+          ? "Choose where this expense is allocated."
+          : "Optional now — you can allocate the project after reviewing the receipt."}
+      </p>
+    </div>
+  );
+
+  // Manual metadata fields, shared between the manual card (create) and edit mode.
+  const manualFields = (
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="category">
+          Category
+          <Req />
+        </Label>
+        <Select
+          value={category}
+          onValueChange={(v) => setCategory((v ?? "TRAVEL") as ExpenseCategory)}
+        >
+          <SelectTrigger id="category" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {EXPENSE_CATEGORIES.map((c) => (
+              <SelectItem key={c} value={c}>
+                {CATEGORY_LABELS[c]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="amount">
+          Amount (₹)
+          <Req />
+        </Label>
+        <Input
+          id="amount"
+          type="number"
+          min={0}
+          step="0.01"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="0.00"
+        />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="date">
+          Expense date
+          <Req />
+        </Label>
+        <Input
+          id="date"
+          type="date"
+          value={expenseDate}
+          onChange={(e) => setExpenseDate(e.target.value)}
+        />
+      </div>
+
+      <div className="flex flex-col gap-2 sm:col-span-2">
+        <Label htmlFor="description">
+          Description
+          <Req />
+        </Label>
+        <Textarea
+          id="description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          placeholder="What was this expense for?"
+        />
+      </div>
+    </div>
+  );
+
   return (
     <div className="expense-scope">
       <PageHeader
@@ -243,7 +344,23 @@ export function SubmitExpensePage() {
         />
       ) : (
         <form onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-4">
-          {/* Step 1 — Receipt (hero). Hidden in edit mode (manage on details page). */}
+          {/* Step 1 — Where does this belong? (scope cards + project allocation) */}
+          <Card>
+            <CardContent className="flex flex-col gap-5 pt-6">
+              <div className="flex flex-col gap-2">
+                <h2 className="text-sm font-semibold">
+                  Where does this belong?
+                  <Req />
+                </h2>
+                <ScopeSelector value={scope} onChange={setScope} disabled={busy} />
+              </div>
+              {scope === "PROJECT" && (
+                <div className="sm:max-w-sm">{projectField}</div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Step 2 — Receipt (hero). Hidden in edit + manual modes. */}
           {!isEdit && !manualMode && (
             <Card>
               <CardContent className="flex flex-col gap-3 pt-6">
@@ -255,9 +372,9 @@ export function SubmitExpensePage() {
                   </h2>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  We&apos;ll read the amount, date, and category for you — no manual
-                  typing. Add multiple files for multi-page invoices or supporting
-                  documents.
+                  We&apos;ll read the vendor, amount, date, and category for you — no
+                  manual typing. Add multiple files for multi-page invoices or
+                  supporting documents.
                 </p>
                 <ReceiptDropzone
                   files={files}
@@ -269,161 +386,29 @@ export function SubmitExpensePage() {
             </Card>
           )}
 
-          {/* Step 2 — Where it belongs (always required). */}
+          {/* Step 3 — Manual entry. Secondary card on create; inline in edit. */}
+          {isEdit ? (
+            <Card>
+              <CardContent className="pt-6">{manualFields}</CardContent>
+            </Card>
+          ) : (
+            <ManualEntryCard
+              open={manualMode}
+              onOpen={() => setManualMode(true)}
+            >
+              {manualFields}
+            </ManualEntryCard>
+          )}
+
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+
+          {/* Actions */}
           <Card>
-            <CardContent className="grid grid-cols-1 gap-5 pt-6 sm:grid-cols-2">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="scope">
-                  Expense scope
-                  <Req />
-                </Label>
-                <Select
-                  value={scope}
-                  onValueChange={(v) => setScope((v ?? "PROJECT") as ExpenseScope)}
-                >
-                  <SelectTrigger id="scope" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {EXPENSE_SCOPES.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {SCOPE_LABELS[s]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Tie this to a project, or pick General for an organizational
-                  expense.
-                </p>
-              </div>
-
-              {scope === "PROJECT" ? (
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="project">
-                    Project
-                    <Req />
-                  </Label>
-                  <Select
-                    value={projectId}
-                    onValueChange={(v) => setProjectId(v ?? "")}
-                  >
-                    <SelectTrigger id="project" className="w-full">
-                      <SelectValue placeholder="Select a project" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {projects.length === 0 ? (
-                        <SelectItem value="__none" disabled>
-                          You are not assigned to any project
-                        </SelectItem>
-                      ) : (
-                        projects.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.name}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : (
-                <div className="hidden sm:block" />
-              )}
-
-              {/* Manual fields — fallback / edit only. */}
-              {manualMode && (
-                <>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="category">
-                      Category
-                      <Req />
-                    </Label>
-                    <Select
-                      value={category}
-                      onValueChange={(v) =>
-                        setCategory((v ?? "TRAVEL") as ExpenseCategory)
-                      }
-                    >
-                      <SelectTrigger id="category" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {EXPENSE_CATEGORIES.map((c) => (
-                          <SelectItem key={c} value={c}>
-                            {CATEGORY_LABELS[c]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="amount">
-                      Amount (₹)
-                      <Req />
-                    </Label>
-                    <Input
-                      id="amount"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      placeholder="0.00"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="date">
-                      Expense date
-                      <Req />
-                    </Label>
-                    <Input
-                      id="date"
-                      type="date"
-                      value={expenseDate}
-                      onChange={(e) => setExpenseDate(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-2 sm:col-span-2">
-                    <Label htmlFor="description">
-                      Description
-                      <Req />
-                    </Label>
-                    <Textarea
-                      id="description"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      rows={3}
-                      placeholder="What was this expense for?"
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* Manual-entry disclosure (create + AI mode only). */}
-              {!isEdit && !manualMode && (
-                <div className="sm:col-span-2">
-                  <button
-                    type="button"
-                    onClick={() => setManualMode(true)}
-                    className="inline-flex items-center gap-1 text-xs font-medium text-ai underline-offset-2 hover:underline"
-                  >
-                    <PencilLine className="size-3" />
-                    No receipt? Enter the details manually
-                  </button>
-                </div>
-              )}
-
-              {error && (
-                <p role="alert" className="text-sm text-destructive sm:col-span-2">
-                  {error}
-                </p>
-              )}
-            </CardContent>
-
-            <CardFooter className="flex-wrap justify-end gap-2">
+            <CardFooter className="flex-wrap justify-end gap-2 pt-6">
               <Button
                 type="button"
                 variant="outline"
@@ -478,7 +463,7 @@ export function SubmitExpensePage() {
                     type="button"
                     variant="outline"
                     onClick={handleSaveAiDraft}
-                    disabled={!projectReady || busy}
+                    disabled={busy}
                   >
                     <Save className="size-4" />
                     Save Draft
