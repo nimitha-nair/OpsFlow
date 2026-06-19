@@ -340,6 +340,12 @@ export async function updateAnalysis(
     if (currency) writeBack.currency = currency;
     if (date) writeBack.expenseDate = date;
     if (category) writeBack.category = category;
+    // Backfill a blank description from the vendor so AI-first drafts (created
+    // without a description) become identifiable after confirmation.
+    const vendor = patch.vendorName ?? doc.vendorName;
+    if (vendor && (!expense.description || expense.description.trim() === "")) {
+      writeBack.description = vendor;
+    }
     if (Object.keys(writeBack).length > 0) {
       await updateExpense(expenseId, ownerId, writeBack);
     }
