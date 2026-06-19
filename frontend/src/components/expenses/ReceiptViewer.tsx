@@ -66,12 +66,15 @@ export function ReceiptViewer({
   expenseId,
   documentId,
   mimeType,
+  onError,
 }: {
   expenseId: string;
   /** Render a specific document; defaults to the expense's primary document. */
   documentId?: string;
   /** MIME of the specific document (required when `documentId` is set). */
   mimeType?: string;
+  /** Called if this document fails to load (lets a parent fall back to another). */
+  onError?: (documentId?: string) => void;
 }) {
   const [pages, setPages] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,7 +113,10 @@ export function ReceiptViewer({
           setPages([objUrl]);
         }
       } catch {
-        if (!cancelled) setError("Could not load the receipt.");
+        if (!cancelled) {
+          setError("Could not load the receipt.");
+          onError?.(documentId);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -119,7 +125,7 @@ export function ReceiptViewer({
       cancelled = true;
       if (objUrl) URL.revokeObjectURL(objUrl);
     };
-  }, [expenseId, documentId, mimeType]);
+  }, [expenseId, documentId, mimeType, onError]);
 
   useEffect(() => {
     const onChange = () => setIsFull(Boolean(document.fullscreenElement));

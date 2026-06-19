@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
-import { FileText, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { FileText, Loader2, RefreshCw } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { ReceiptViewer } from "./ReceiptViewer";
 import { listExpenseDocuments } from "../../lib/expenses-api";
 import type { ExpenseFileView } from "../../types/expense";
@@ -8,24 +9,31 @@ import type { ExpenseFileView } from "../../types/expense";
 /**
  * Multi-document receipt viewer. Lists every document attached to the expense and
  * renders the selected one in the full-featured {@link ReceiptViewer} (zoom, PDF
- * pages, fullscreen). When more than one document exists it shows a switcher and a
- * "Document X of N" indicator so it's always clear which file is on screen.
- * Degrades to a plain single viewer for one document.
+ * pages, fullscreen), with a switcher + "Document X of N" when there is more than
+ * one. Resilient: a failed list load shows an actionable retry, and a single
+ * document that fails to render falls back to the next one automatically.
  */
 export function MultiReceiptViewer({ expenseId }: { expenseId: string }) {
   const [docs, setDocs] = useState<ExpenseFileView[]>([]);
   const [selected, setSelected] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [listError, setListError] = useState(false);
+  // Document ids that failed to render — skipped during fallback.
+  const [failed, setFailed] = useState<Set<string>>(new Set());
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setLoading(true);
+      setListError(false);
+      setFailed(new Set());
+      setSelected(0);
       try {
         const list = await listExpenseDocuments(expenseId);
         if (!cancelled) setDocs(list);
       } catch {
-        if (!cancelled) setError("Could not load the receipts.");
+        if (!cancelled) setListError(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -33,7 +41,21 @@ export function MultiReceiptViewer({ expenseId }: { expenseId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [expenseId]);
+  }, [expenseId, reloadKey]);
+
+  // When a document fails to render, mark it by id; the displayed index (below)
+  // then falls back to the next good document — no extra setState effect needed.
+  const handleDocError = useCallback((docId?: string) => {
+    if (!docId) return;
+    setFailed((prev) => {
+      if (prev.has(docId)) return prev;
+      const next = new Set(prev);
+      next.add(docId);
+      return next;
+    });
+  }, []);
+
+  const retry = () => setReloadKey((k) => k + 1);
 
   if (loading) {
     return (
@@ -42,15 +64,34 @@ export function MultiReceiptViewer({ expenseId }: { expenseId: string }) {
       </div>
     );
   }
-  if (error || docs.length === 0) {
+
+  const allFailed = docs.length > 0 && docs.every((d) => failed.has(d.id));
+
+  if (listError || docs.length === 0 || allFailed) {
     return (
-      <div className="flex h-64 items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">
-        {error ?? "No receipt to preview"}
+      <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-md border bg-muted/30 p-4 text-center">
+        <p className="text-sm text-muted-foreground">
+          {docs.length === 0 && !listError
+            ? "No receipt to preview."
+            : "Unable to load the receipt preview. The document was analyzed successfully, but the preview couldn't be displayed."}
+        </p>
+        {(listError || allFailed) && (
+          <Button variant="outline" size="sm" onClick={retry}>
+            <RefreshCw className="size-4" />
+            Retry
+          </Button>
+        )}
       </div>
     );
   }
 
-  const current = docs[Math.min(selected, docs.length - 1)]!;
+  // If the selected document failed to render, fall back to the next good one.
+  const clamped = Math.min(selected, docs.length - 1);
+  const clampedId = docs[clamped]!.id;
+  const fallbackIndex = failed.has(clampedId)
+    ? docs.findIndex((d) => !failed.has(d.id))
+    : clamped;
+  const current = docs[fallbackIndex >= 0 ? fallbackIndex : clamped]!;
 
   return (
     <div className="flex flex-col gap-3">
@@ -71,8 +112,12 @@ export function MultiReceiptViewer({ expenseId }: { expenseId: string }) {
                   i === selected
                     ? "ring-ai border-[var(--x-ai)] font-medium"
                     : "hover:border-muted-foreground/50"
-                }`}
-                title={d.originalFileName}
+                } ${failed.has(d.id) ? "opacity-50" : ""}`}
+                title={
+                  failed.has(d.id)
+                    ? `${d.originalFileName} (preview unavailable)`
+                    : d.originalFileName
+                }
               >
                 <FileText className="size-3.5 text-muted-foreground" />
                 <span className="max-w-32 truncate">{d.originalFileName}</span>
@@ -86,6 +131,7 @@ export function MultiReceiptViewer({ expenseId }: { expenseId: string }) {
         expenseId={expenseId}
         documentId={current.id}
         mimeType={current.mimeType}
+        onError={handleDocError}
       />
     </div>
   );
