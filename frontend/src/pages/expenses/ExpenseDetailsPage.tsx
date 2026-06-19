@@ -34,6 +34,7 @@ import {
 } from "../../components/expenses/ExpenseBadges";
 import { AnalysisAuditPanel } from "../../components/expenses/AnalysisAuditPanel";
 import { AiAuditCard } from "../../components/expenses/AiAuditCard";
+import { MultiReceiptViewer } from "../../components/expenses/MultiReceiptViewer";
 import { ReviewWorkbench } from "../../components/expenses/ReviewWorkbench";
 import { useAuth } from "../../context/auth-context";
 import { formatDate, formatMoney } from "../../lib/format";
@@ -397,9 +398,14 @@ export function ExpenseDetailsPage() {
                   <dd>
                     {expense.documentId ? (
                       <div className="flex flex-col gap-2">
-                        {docMeta && (
-                          <span className="truncate text-sm text-foreground">
-                            {docMeta.originalFileName}
+                        <span className="truncate text-sm text-foreground">
+                          {(expense.documentIds?.length ?? 1) > 1
+                            ? `${expense.documentIds!.length} documents`
+                            : (docMeta?.originalFileName ?? "1 document")}
+                        </span>
+                        {(expense.documentIds?.length ?? 1) > 1 && (
+                          <span className="text-xs text-muted-foreground">
+                            Download saves the primary document.
                           </span>
                         )}
                         <div className="flex flex-wrap gap-2">
@@ -450,6 +456,18 @@ export function ExpenseDetailsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* All uploaded documents, viewable inline (owner). */}
+          {expense.documentId && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Documents</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <MultiReceiptViewer expenseId={expense.id} />
+              </CardContent>
+            </Card>
+          )}
 
           {/* AI extraction audit trail for the owner once the expense leaves
               draft (HR/Admin get it in the review workbench above). */}
