@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, ShieldCheck } from "lucide-react";
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { AnalysisAuditPanel } from "./AnalysisAuditPanel";
-import { ReceiptStrip } from "./ReceiptStrip";
+import { MultiReceiptViewer } from "./MultiReceiptViewer";
 import type { Expense } from "../../types/expense";
 
 /**
@@ -43,7 +43,7 @@ export function AiAuditCard({ expense }: { expense: Expense }) {
             corrections, and final submitted values.
           </p>
           {expense.documentId ? (
-            <ReceiptStrip expenseId={expense.id} />
+            <MultiReceiptViewer expenseId={expense.id} />
           ) : (
             <p className="rounded-md border bg-muted/20 p-4 text-center text-sm text-muted-foreground">
               No receipt was attached (manual entry).

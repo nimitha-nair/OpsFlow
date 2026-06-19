@@ -19,7 +19,7 @@ import {
 import { ConfidenceMeter } from "../../components/expenses/ConfidenceMeter";
 import { LowConfidenceBanner } from "../../components/expenses/LowConfidenceBanner";
 import { MockAnalysisBadge } from "../../components/expenses/MockAnalysisBadge";
-import { ReceiptStrip } from "../../components/expenses/ReceiptStrip";
+import { MultiReceiptViewer } from "../../components/expenses/MultiReceiptViewer";
 import { getExpenseAnalysis, updateExpenseAnalysis } from "../../lib/expense-analysis-api";
 import { getExpense, submitExpense } from "../../lib/expenses-api";
 import { listMyProjects } from "../../lib/projects-api";
@@ -165,7 +165,7 @@ export function ExpenseVerificationPage() {
           <CardTitle className="text-base">Receipt</CardTitle>
         </CardHeader>
         <CardContent>
-          <ReceiptStrip expenseId={id} />
+          <MultiReceiptViewer expenseId={id} />
         </CardContent>
       </Card>
 

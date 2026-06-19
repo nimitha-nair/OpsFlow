@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import {
+  fetchExpenseDocByIdObjectUrl,
   fetchExpenseDocumentObjectUrl,
   getExpenseDocument,
 } from "../../lib/expenses-api";
@@ -61,7 +62,17 @@ async function renderPdfPages(buf: ArrayBuffer): Promise<string[]> {
  * zoom presets (50–300%), Fit Width, Fit Page, and Ctrl/⌘ + mouse-wheel zoom. Each
  * page wraps an absolutely-positioned overlay layer reserved for field-highlighting.
  */
-export function ReceiptViewer({ expenseId }: { expenseId: string }) {
+export function ReceiptViewer({
+  expenseId,
+  documentId,
+  mimeType,
+}: {
+  expenseId: string;
+  /** Render a specific document; defaults to the expense's primary document. */
+  documentId?: string;
+  /** MIME of the specific document (required when `documentId` is set). */
+  mimeType?: string;
+}) {
   const [pages, setPages] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,9 +88,15 @@ export function ReceiptViewer({ expenseId }: { expenseId: string }) {
     let objUrl: string | null = null;
     (async () => {
       try {
-        const meta = await getExpenseDocument(expenseId);
-        objUrl = await fetchExpenseDocumentObjectUrl(expenseId, false);
-        if (meta.mimeType === "application/pdf") {
+        // Render a specific document when given one (multi-document viewer), else
+        // fall back to the expense's primary document (legacy single-doc usage).
+        const mime = documentId
+          ? (mimeType ?? "")
+          : (await getExpenseDocument(expenseId)).mimeType;
+        objUrl = documentId
+          ? await fetchExpenseDocByIdObjectUrl(expenseId, documentId)
+          : await fetchExpenseDocumentObjectUrl(expenseId, false);
+        if (mime === "application/pdf") {
           const buf = await fetch(objUrl).then((r) => r.arrayBuffer());
           URL.revokeObjectURL(objUrl); // PDF bytes are buffered; the blob URL is done.
           objUrl = null;
@@ -102,7 +119,7 @@ export function ReceiptViewer({ expenseId }: { expenseId: string }) {
       cancelled = true;
       if (objUrl) URL.revokeObjectURL(objUrl);
     };
-  }, [expenseId]);
+  }, [expenseId, documentId, mimeType]);
 
   useEffect(() => {
     const onChange = () => setIsFull(Boolean(document.fullscreenElement));

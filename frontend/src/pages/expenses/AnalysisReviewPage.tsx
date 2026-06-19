@@ -14,7 +14,7 @@ import { AnalysisStatusBadge } from "../../components/expenses/AnalysisStatusBad
 import { ConfidenceMeter } from "../../components/expenses/ConfidenceMeter";
 import { LowConfidenceBanner } from "../../components/expenses/LowConfidenceBanner";
 import { MockAnalysisBadge } from "../../components/expenses/MockAnalysisBadge";
-import { ReceiptViewer } from "../../components/expenses/ReceiptViewer";
+import { MultiReceiptViewer } from "../../components/expenses/MultiReceiptViewer";
 import { analyzeExpense, getExpenseAnalysis } from "../../lib/expense-analysis-api";
 import { getExpense } from "../../lib/expenses-api";
 import { getProject } from "../../lib/projects-api";
@@ -126,7 +126,7 @@ export function AnalysisReviewPage() {
           )}
         </CardHeader>
         <CardContent>
-          <ReceiptViewer expenseId={id} />
+          <MultiReceiptViewer expenseId={id} />
         </CardContent>
       </Card>
 

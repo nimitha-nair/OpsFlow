@@ -20,10 +20,24 @@ export interface AiExtractionSnapshot {
   lowConfidenceReason: string | null;
 }
 
+/** Per-document extraction in a multi-document analysis (the per-file breakdown). */
+export interface PerDocumentExtraction {
+  documentId: string;
+  vendorName: string | null;
+  amount: number | null;
+  transactionDate: string | null;
+  currency: string | null;
+  category: string | null;
+  taxInformation: string | null;
+  confidenceScore: number;
+}
+
 export interface ExpenseAnalysis {
   id: string;
   expenseId: string;
   documentId: string;
+  /** Per-document breakdown; top-level fields are the combined/aggregated values. */
+  documents?: PerDocumentExtraction[];
   status: AnalysisStatus;
   provider?: "mock" | "kimi";
   modelVersion?: string;
