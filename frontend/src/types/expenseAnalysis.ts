@@ -81,6 +81,7 @@ export interface UpdateAnalysisPayload {
   paymentMethod?: string;
   category?: string;
   taxInformation?: string;
+  description?: string;
   confirm?: boolean;
 }
 

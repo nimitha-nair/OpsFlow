@@ -35,6 +35,7 @@ export interface UpdateAnalysisInput {
   paymentMethod?: string;
   category?: string;
   taxInformation?: string;
+  description?: string;
   confirm?: boolean;
 }
 
@@ -340,10 +341,14 @@ export async function updateAnalysis(
     if (currency) writeBack.currency = currency;
     if (date) writeBack.expenseDate = date;
     if (category) writeBack.category = category;
-    // Backfill a blank description from the vendor so AI-first drafts (created
-    // without a description) become identifiable after confirmation.
+    // Prefer an explicit verified description; otherwise backfill a blank one
+    // from the vendor so AI-first drafts (created without a description) become
+    // identifiable after confirmation.
+    const explicitDescription = patch.description?.trim();
     const vendor = patch.vendorName ?? doc.vendorName;
-    if (vendor && (!expense.description || expense.description.trim() === "")) {
+    if (explicitDescription) {
+      writeBack.description = explicitDescription;
+    } else if (vendor && (!expense.description || expense.description.trim() === "")) {
       writeBack.description = vendor;
     }
     if (Object.keys(writeBack).length > 0) {

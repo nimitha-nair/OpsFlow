@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, FileText } from "lucide-react";
+import { ArrowLeft, FileText, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
+import { Textarea } from "../../components/ui/textarea";
 import { LoadingState } from "../../components/common/LoadingState";
 import {
   Select,
@@ -18,7 +19,7 @@ import {
 import { ConfidenceMeter } from "../../components/expenses/ConfidenceMeter";
 import { LowConfidenceBanner } from "../../components/expenses/LowConfidenceBanner";
 import { MockAnalysisBadge } from "../../components/expenses/MockAnalysisBadge";
-import { ReceiptPreview } from "../../components/expenses/ReceiptPreview";
+import { ReceiptStrip } from "../../components/expenses/ReceiptStrip";
 import { getExpenseAnalysis, updateExpenseAnalysis } from "../../lib/expense-analysis-api";
 import { submitExpense } from "../../lib/expenses-api";
 import {
@@ -36,6 +37,7 @@ interface Form {
   paymentMethod: string;
   category: ExpenseCategory | "";
   taxInformation: string;
+  description: string;
 }
 
 /** Keep unsaved verify edits across Back-to-analysis round-trips. */
@@ -73,6 +75,9 @@ export function ExpenseVerificationPage() {
             paymentMethod: a?.paymentMethod ?? "",
             category: mapToExpenseCategory(a?.category) ?? "",
             taxInformation: a?.taxInformation ?? "",
+            // Default the description to the vendor so AI-first drafts (created
+            // without one) get a sensible, editable starting point.
+            description: a?.vendorName ?? "",
           },
         );
       } catch {
@@ -109,6 +114,7 @@ export function ExpenseVerificationPage() {
         paymentMethod: form.paymentMethod || undefined,
         category: form.category || undefined,
         taxInformation: form.taxInformation || undefined,
+        description: form.description || undefined,
         confirm: true,
       });
       await submitExpense(id);
@@ -123,19 +129,22 @@ export function ExpenseVerificationPage() {
   };
 
   return (
-    <div className="mx-auto grid max-w-5xl gap-6 p-4 lg:grid-cols-2">
+    <div className="expense-scope mx-auto grid max-w-5xl gap-6 p-4 lg:grid-cols-[3fr_2fr]">
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Receipt</CardTitle>
         </CardHeader>
         <CardContent>
-          <ReceiptPreview expenseId={id} />
+          <ReceiptStrip expenseId={id} />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle className="text-base">Verify extracted values</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Sparkles className="size-4 text-ai" />
+            Verify extracted values
+          </CardTitle>
           {analysis?.provider === "mock" && <MockAnalysisBadge />}
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
@@ -180,9 +189,17 @@ export function ExpenseVerificationPage() {
           <Labeled label="Tax info">
             <Input value={form.taxInformation} onChange={(e) => set("taxInformation", e.target.value)} />
           </Labeled>
+          <Labeled label="Description">
+            <Textarea
+              rows={2}
+              value={form.description}
+              onChange={(e) => set("description", e.target.value)}
+              placeholder="What was this expense for?"
+            />
+          </Labeled>
 
           <div className="flex flex-wrap gap-2 pt-2">
-            <Button onClick={confirmAndSubmit} disabled={saving}>
+            <Button className="btn-primary" onClick={confirmAndSubmit} disabled={saving}>
               Confirm &amp; submit for approval
             </Button>
             <Button

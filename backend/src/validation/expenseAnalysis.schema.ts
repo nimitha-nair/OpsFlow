@@ -12,6 +12,8 @@ export const updateAnalysisBody = z
     paymentMethod: z.string().trim().max(50).optional(),
     category: z.string().trim().max(50).optional(),
     taxInformation: z.string().trim().max(200).optional(),
+    /** Verified description; written back to the expense on confirm. */
+    description: z.string().trim().max(2000).optional(),
     confirm: z.boolean().optional().default(false),
   })
   .strict();
