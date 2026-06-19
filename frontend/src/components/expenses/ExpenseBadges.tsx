@@ -1,3 +1,5 @@
+import { Bot, PencilLine } from "lucide-react";
+
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
@@ -51,6 +53,39 @@ export function ExpenseTypeBadge({ type }: { type: ExpenseType }) {
   return (
     <Badge variant="outline" className="font-normal text-muted-foreground">
       {TYPE_LABELS[type]}
+    </Badge>
+  );
+}
+
+/**
+ * How the expense was created — "AI Extracted" (receipt) or "Manual Entry"
+ * (no receipt). Manual expenses may warrant extra reviewer scrutiny. Renders
+ * nothing for legacy expenses that predate creation-method tracking.
+ */
+export function CreationMethodBadge({
+  method,
+}: {
+  method?: "AI" | "MANUAL";
+}) {
+  if (!method) return null;
+  if (method === "MANUAL") {
+    return (
+      <Badge
+        variant="outline"
+        className="gap-1 border-amber-300 font-normal text-amber-700 dark:text-amber-400"
+      >
+        <PencilLine className="size-3" />
+        Manual Entry
+      </Badge>
+    );
+  }
+  return (
+    <Badge
+      variant="outline"
+      className="gap-1 border-indigo-300 font-normal text-indigo-700 dark:text-indigo-400"
+    >
+      <Bot className="size-3" />
+      AI Extracted
     </Badge>
   );
 }

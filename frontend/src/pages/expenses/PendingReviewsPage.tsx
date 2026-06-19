@@ -49,6 +49,7 @@ export function PendingReviewsPage() {
   const [tab, setTab] = useState<Tab>("PENDING");
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<ExpenseCategory | "ALL">("ALL");
+  const [method, setMethod] = useState<"ALL" | "AI" | "MANUAL">("ALL");
 
   useEffect(() => {
     let cancelled = false;
@@ -101,6 +102,7 @@ export function PendingReviewsPage() {
     return expenses.filter((e) => {
       if (!inTab(e, tab)) return false;
       if (category !== "ALL" && e.category !== category) return false;
+      if (method !== "ALL" && (e.creationMethod ?? "AI") !== method) return false;
       if (!needle) return true;
       const haystack = [
         getEmployeeName(e.employeeId),
@@ -112,7 +114,7 @@ export function PendingReviewsPage() {
         .toLowerCase();
       return haystack.includes(needle);
     });
-  }, [expenses, tab, category, search, getEmployeeName, getProjectName]);
+  }, [expenses, tab, category, method, search, getEmployeeName, getProjectName]);
 
   return (
     <>
@@ -178,6 +180,21 @@ export function PendingReviewsPage() {
                       {CATEGORY_LABELS[c]}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={method}
+                onValueChange={(v) =>
+                  setMethod((v ?? "ALL") as "ALL" | "AI" | "MANUAL")
+                }
+              >
+                <SelectTrigger className="sm:w-40" aria-label="Entry method">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All entries</SelectItem>
+                  <SelectItem value="AI">AI Extracted</SelectItem>
+                  <SelectItem value="MANUAL">Manual Entry</SelectItem>
                 </SelectContent>
               </Select>
             </div>

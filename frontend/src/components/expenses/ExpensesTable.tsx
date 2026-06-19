@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import {
   ApprovalStatusBadge,
+  CreationMethodBadge,
   ExpenseTypeBadge,
   ReimbursementBadge,
 } from "./ExpenseBadges";
@@ -69,7 +70,10 @@ export function ExpensesTable({
                 {CATEGORY_LABELS[expense.category]}
               </TableCell>
               <TableCell>
-                <ExpenseTypeBadge type={expense.type} />
+                <div className="flex flex-wrap items-center gap-1">
+                  <ExpenseTypeBadge type={expense.type} />
+                  <CreationMethodBadge method={expense.creationMethod} />
+                </div>
               </TableCell>
               <TableCell className="tabular-nums font-medium text-foreground">
                 {formatMoney(expense.amount, expense.currency)}

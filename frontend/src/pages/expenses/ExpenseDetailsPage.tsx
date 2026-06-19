@@ -36,6 +36,7 @@ import { LoadingState } from "../../components/common/LoadingState";
 import { PageHeader } from "../../components/layout/PageHeader";
 import {
   ApprovalStatusBadge,
+  CreationMethodBadge,
   ReimbursementBadge,
 } from "../../components/expenses/ExpenseBadges";
 import { AnalysisAuditPanel } from "../../components/expenses/AnalysisAuditPanel";
@@ -358,6 +359,7 @@ export function ExpenseDetailsPage() {
               <div className="flex flex-col items-end gap-1">
                 <ApprovalStatusBadge status={expense.approvalStatus} />
                 <ReimbursementBadge status={expense.reimbursementStatus} />
+                <CreationMethodBadge method={expense.creationMethod} />
               </div>
             </CardHeader>
             <CardContent>
