@@ -23,13 +23,6 @@ import {
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
@@ -40,6 +33,7 @@ import {
   ReimbursementBadge,
 } from "../../components/expenses/ExpenseBadges";
 import { AnalysisAuditPanel } from "../../components/expenses/AnalysisAuditPanel";
+import { AiAuditCard } from "../../components/expenses/AiAuditCard";
 import { ReviewWorkbench } from "../../components/expenses/ReviewWorkbench";
 import { useAuth } from "../../context/auth-context";
 import { formatDate, formatMoney } from "../../lib/format";
@@ -55,18 +49,14 @@ import {
   rejectExpense,
   startExpenseReview,
   submitExpense,
-  updateReimbursementStatus,
   viewExpenseDocument,
 } from "../../lib/expenses-api";
 import { getProject } from "../../lib/projects-api";
 import {
   CATEGORY_LABELS,
-  REIMBURSEMENT_LABELS,
-  REIMBURSEMENT_STATUSES,
   TYPE_LABELS,
   type Expense,
   type ExpenseFileView,
-  type ReimbursementStatus,
   type ReviewInfo,
 } from "../../types/expense";
 
@@ -170,9 +160,6 @@ export function ExpenseDetailsPage() {
   const isOwnerRejected = isOwner && expense?.approvalStatus === "REJECTED";
   const [deleting, setDeleting] = useState(false);
 
-  const canManageReimbursement =
-    user?.role === "ADMIN" && expense?.approvalStatus === "APPROVED";
-
   async function handleSubmitDraft() {
     if (!expense) return;
     setReviewing(true);
@@ -211,20 +198,6 @@ export function ExpenseDetailsPage() {
     } catch (err) {
       toast.error(apiErrorMessage(err, "Failed to delete draft."));
       setDeleting(false);
-    }
-  }
-
-  async function handleReimbursement(status: ReimbursementStatus) {
-    if (!expense || status === expense.reimbursementStatus) return;
-    setReviewing(true);
-    try {
-      const updated = await updateReimbursementStatus(expense.id, status);
-      setExpense(updated);
-      toast.success("Reimbursement status updated.");
-    } catch (err) {
-      toast.error(apiErrorMessage(err, "Failed to update reimbursement."));
-    } finally {
-      setReviewing(false);
     }
   }
 
@@ -308,9 +281,9 @@ export function ExpenseDetailsPage() {
           description={error ?? "This expense could not be found."}
           onRetry={() => setReloadKey((k) => k + 1)}
         />
-      ) : user?.role === "HR" || user?.role === "ADMIN" ? (
-        // HR/Admin review workbench: receipt on the left, AI audit trail and
-        // approval controls on the right — review and decide without navigating.
+      ) : user?.role === "HR" ? (
+        // HR review workbench: receipt on the left, AI audit trail and approval
+        // controls on the right — review and decide without navigating.
         <ReviewWorkbench expense={expense}>
           <ReviewSummaryCard
             expense={expense}
@@ -326,13 +299,6 @@ export function ExpenseDetailsPage() {
             expense.approvalStatus === "REJECTED") && (
             <DecisionCard expense={expense} reviewInfo={reviewInfo} />
           )}
-          {canManageReimbursement && (
-            <ReimbursementControls
-              expense={expense}
-              reviewing={reviewing}
-              onChange={handleReimbursement}
-            />
-          )}
           {canReview && (
             <ReviewActions
               expense={expense}
@@ -344,6 +310,24 @@ export function ExpenseDetailsPage() {
             />
           )}
         </ReviewWorkbench>
+      ) : user?.role === "ADMIN" ? (
+        // Admin oversight: a summary + final decision, plus a collapsible AI Audit
+        // for investigation. Admin does not approve/reject (HR does) and manages
+        // reimbursement on the dedicated Reimbursements screen.
+        <div className="expense-scope flex flex-col gap-4">
+          <ReviewSummaryCard
+            expense={expense}
+            projectName={projectName}
+            docMeta={docMeta}
+            onDownload={handleDownloadDocument}
+            downloading={docDownloading}
+          />
+          {(expense.approvalStatus === "APPROVED" ||
+            expense.approvalStatus === "REJECTED") && (
+            <DecisionCard expense={expense} reviewInfo={reviewInfo} />
+          )}
+          <AiAuditCard expense={expense} />
+        </div>
       ) : (
         <div className="flex flex-col gap-4">
           <Card>
@@ -583,46 +567,6 @@ function DecisionCard({
                 : "No remarks."}
           </p>
         </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-/** ADMIN-only reimbursement-status control (approved expenses). */
-function ReimbursementControls({
-  expense,
-  reviewing,
-  onChange,
-}: {
-  expense: Expense;
-  reviewing: boolean;
-  onChange: (status: ReimbursementStatus) => void;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Reimbursement</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-wrap items-center gap-3">
-        <Label htmlFor="reimbursement" className="text-sm">
-          Status
-        </Label>
-        <Select
-          value={expense.reimbursementStatus}
-          onValueChange={(v) => v && onChange(v as ReimbursementStatus)}
-          disabled={reviewing}
-        >
-          <SelectTrigger id="reimbursement" className="w-48">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {REIMBURSEMENT_STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>
-                {REIMBURSEMENT_LABELS[s]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </CardContent>
     </Card>
   );
