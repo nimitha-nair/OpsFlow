@@ -1,25 +1,35 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Briefcase, CircleCheck, ClipboardList, Clock } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  ClipboardList,
+  Clock,
+  FilePlus2,
+  FileText,
+  Plus,
+  Receipt,
+  XCircle,
+} from "lucide-react";
 
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { SectionCard } from "../../components/common/SectionCard";
-import { StatCard } from "../../components/dashboard/StatCard";
-import { TaskStatusSummary } from "../../components/dashboard/TaskStatusSummary";
-import { WelcomeBanner } from "../../components/dashboard/WelcomeBanner";
-import { ProjectStatusBadge } from "../../components/projects/ProjectStatusBadge";
-import { DueDate } from "../../components/tasks/DueDate";
-import { TaskPriorityBadge } from "../../components/tasks/TaskBadges";
-import { listMyProjects } from "../../lib/projects-api";
-import { apiErrorMessage, listMyTasks } from "../../lib/tasks-api";
-import type { Project } from "../../types/project";
-import type { Task } from "../../types/task";
+import { MetricCard } from "../../components/common/MetricCard";
+import { DashboardHero } from "../../components/dashboard/DashboardHero";
+import {
+  ApprovalStatusBadge,
+  CreationMethodBadge,
+} from "../../components/expenses/ExpenseBadges";
+import { apiErrorMessage, listMyExpenses } from "../../lib/expenses-api";
+import { formatDate, formatMoney } from "../../lib/format";
+import type { Expense } from "../../types/expense";
+
+const PENDING = ["SUBMITTED", "PENDING_REVIEW"];
 
 export function EmployeeDashboard() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -30,17 +40,10 @@ export function EmployeeDashboard() {
       setLoading(true);
       setError(null);
       try {
-        const [myTasks, myProjects] = await Promise.all([
-          listMyTasks(),
-          listMyProjects(),
-        ]);
-        if (cancelled) return;
-        setTasks(myTasks);
-        setProjects(myProjects);
+        const mine = await listMyExpenses();
+        if (!cancelled) setExpenses(mine);
       } catch (err) {
-        if (!cancelled) {
-          setError(apiErrorMessage(err, "Failed to load dashboard."));
-        }
+        if (!cancelled) setError(apiErrorMessage(err, "Failed to load dashboard."));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -51,26 +54,71 @@ export function EmployeeDashboard() {
     };
   }, [reloadKey]);
 
-  const projectName = useMemo(
-    () => new Map(projects.map((p) => [p.id, p.name])),
-    [projects],
-  );
-  const inProgress = tasks.filter((t) => t.status === "IN_PROGRESS").length;
-  const done = tasks.filter((t) => t.status === "DONE").length;
-  const upcoming = useMemo(
+  const counts = useMemo(() => {
+    const c = { draft: 0, pending: 0, approved: 0, rejected: 0 };
+    for (const e of expenses) {
+      if (e.approvalStatus === "DRAFT") c.draft += 1;
+      else if (PENDING.includes(e.approvalStatus)) c.pending += 1;
+      else if (e.approvalStatus === "APPROVED") c.approved += 1;
+      else if (e.approvalStatus === "REJECTED") c.rejected += 1;
+    }
+    return c;
+  }, [expenses]);
+
+  const recent = useMemo(
     () =>
-      [...tasks]
-        .filter((t) => t.status !== "DONE")
-        .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
-        .slice(0, 5),
-    [tasks],
+      [...expenses]
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .slice(0, 6),
+    [expenses],
+  );
+
+  const latestDraft = useMemo(
+    () =>
+      [...expenses]
+        .filter((e) => e.approvalStatus === "DRAFT")
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0],
+    [expenses],
   );
 
   return (
     <>
-      <WelcomeBanner
-        title="Employee Dashboard"
-        subtitle="Your projects, tasks, and expenses."
+      <DashboardHero
+        title="Your expenses"
+        status={
+          loading ? (
+            "Loading your expenses…"
+          ) : (
+            <>
+              <strong className="font-semibold text-foreground">
+                {counts.draft}
+              </strong>{" "}
+              draft{counts.draft === 1 ? "" : "s"} ·{" "}
+              <strong className="font-semibold text-foreground">
+                {counts.pending}
+              </strong>{" "}
+              pending review ·{" "}
+              <strong className="font-semibold text-foreground">
+                {counts.approved}
+              </strong>{" "}
+              approved
+            </>
+          )
+        }
+        primary={
+          latestDraft
+            ? {
+                label: "Continue Draft",
+                to: `/employee/expenses/${latestDraft.id}`,
+                icon: <FileText className="size-4" />,
+              }
+            : {
+                label: "Submit Expense",
+                to: "/employee/expenses/new",
+                icon: <Plus className="size-4" />,
+              }
+        }
+        secondary={{ label: "My Expenses", to: "/employee/expenses" }}
       />
 
       {loading ? (
@@ -82,46 +130,93 @@ export function EmployeeDashboard() {
           onRetry={() => setReloadKey((k) => k + 1)}
         />
       ) : (
-        <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatCard label="My Projects" value={projects.length} icon={Briefcase} />
-            <StatCard label="My Tasks" value={tasks.length} icon={ClipboardList} />
-            <StatCard label="In Progress" value={inProgress} icon={Clock} />
-            <StatCard label="Completed" value={done} icon={CircleCheck} />
+        <div className="flex flex-col gap-6">
+          <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
+            <MetricCard
+              index={0}
+              accent="violet"
+              icon={FileText}
+              label="Drafts"
+              value={counts.draft}
+              to="/employee/expenses"
+            />
+            <MetricCard
+              index={1}
+              accent="amber"
+              icon={Clock}
+              label="Pending Review"
+              value={counts.pending}
+              to="/employee/expenses"
+            />
+            <MetricCard
+              index={2}
+              accent="emerald"
+              icon={CheckCircle2}
+              label="Approved"
+              value={counts.approved}
+              to="/employee/expenses"
+            />
+            <MetricCard
+              index={3}
+              accent="rose"
+              icon={XCircle}
+              label="Rejected"
+              value={counts.rejected}
+              to="/employee/expenses"
+            />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
             <SectionCard
-              title="Upcoming Deadlines"
-              description="Your nearest open tasks."
+              title="Recent activity"
+              description="Your latest expenses and their status."
               className="lg:col-span-2"
+              actions={
+                <Link
+                  to="/employee/expenses"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  View all <ArrowRight className="size-3" />
+                </Link>
+              }
             >
-              {upcoming.length === 0 ? (
+              {recent.length === 0 ? (
                 <EmptyState
                   compact
-                  icon={ClipboardList}
-                  title="Nothing due"
-                  description="Open tasks assigned to you will appear here."
+                  icon={Receipt}
+                  title="No expenses yet"
+                  description="Submit your first expense to get started."
+                  action={
+                    <Link
+                      to="/employee/expenses/new"
+                      className="text-xs font-medium text-primary hover:underline"
+                    >
+                      Submit an expense
+                    </Link>
+                  }
                 />
               ) : (
-                <ul className="flex flex-col gap-3">
-                  {upcoming.map((task) => (
-                    <li
-                      key={task.id}
-                      className="flex items-center justify-between gap-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-foreground">
-                          {task.title}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {projectName.get(task.projectId) ?? "—"}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-3">
-                        <TaskPriorityBadge priority={task.priority} />
-                        <DueDate dueDate={task.dueDate} status={task.status} />
-                      </div>
+                <ul className="flex flex-col divide-y">
+                  {recent.map((e) => (
+                    <li key={e.id}>
+                      <Link
+                        to={`/employee/expenses/${e.id}`}
+                        className="-mx-2 flex items-center justify-between gap-3 rounded-md px-2 py-2.5 hover:bg-muted/50"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-foreground">
+                            {e.description || "Untitled expense"}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {formatMoney(e.amount, e.currency)} ·{" "}
+                            {formatDate(e.expenseDate)}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <CreationMethodBadge method={e.creationMethod} />
+                          <ApprovalStatusBadge status={e.approvalStatus} />
+                        </div>
+                      </Link>
                     </li>
                   ))}
                 </ul>
@@ -129,44 +224,63 @@ export function EmployeeDashboard() {
             </SectionCard>
 
             <SectionCard
-              title="Task Status"
-              description="Your task breakdown."
+              title="Quick actions"
+              description="Jump straight to what you need."
             >
-              <TaskStatusSummary tasks={tasks} />
+              <div className="flex flex-col gap-2">
+                <QuickAction
+                  to="/employee/expenses/new"
+                  icon={<FilePlus2 className="size-4" />}
+                  label="Submit Expense"
+                  hint="Upload a receipt or enter manually"
+                />
+                <QuickAction
+                  to="/employee/expenses"
+                  icon={<FileText className="size-4" />}
+                  label="View Drafts"
+                  hint={`${counts.draft} unfinished`}
+                />
+                <QuickAction
+                  to="/employee/expenses"
+                  icon={<ClipboardList className="size-4" />}
+                  label="My Expenses"
+                  hint="Full history & status"
+                />
+              </div>
             </SectionCard>
           </div>
-
-          <SectionCard
-            title="My Projects"
-            description="Projects you are assigned to."
-          >
-            {projects.length === 0 ? (
-              <EmptyState
-                compact
-                icon={Briefcase}
-                title="No projects yet"
-                description="Projects you are added to will appear here."
-              />
-            ) : (
-              <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {projects.map((project) => (
-                  <li key={project.id}>
-                    <Link
-                      to={`/employee/projects/${project.id}`}
-                      className="flex items-center justify-between gap-2 rounded-lg border border-border p-3 hover:bg-muted/50"
-                    >
-                      <span className="truncate text-sm font-medium text-foreground">
-                        {project.name}
-                      </span>
-                      <ProjectStatusBadge status={project.status} />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </SectionCard>
         </div>
       )}
     </>
+  );
+}
+
+function QuickAction({
+  to,
+  icon,
+  label,
+  hint,
+}: {
+  to: string;
+  icon: React.ReactNode;
+  label: string;
+  hint: string;
+}) {
+  return (
+    <Link
+      to={to}
+      className="group flex items-center gap-3 rounded-lg border border-border/70 p-3 transition hover:border-primary/40 hover:bg-muted/50"
+    >
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium text-foreground">{label}</span>
+        <span className="block truncate text-xs text-muted-foreground">
+          {hint}
+        </span>
+      </span>
+      <ArrowRight className="size-4 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" />
+    </Link>
   );
 }

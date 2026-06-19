@@ -46,7 +46,7 @@ describe("logout flow", () => {
   it("redirects unauthenticated access to /admin back to /login", () => {
     renderAppAt("/admin");
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
-    expect(screen.queryByText("Admin Dashboard")).not.toBeInTheDocument();
+    expect(screen.queryByText("Organization overview")).not.toBeInTheDocument();
   });
 
   it("logs out from the UI: dashboard -> click logout -> /login, storage cleared", async () => {
@@ -55,7 +55,7 @@ describe("logout flow", () => {
     renderAppAt("/admin");
 
     // 1-2. Authenticated user lands on the dashboard.
-    expect(await screen.findByText("Admin Dashboard")).toBeInTheDocument();
+    expect(await screen.findByText("Organization overview")).toBeInTheDocument();
     expect(localStorage.getItem("opsflow_token")).not.toBeNull();
 
     // 3. Open the profile menu and click "Log out".
@@ -64,7 +64,7 @@ describe("logout flow", () => {
 
     // 4. Redirected to /login.
     expect(await screen.findByLabelText("Email")).toBeInTheDocument();
-    expect(screen.queryByText("Admin Dashboard")).not.toBeInTheDocument();
+    expect(screen.queryByText("Organization overview")).not.toBeInTheDocument();
 
     // localStorage keys removed.
     expect(localStorage.getItem("opsflow_token")).toBeNull();

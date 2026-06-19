@@ -1,0 +1,78 @@
+/*
+ * Lightweight, reusable entrance + interaction utilities for dashboards and
+ * reports. Gated behind prefers-reduced-motion.
+ *
+ *   .r-rise  staggered fade/slide-in (set --r-i to the item index)
+ *   .r-bar   horizontal bar that grows from the left on mount
+ *   .r-col   vertical column that grows from the baseline on mount
+ *   .r-card  hover lift for metric cards
+ */
+
+@keyframes r-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes r-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes r-grow-y {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.r-rise {
+  animation: r-rise 0.55s cubic-bezier(0.21, 1.02, 0.73, 1) both;
+  animation-delay: calc(var(--r-i, 0) * 60ms);
+}
+
+.r-bar {
+  transform-origin: left center;
+  animation: r-grow-x 0.75s cubic-bezier(0.21, 1.02, 0.73, 1) both;
+  animation-delay: calc(var(--r-i, 0) * 50ms);
+}
+
+.r-col {
+  transform-origin: bottom center;
+  animation: r-grow-y 0.6s cubic-bezier(0.21, 1.02, 0.73, 1) both;
+  animation-delay: calc(var(--r-i, 0) * 35ms);
+}
+
+.r-card {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.r-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 30px -14px rgb(0 0 0 / 0.22);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .r-rise,
+  .r-bar,
+  .r-col {
+    animation: none;
+  }
+  .r-card,
+  .r-card:hover {
+    transition: none;
+    transform: none;
+  }
+}

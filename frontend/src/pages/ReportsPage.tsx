@@ -4,9 +4,8 @@ import {
   CheckCircle2,
   Clock,
   RefreshCw,
-  Receipt,
+  Wallet,
   XCircle,
-  type LucideIcon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -17,7 +16,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { PageHeader } from "../components/layout/PageHeader";
-import { KpiCard, type Accent } from "../components/reports/report-ui";
+import { MetricCard } from "../components/common/MetricCard";
 import { EmptyState } from "../components/common/EmptyState";
 import { ErrorState } from "../components/common/ErrorState";
 import { LoadingState } from "../components/common/LoadingState";
@@ -47,17 +46,6 @@ const HR_TABS: TabDef[] = ADMIN_TABS.filter(
   (t) => t.value === "overview" || t.value === "expenses",
 );
 
-const KPI_DEFS: {
-  key: keyof OverviewKpis;
-  label: string;
-  icon: LucideIcon;
-  accent: Accent;
-}[] = [
-  { key: "total", label: "Total Expenses", icon: Receipt, accent: "indigo" },
-  { key: "approved", label: "Approved Expenses", icon: CheckCircle2, accent: "emerald" },
-  { key: "pending", label: "Pending Expenses", icon: Clock, accent: "amber" },
-  { key: "rejected", label: "Rejected Expenses", icon: XCircle, accent: "rose" },
-];
 
 export function ReportsPage() {
   const { user } = useAuth();
@@ -216,23 +204,103 @@ function OverviewTab({
           description="KPIs will appear here once expenses are submitted."
         />
       ) : (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {KPI_DEFS.map(({ key, label, icon, accent }, i) => {
-            const k = data.kpis[key];
-            return (
-              <KpiCard
-                key={key}
-                index={i}
-                accent={accent}
-                label={label}
-                value={k.count}
-                icon={icon}
-                hint={formatMoney(k.amount, data.currency)}
-              />
-            );
-          })}
-        </div>
+        <>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard
+              index={0}
+              emphasize
+              accent="indigo"
+              icon={Wallet}
+              label="Total Spend (approved)"
+              value={formatMoney(data.kpis.approved.amount, data.currency)}
+              hint={`${data.kpis.approved.count} approved · ${formatMoney(
+                data.kpis.total.amount,
+                data.currency,
+              )} submitted`}
+            />
+            <MetricCard
+              index={1}
+              accent="emerald"
+              icon={CheckCircle2}
+              label="Approved"
+              value={data.kpis.approved.count}
+              hint={formatMoney(data.kpis.approved.amount, data.currency)}
+            />
+            <MetricCard
+              index={2}
+              accent="amber"
+              icon={Clock}
+              label="Pending review"
+              value={data.kpis.pending.count}
+              hint={formatMoney(data.kpis.pending.amount, data.currency)}
+            />
+            <MetricCard
+              index={3}
+              accent="rose"
+              icon={XCircle}
+              label="Rejected"
+              value={data.kpis.rejected.count}
+              hint={formatMoney(data.kpis.rejected.amount, data.currency)}
+            />
+          </div>
+
+          <OverviewInsights kpis={data.kpis} currency={data.currency} />
+        </>
       )}
+    </div>
+  );
+}
+
+/** Contextual, at-a-glance insights derived from the current KPIs. */
+function OverviewInsights({
+  kpis,
+  currency,
+}: {
+  kpis: OverviewKpis;
+  currency: string;
+}) {
+  const decided = kpis.approved.count + kpis.rejected.count;
+  const approvalRate =
+    decided > 0 ? Math.round((kpis.approved.count / decided) * 100) : null;
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <InsightChip
+        label="Approval rate"
+        value={approvalRate === null ? "—" : `${approvalRate}%`}
+        hint="of reviewed expenses"
+      />
+      <InsightChip
+        label="Awaiting review"
+        value={String(kpis.pending.count)}
+        hint={`${formatMoney(kpis.pending.amount, currency)} in the queue`}
+      />
+      <InsightChip
+        label="Submitted total"
+        value={String(kpis.total.count)}
+        hint={`${formatMoney(kpis.total.amount, currency)} all-time`}
+      />
+    </div>
+  );
+}
+
+function InsightChip({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
+      <div>
+        <div className="text-xs font-medium text-muted-foreground">{label}</div>
+        <div className="text-xs text-muted-foreground/70">{hint}</div>
+      </div>
+      <div className="shrink-0 text-lg font-bold tabular-nums text-foreground">
+        {value}
+      </div>
     </div>
   );
 }
