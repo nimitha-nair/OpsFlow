@@ -20,6 +20,20 @@ export function formatMoney(value: number, currency = "INR"): string {
   }
 }
 
+/** Compact currency for dense cards/charts, e.g. ₹1.2L / ₹3.4Cr / ₹9.8K. */
+export function formatCompactMoney(value: number, currency = "INR"): string {
+  try {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency,
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(value);
+  } catch {
+    return `${currency} ${Math.round(value)}`;
+  }
+}
+
 /** Format a date string (YYYY-MM-DD or ISO) for display; falls back to the raw value. */
 export function formatDate(value: string): string {
   const timestamp = Date.parse(value);

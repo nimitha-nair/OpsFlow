@@ -8,6 +8,7 @@ import { AdminDashboard } from "./pages/dashboards/AdminDashboard";
 import { EmployeeDashboard } from "./pages/dashboards/EmployeeDashboard";
 import { HrDashboard } from "./pages/dashboards/HrDashboard";
 import { DepartmentsPage } from "./pages/DepartmentsPage";
+import { DepartmentDetailsPage } from "./pages/DepartmentDetailsPage";
 import { EmployeesPage } from "./pages/EmployeesPage";
 import { KanbanPage } from "./pages/KanbanPage";
 import { Login } from "./pages/Login";
@@ -90,6 +91,7 @@ function App() {
         <Route path="expenses/:id/report" element={<ExpenseReportPage />} />
         <Route path="expenses/:id" element={<ExpenseDetailsPage />} />
         <Route path="departments" element={<DepartmentsPage />} />
+        <Route path="departments/:name" element={<DepartmentDetailsPage />} />
         <Route
           path="leave"
           element={<ModulePlaceholder title="Leave Management" />}

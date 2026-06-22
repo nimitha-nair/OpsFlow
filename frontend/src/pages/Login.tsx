@@ -36,10 +36,23 @@ export function Login() {
     event.preventDefault();
     setError(null);
     setSubmitting(true);
+    // TEMP DEBUG (login trace) — remove after diagnosis
+    console.log("[login-debug] submit", { email, origin: window.location.origin });
     try {
       const loggedIn = await login(email, password);
       navigate(roleHome(loggedIn.role), { replace: true });
     } catch (err) {
+      // TEMP DEBUG (login trace) — remove after diagnosis
+      if (axios.isAxiosError(err)) {
+        console.log("[login-debug] axios error", {
+          requestUrl: err.config?.baseURL ?? "" + (err.config?.url ?? ""),
+          status: err.response?.status,
+          contentType: err.response?.headers?.["content-type"],
+          data: err.response?.data,
+        });
+      } else {
+        console.log("[login-debug] non-axios error", err);
+      }
       if (axios.isAxiosError(err)) {
         const message = (err.response?.data as { error?: string } | undefined)
           ?.error;

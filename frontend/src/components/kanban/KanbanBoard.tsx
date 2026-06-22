@@ -25,6 +25,10 @@ interface KanbanBoardProps {
   getProjectName: (id: string) => string;
   canMove: boolean;
   onMoveTask: (taskId: string, status: TaskStatus) => void;
+  selectable?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
+  onOpen?: (task: Task) => void;
 }
 
 function isTaskStatus(value: string): value is TaskStatus {
@@ -37,6 +41,10 @@ export function KanbanBoard({
   getProjectName,
   canMove,
   onMoveTask,
+  selectable,
+  selectedIds,
+  onToggleSelect,
+  onOpen,
 }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -96,6 +104,10 @@ export function KanbanBoard({
             getAssigneeName={getAssigneeName}
             getProjectName={getProjectName}
             canMove={canMove}
+            selectable={selectable}
+            selectedIds={selectedIds}
+            onToggleSelect={onToggleSelect}
+            onOpen={onOpen}
           />
         ))}
       </div>

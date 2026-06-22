@@ -1,16 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, GanttChart, SquareKanban } from "lucide-react";
+import { GanttChart, X } from "lucide-react";
 import { toast } from "sonner";
 
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "../components/common/EmptyState";
 import { ErrorState } from "../components/common/ErrorState";
 import { LoadingState } from "../components/common/LoadingState";
@@ -19,6 +12,11 @@ import { CalendarView } from "../components/kanban/CalendarView";
 import { KanbanBoard } from "../components/kanban/KanbanBoard";
 import { TaskDetailsDialog } from "../components/kanban/TaskDetailsDialog";
 import { TimelineView } from "../components/kanban/TimelineView";
+import {
+  KanbanToolbar,
+  type BoardView,
+  type SavedView,
+} from "../components/kanban/KanbanToolbar";
 import { useAuth } from "../context/auth-context";
 import { listMyProjects, listProjects } from "../lib/projects-api";
 import {
@@ -28,7 +26,13 @@ import {
   updateTaskStatus,
 } from "../lib/tasks-api";
 import { listUsers } from "../lib/users-api";
-import type { Task, TaskStatus } from "../types/task";
+import {
+  TASK_STATUSES,
+  TASK_STATUS_LABELS,
+  type Task,
+  type TaskPriority,
+  type TaskStatus,
+} from "../types/task";
 
 interface NamedProject {
   id: string;
@@ -44,12 +48,22 @@ export function KanbanPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<NamedProject[]>([]);
   const [names, setNames] = useState<Map<string, string>>(new Map());
+  const [depts, setDepts] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
-  const [view, setView] = useState<"board" | "calendar" | "timeline">("board");
-  const [projectFilter, setProjectFilter] = useState<string>("all");
+  const availableViews: SavedView[] = isEmployee
+    ? ["my", "completed"]
+    : ["my", "team", "department", "completed"];
+
+  const [savedView, setSavedView] = useState<SavedView>(isEmployee ? "my" : "team");
+  const [boardView, setBoardView] = useState<BoardView>("board");
+  const [search, setSearch] = useState("");
+  const [priority, setPriority] = useState<TaskPriority | "all">("all");
+  const [projectFilter, setProjectFilter] = useState("all");
+  const [departmentFilter, setDepartmentFilter] = useState("all");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   useEffect(() => {
@@ -68,20 +82,23 @@ export function KanbanPage() {
             : listProjects({ limit: 100 }).then((r) => r.data),
         ]);
 
-        // Assignee names: ADMIN/HR can read the user directory; an EMPLOYEE only
-        // sees their own tasks, so their own name is sufficient.
         let nameMap: Map<string, string>;
+        let deptMap = new Map<string, string>();
         if (self.role === "EMPLOYEE") {
           nameMap = new Map([[self.id, self.name]]);
         } else {
-          const users = await listUsers({ limit: 100 });
+          const users = await listUsers({ limit: 1000 });
           nameMap = new Map(users.data.map((u) => [u.id, u.name]));
+          deptMap = new Map(
+            users.data.map((u) => [u.id, u.department?.trim() || "Unassigned"]),
+          );
         }
 
         if (cancelled) return;
         setTasks(taskList);
         setProjects(projectList.map((p) => ({ id: p.id, name: p.name })));
         setNames(nameMap);
+        setDepts(deptMap);
       } catch (err) {
         if (!cancelled) setError(apiErrorMessage(err, "Failed to load tasks."));
       } finally {
@@ -99,39 +116,87 @@ export function KanbanPage() {
     () => new Map(projects.map((p) => [p.id, p.name])),
     [projects],
   );
-  const getAssigneeName = useMemo(
-    () => (id: string) => names.get(id) ?? id,
-    [names],
-  );
+  const getAssigneeName = useMemo(() => (id: string) => names.get(id) ?? id, [names]);
   const getProjectName = useMemo(
     () => (id: string) => projectNames.get(id) ?? "—",
     [projectNames],
   );
 
-  const filteredTasks = useMemo(
-    () =>
-      projectFilter === "all"
-        ? tasks
-        : tasks.filter((t) => t.projectId === projectFilter),
-    [tasks, projectFilter],
+  const departments = useMemo(
+    () => [...new Set([...depts.values()])].sort(),
+    [depts],
   );
+
+  /** Apply a saved view to the raw task list. */
+  const applyView = useMemo(
+    () =>
+      (list: Task[], view: SavedView): Task[] => {
+        switch (view) {
+          case "my":
+            return list.filter((t) => t.assigneeId === user?.id);
+          case "completed":
+            return list.filter((t) => t.status === "DONE");
+          case "department":
+            return departmentFilter === "all"
+              ? list
+              : list.filter((t) => depts.get(t.assigneeId) === departmentFilter);
+          case "team":
+          default:
+            return list;
+        }
+      },
+    [user?.id, departmentFilter, depts],
+  );
+
+  const viewCounts = useMemo(() => {
+    const counts = {} as Record<SavedView, number>;
+    for (const v of availableViews) counts[v] = applyView(tasks, v).length;
+    return counts;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, applyView, availableViews.join(",")]);
+
+  const filteredTasks = useMemo(() => {
+    let list = applyView(tasks, savedView);
+    if (projectFilter !== "all") list = list.filter((t) => t.projectId === projectFilter);
+    if (priority !== "all") list = list.filter((t) => t.priority === priority);
+    const q = search.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (t) =>
+          t.title.toLowerCase().includes(q) ||
+          getAssigneeName(t.assigneeId).toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [applyView, tasks, savedView, projectFilter, priority, search, getAssigneeName]);
+
+  // Keep the selection consistent with what's actually visible.
+  const visibleIds = useMemo(() => new Set(filteredTasks.map((t) => t.id)), [filteredTasks]);
+  const activeSelection = useMemo(
+    () => [...selectedIds].filter((id) => visibleIds.has(id)),
+    [selectedIds, visibleIds],
+  );
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   async function handleMoveTask(taskId: string, status: TaskStatus) {
     const previous = tasks;
     const current = tasks.find((t) => t.id === taskId);
     if (!current || current.status === status) return;
 
-    // Completed tasks are read-only for employees; only an admin can reopen them.
     if (current.status === "DONE" && isEmployee) {
-      toast.error(
-        "This task is completed and read-only. Ask an admin to reopen it.",
-      );
+      toast.error("This task is completed and read-only. Ask an admin to reopen it.");
       return;
     }
 
-    setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, status } : t)),
-    );
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status } : t)));
     try {
       const updated = await updateTaskStatus(taskId, status);
       setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t)));
@@ -141,33 +206,26 @@ export function KanbanPage() {
     }
   }
 
+  async function bulkMove(status: TaskStatus) {
+    const ids = [...activeSelection];
+    setSelectedIds(new Set());
+    for (const id of ids) {
+      // eslint-disable-next-line no-await-in-loop
+      await handleMoveTask(id, status);
+    }
+    toast.success(`Moved ${ids.length} task${ids.length === 1 ? "" : "s"} to ${TASK_STATUS_LABELS[status]}.`);
+  }
+
   return (
     <>
       <PageHeader
         title="Kanban"
         description={
           isEmployee
-            ? "Visualize your assigned tasks."
-            : "Visualize tasks across board, calendar, and timeline."
+            ? "Your assigned work across board, calendar, and timeline."
+            : "Plan and track work across saved views and visualizations."
         }
         breadcrumbs={[{ label: "Kanban" }]}
-        actions={
-          projects.length > 0 ? (
-            <Select value={projectFilter} onValueChange={(v) => setProjectFilter(v ?? "all")}>
-              <SelectTrigger className="w-52" size="sm">
-                <SelectValue placeholder="All projects" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All projects</SelectItem>
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : undefined
-        }
       />
 
       {loading ? (
@@ -179,76 +237,103 @@ export function KanbanPage() {
           onRetry={() => setReloadKey((k) => k + 1)}
         />
       ) : (
-        <Tabs
-          value={view}
-          onValueChange={(v) =>
-            setView(v as "board" | "calendar" | "timeline")
-          }
-        >
-          <TabsList>
-            <TabsTrigger value="board">
-              <SquareKanban className="size-4" />
-              Board
-            </TabsTrigger>
-            <TabsTrigger value="calendar">
-              <CalendarDays className="size-4" />
-              Calendar
-            </TabsTrigger>
-            <TabsTrigger value="timeline">
-              <GanttChart className="size-4" />
-              Timeline
-            </TabsTrigger>
-          </TabsList>
+        <div className="flex flex-col gap-4">
+          <KanbanToolbar
+            views={availableViews}
+            activeView={savedView}
+            onViewChange={setSavedView}
+            search={search}
+            onSearch={setSearch}
+            priority={priority}
+            onPriority={setPriority}
+            projects={projects}
+            projectFilter={projectFilter}
+            onProject={setProjectFilter}
+            showDepartment={!isEmployee && savedView === "department"}
+            departments={departments}
+            departmentFilter={departmentFilter}
+            onDepartment={setDepartmentFilter}
+            boardView={boardView}
+            onBoardView={setBoardView}
+            counts={viewCounts}
+          />
 
-          <TabsContent value="board" className="mt-4">
+          {filteredTasks.length === 0 ? (
+            <Card>
+              <CardContent className="pt-6">
+                <EmptyState
+                  icon={GanttChart}
+                  title="No tasks match"
+                  description="Try a different view or clear your filters."
+                />
+              </CardContent>
+            </Card>
+          ) : boardView === "board" ? (
             <KanbanBoard
               tasks={filteredTasks}
               getAssigneeName={getAssigneeName}
               getProjectName={getProjectName}
               canMove={canMove}
               onMoveTask={handleMoveTask}
+              selectable={canMove}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
             />
-          </TabsContent>
-
-          <TabsContent value="calendar" className="mt-4">
+          ) : boardView === "calendar" ? (
             <Card>
               <CardContent className="pt-6">
-                <CalendarView
+                <CalendarView tasks={filteredTasks} onTaskClick={setSelectedTask} />
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="pt-6">
+                <TimelineView
                   tasks={filteredTasks}
+                  getProjectName={getProjectName}
                   onTaskClick={setSelectedTask}
                 />
               </CardContent>
             </Card>
-          </TabsContent>
+          )}
+        </div>
+      )}
 
-          <TabsContent value="timeline" className="mt-4">
-            <Card>
-              <CardContent className="pt-6">
-                {filteredTasks.length === 0 ? (
-                  <EmptyState
-                    icon={GanttChart}
-                    title="No tasks to display"
-                    description="Tasks will appear on the timeline once they exist."
-                  />
-                ) : (
-                  <TimelineView
-                    tasks={filteredTasks}
-                    getProjectName={getProjectName}
-                    onTaskClick={setSelectedTask}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+      {/* Bulk action bar */}
+      {canMove && activeSelection.length > 0 && (
+        <div className="no-print fixed inset-x-0 bottom-6 z-40 flex justify-center px-4">
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-popover px-4 py-2.5 shadow-lg ring-1 ring-foreground/10">
+            <span className="text-sm font-medium text-foreground">
+              {activeSelection.length} selected
+            </span>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-xs text-muted-foreground">Move to</span>
+            {TASK_STATUSES.map((status) => (
+              <Button
+                key={status}
+                size="xs"
+                variant="outline"
+                onClick={() => bulkMove(status)}
+              >
+                {TASK_STATUS_LABELS[status]}
+              </Button>
+            ))}
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              aria-label="Clear selection"
+              onClick={() => setSelectedIds(new Set())}
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+        </div>
       )}
 
       <TaskDetailsDialog
         task={selectedTask}
         projectName={selectedTask ? getProjectName(selectedTask.projectId) : ""}
-        assigneeName={
-          selectedTask ? getAssigneeName(selectedTask.assigneeId) : ""
-        }
+        assigneeName={selectedTask ? getAssigneeName(selectedTask.assigneeId) : ""}
         onOpenChange={(open) => {
           if (!open) setSelectedTask(null);
         }}

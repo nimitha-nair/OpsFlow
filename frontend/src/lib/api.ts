@@ -25,6 +25,14 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // TEMP DEBUG (login trace) — remove after diagnosis. Logs the exact URL the
+  // browser will request, so we can see baseURL + path resolution.
+  console.log("[api-debug] request", {
+    method: config.method,
+    baseURL: config.baseURL,
+    url: config.url,
+    resolved: `${config.baseURL ?? ""}${config.url ?? ""}`,
+  });
   return config;
 });
 
