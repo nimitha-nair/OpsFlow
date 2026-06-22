@@ -1,0 +1,9 @@
+# Cloudflare Pages routing.
+#
+# `/api/*` is handled by the Pages Function (functions/api/[[path]].ts), which
+# proxies same-origin to the backend tunnel — it is NOT listed here so it is not
+# intercepted by the SPA fallback below.
+#
+# SPA fallback: serve the app shell for client-side routes (deep links / refresh
+# on /admin/expenses/:id/report etc.) with a 200 (rewrite, not a redirect).
+/*    /index.html    200
