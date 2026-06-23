@@ -1,6 +1,8 @@
 import { useMemo } from "react";
+import { GanttChartSquare } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { EmptyState } from "../common/EmptyState";
 import { projectColor } from "../../lib/project-color";
 import { addMonths, startOfMonth } from "../../lib/calendar-utils";
 import { formatDate } from "../../lib/format";
@@ -29,6 +31,13 @@ export function TimelineView({
 }: TimelineViewProps) {
   const { axisStart, axisEnd, groups, months } = useMemo(() => {
     const spans = tasks.map(taskSpan);
+    // Guard against an empty task list: Math.min/max of [] return ±Infinity,
+    // which would corrupt the axis and every percentage calculation.
+    if (spans.length === 0) {
+      // Axis values are unused when there are no groups (we render an empty
+      // state below), so any valid non-degenerate range is fine.
+      return { axisStart: 0, axisEnd: DAY, groups: [], months: [] };
+    }
     const minStart = Math.min(...spans.map((s) => s.start));
     const maxEnd = Math.max(...spans.map((s) => s.end));
     const start = minStart - 3 * DAY;
@@ -72,6 +81,16 @@ export function TimelineView({
 
   const pct = (ms: number) =>
     Math.max(0, Math.min(100, ((ms - axisStart) / (axisEnd - axisStart)) * 100));
+
+  if (groups.length === 0) {
+    return (
+      <EmptyState
+        icon={GanttChartSquare}
+        title="Nothing on the timeline"
+        description="Tasks with a due date appear here, grouped by project. Create a task or adjust your filters to populate the timeline."
+      />
+    );
+  }
 
   return (
     <div className="overflow-x-auto">

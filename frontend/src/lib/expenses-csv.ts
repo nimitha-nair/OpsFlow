@@ -15,6 +15,7 @@ import {
  * what the page has fetched. Keep the column order in sync if/when that lands.
  */
 const HEADER = [
+  "Ref",
   "Date",
   "Employee",
   "Project",
@@ -45,6 +46,7 @@ export function toExpensesCsv(rows: Expense[], lookups: CsvLookups): string {
   for (const e of rows) {
     lines.push(
       [
+        e.code ?? "",
         e.expenseDate,
         lookups.employee(e.employeeId),
         e.scope === "GENERAL" ? "General" : lookups.project(e.projectId),

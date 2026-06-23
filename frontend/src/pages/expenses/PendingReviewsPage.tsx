@@ -11,11 +11,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { ExpensesTable } from "../../components/expenses/ExpensesTable";
+import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
 import { apiErrorMessage, listReviewExpenses } from "../../lib/expenses-api";
 import { listProjects } from "../../lib/projects-api";
 import { listUsers } from "../../lib/users-api";
@@ -29,6 +31,10 @@ import {
 type Tab = "PENDING" | "APPROVED" | "REJECTED" | "ALL";
 
 const PENDING = ["SUBMITTED", "PENDING_REVIEW"];
+
+/** High-risk receipts sort to the top of the review queue. */
+const riskRank = (e: Expense): number =>
+  e.riskLevel === "HIGH" ? 0 : e.riskLevel === "MEDIUM" ? 1 : 2;
 
 function inTab(e: Expense, tab: Tab): boolean {
   if (tab === "ALL") return true;
@@ -50,6 +56,7 @@ export function PendingReviewsPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<ExpenseCategory | "ALL">("ALL");
   const [method, setMethod] = useState<"ALL" | "AI" | "MANUAL">("ALL");
+  const [range, setRange] = useState<DateRange>(() => makeRange("all"));
 
   useEffect(() => {
     let cancelled = false;
@@ -87,19 +94,25 @@ export function PendingReviewsPage() {
     [projectNames],
   );
 
+  // Date range scopes tab counts and the table together.
+  const dated = useMemo(
+    () => filterByDate(expenses, (e) => e.expenseDate, range),
+    [expenses, range],
+  );
+
   const counts = useMemo(
     () => ({
-      PENDING: expenses.filter((e) => inTab(e, "PENDING")).length,
-      APPROVED: expenses.filter((e) => inTab(e, "APPROVED")).length,
-      REJECTED: expenses.filter((e) => inTab(e, "REJECTED")).length,
-      ALL: expenses.length,
+      PENDING: dated.filter((e) => inTab(e, "PENDING")).length,
+      APPROVED: dated.filter((e) => inTab(e, "APPROVED")).length,
+      REJECTED: dated.filter((e) => inTab(e, "REJECTED")).length,
+      ALL: dated.length,
     }),
-    [expenses],
+    [dated],
   );
 
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    return expenses.filter((e) => {
+    const rows = dated.filter((e) => {
       if (!inTab(e, tab)) return false;
       if (category !== "ALL" && e.category !== category) return false;
       if (method !== "ALL" && (e.creationMethod ?? "AI") !== method) return false;
@@ -114,7 +127,9 @@ export function PendingReviewsPage() {
         .toLowerCase();
       return haystack.includes(needle);
     });
-  }, [expenses, tab, category, method, search, getEmployeeName, getProjectName]);
+    // High-risk receipts first (stable within the same risk band).
+    return rows.sort((a, b) => riskRank(a) - riskRank(b));
+  }, [dated, tab, category, method, search, getEmployeeName, getProjectName]);
 
   return (
     <>
@@ -122,6 +137,7 @@ export function PendingReviewsPage() {
         title="Expenses"
         description="Review submitted expenses and browse approval history."
         breadcrumbs={[{ label: "Expenses" }]}
+        actions={<DateRangeFilter value={range} onChange={setRange} />}
       />
 
       {error ? (

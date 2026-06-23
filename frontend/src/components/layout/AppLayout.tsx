@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "../../context/auth-context";
 import { AppSidebar } from "./AppSidebar";
 import { AppTopbar } from "./AppTopbar";
+import { SupportWidget } from "./SupportWidget";
 
 /**
  * Shared application shell used as the parent route element for each role's
@@ -36,6 +37,7 @@ export function AppLayout() {
           </div>
         </main>
       </div>
+      <SupportWidget />
       <Toaster richColors closeButton />
     </div>
   );

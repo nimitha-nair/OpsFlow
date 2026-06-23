@@ -7,17 +7,23 @@ import {
   Clock,
   FilePlus2,
   FileText,
+  LifeBuoy,
   Plus,
   Receipt,
   XCircle,
 } from "lucide-react";
 
+import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { SectionCard } from "../../components/common/SectionCard";
 import { MetricCard } from "../../components/common/MetricCard";
 import { DashboardHero } from "../../components/dashboard/DashboardHero";
+import { EmployeeGettingStarted } from "../../components/onboarding/EmployeeGettingStarted";
+import { MyTasksWidget } from "../../components/dashboard/MyTasksWidget";
+import { TicketsWidget } from "../../components/dashboard/TicketsWidget";
+import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
 import {
   ApprovalStatusBadge,
   CreationMethodBadge,
@@ -33,6 +39,7 @@ export function EmployeeDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [range, setRange] = useState<DateRange>(() => makeRange("all"));
 
   useEffect(() => {
     let cancelled = false;
@@ -54,23 +61,28 @@ export function EmployeeDashboard() {
     };
   }, [reloadKey]);
 
+  const dated = useMemo(
+    () => filterByDate(expenses, (e) => e.expenseDate, range),
+    [expenses, range],
+  );
+
   const counts = useMemo(() => {
     const c = { draft: 0, pending: 0, approved: 0, rejected: 0 };
-    for (const e of expenses) {
+    for (const e of dated) {
       if (e.approvalStatus === "DRAFT") c.draft += 1;
       else if (PENDING.includes(e.approvalStatus)) c.pending += 1;
       else if (e.approvalStatus === "APPROVED") c.approved += 1;
       else if (e.approvalStatus === "REJECTED") c.rejected += 1;
     }
     return c;
-  }, [expenses]);
+  }, [dated]);
 
   const recent = useMemo(
     () =>
-      [...expenses]
+      [...dated]
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
         .slice(0, 6),
-    [expenses],
+    [dated],
   );
 
   const latestDraft = useMemo(
@@ -121,6 +133,8 @@ export function EmployeeDashboard() {
         secondary={{ label: "My Expenses", to: "/employee/expenses" }}
       />
 
+      <EmployeeGettingStarted />
+
       {loading ? (
         <LoadingState label="Loading dashboard…" />
       ) : error ? (
@@ -131,6 +145,9 @@ export function EmployeeDashboard() {
         />
       ) : (
         <div className="flex flex-col gap-6">
+          <div className="no-print flex items-center justify-end">
+            <DateRangeFilter value={range} onChange={setRange} />
+          </div>
           <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
             <MetricCard
               index={0}
@@ -241,13 +258,24 @@ export function EmployeeDashboard() {
                   hint={`${counts.draft} unfinished`}
                 />
                 <QuickAction
-                  to="/employee/expenses"
+                  to="/employee/tasks"
                   icon={<ClipboardList className="size-4" />}
-                  label="My Expenses"
-                  hint="Full history & status"
+                  label="My Tasks"
+                  hint="Work assigned to you"
+                />
+                <QuickAction
+                  to="/employee/helpdesk"
+                  icon={<LifeBuoy className="size-4" />}
+                  label="New Ticket"
+                  hint="Raise a support request"
                 />
               </div>
             </SectionCard>
+          </div>
+
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <MyTasksWidget />
+            <TicketsWidget basePath="/employee" title="My tickets" />
           </div>
         </div>
       )}

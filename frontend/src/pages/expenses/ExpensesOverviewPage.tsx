@@ -19,10 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { PageHeader } from "../../components/layout/PageHeader";
+import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
 import { StatCard } from "../../components/dashboard/StatCard";
 import { ExpensesTable } from "../../components/expenses/ExpensesTable";
 import { apiErrorMessage, listReviewExpenses } from "../../lib/expenses-api";
@@ -59,6 +61,7 @@ export function ExpensesOverviewPage() {
   const [category, setCategory] = useState<ExpenseCategory | "ALL">("ALL");
   const [projectId, setProjectId] = useState<string>("ALL");
   const [search, setSearch] = useState("");
+  const [range, setRange] = useState<DateRange>(() => makeRange("all"));
 
   useEffect(() => {
     let cancelled = false;
@@ -100,19 +103,25 @@ export function ExpensesOverviewPage() {
     [projectNames],
   );
 
+  // Date range scopes every metric and the table consistently.
+  const dated = useMemo(
+    () => filterByDate(expenses, (e) => e.expenseDate, range),
+    [expenses, range],
+  );
+
   const summary = useMemo(
     () => ({
-      total: expenses.length,
-      pending: expenses.filter((e) => matchesStatus(e, "PENDING")).length,
-      approved: expenses.filter((e) => e.approvalStatus === "APPROVED").length,
-      rejected: expenses.filter((e) => e.approvalStatus === "REJECTED").length,
+      total: dated.length,
+      pending: dated.filter((e) => matchesStatus(e, "PENDING")).length,
+      approved: dated.filter((e) => e.approvalStatus === "APPROVED").length,
+      rejected: dated.filter((e) => e.approvalStatus === "REJECTED").length,
     }),
-    [expenses],
+    [dated],
   );
 
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    return expenses.filter((e) => {
+    return dated.filter((e) => {
       if (!matchesStatus(e, status)) return false;
       if (category !== "ALL" && e.category !== category) return false;
       if (projectId !== "ALL" && e.projectId !== projectId) return false;
@@ -127,7 +136,7 @@ export function ExpensesOverviewPage() {
         .toLowerCase();
       return haystack.includes(needle);
     });
-  }, [expenses, status, category, projectId, search, getEmployeeName, getProjectName]);
+  }, [dated, status, category, projectId, search, getEmployeeName, getProjectName]);
 
   function handleExport() {
     const csv = toExpensesCsv(visible, {
@@ -236,6 +245,7 @@ export function ExpensesOverviewPage() {
                 ))}
               </SelectContent>
             </Select>
+            <DateRangeFilter value={range} onChange={setRange} />
           </div>
 
           <Card className="overflow-hidden p-0">
@@ -253,6 +263,7 @@ export function ExpensesOverviewPage() {
                 getEmployeeName={getEmployeeName}
                 getProjectName={getProjectName}
                 basePath="/admin/expenses"
+                showReimbursement
               />
             )}
           </Card>

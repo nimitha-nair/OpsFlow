@@ -60,6 +60,7 @@ interface FormValues {
   priority: TaskPriority;
   status: TaskStatus;
   dueDate: string;
+  version: string;
 }
 
 function TaskFormBody({
@@ -79,6 +80,7 @@ function TaskFormBody({
           priority: task.priority,
           status: task.status,
           dueDate: task.dueDate,
+          version: task.version ?? "",
         }
       : {
           title: "",
@@ -87,6 +89,7 @@ function TaskFormBody({
           priority: "MEDIUM",
           status: "TODO",
           dueDate: "",
+          version: "",
         },
   );
   const [submitting, setSubmitting] = useState(false);
@@ -232,6 +235,19 @@ function TaskFormBody({
               required
             />
           </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="task-version">
+            Version{" "}
+            <span className="font-normal text-muted-foreground">(optional)</span>
+          </Label>
+          <Input
+            id="task-version"
+            value={values.version}
+            onChange={(e) => set("version", e.target.value)}
+            placeholder="e.g. 1.2.0 or Sprint 5"
+          />
         </div>
       </div>
 

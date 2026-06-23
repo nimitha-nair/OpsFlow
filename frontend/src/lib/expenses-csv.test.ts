@@ -33,6 +33,19 @@ describe("toExpensesCsv", () => {
     expect(lines[0]).toContain("Amount");
   });
 
+  it("includes the human-readable Ref code as the first column", () => {
+    const csv = toExpensesCsv([expense({ code: "EXP-0007" })], lookups);
+    const lines = csv.trim().split("\n");
+    expect(lines[0]!.split(",")[0]).toBe("Ref");
+    expect(lines[1]!.split(",")[0]).toBe("EXP-0007");
+  });
+
+  it("leaves the Ref blank when an expense has no code yet", () => {
+    const csv = toExpensesCsv([expense()], lookups);
+    const lines = csv.trim().split("\n");
+    expect(lines[1]!.split(",")[0]).toBe("");
+  });
+
   it("escapes values containing commas or quotes (RFC 4180)", () => {
     const csv = toExpensesCsv(
       [expense({ description: 'Lunch, "team"' })],

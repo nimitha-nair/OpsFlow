@@ -10,6 +10,8 @@ export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
 export interface Project {
   id: string;
+  /** Human-readable code (PRJ-001). Absent on docs created before backfill. */
+  code?: string;
   name: string;
   description: string;
   clientName: string;

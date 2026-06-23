@@ -50,6 +50,57 @@ export function buildUserMap(users: User[]): Map<string, User> {
 
 const NO_DEPT = "Unassigned";
 
+/* -------------------------- Overview KPIs ------------------------------ */
+
+export interface KpiTotals {
+  total: { count: number; amount: number };
+  approved: { count: number; amount: number };
+  pending: { count: number; amount: number };
+  rejected: { count: number; amount: number };
+}
+
+/**
+ * Compute the headline KPIs from a record list so they honor the active date
+ * range (the backend overview report is all-time). DRAFTs are excluded from the
+ * submitted total, matching the backend's definition.
+ */
+export function deriveKpis(records: Expense[]): KpiTotals {
+  const mk = () => ({ count: 0, amount: 0 });
+  const k: KpiTotals = { total: mk(), approved: mk(), pending: mk(), rejected: mk() };
+  for (const e of records) {
+    if (e.approvalStatus === "DRAFT") continue;
+    k.total.count += 1;
+    k.total.amount += e.amount;
+    if (e.approvalStatus === APPROVED) {
+      k.approved.count += 1;
+      k.approved.amount += e.amount;
+    } else if (PENDING_SET.has(e.approvalStatus)) {
+      k.pending.count += 1;
+      k.pending.amount += e.amount;
+    } else if (e.approvalStatus === REJECTED) {
+      k.rejected.count += 1;
+      k.rejected.amount += e.amount;
+    }
+  }
+  return k;
+}
+
+/** Approved spend per month over the last `n` months, derived from records. */
+export function deriveMonthlyApproved(
+  records: Expense[],
+  n = 12,
+): { key: string; label: string; amount: number }[] {
+  const months = lastMonths(n);
+  const idx = new Map(months.map((m, i) => [m.key, i]));
+  const out = months.map((m) => ({ key: m.key, label: m.label, amount: 0 }));
+  for (const e of records) {
+    if (e.approvalStatus !== APPROVED) continue;
+    const i = idx.get(monthKey(e.expenseDate));
+    if (i !== undefined) out[i]!.amount += e.amount;
+  }
+  return out;
+}
+
 /* ----------------------------- Departments ----------------------------- */
 
 export interface DepartmentMetric {

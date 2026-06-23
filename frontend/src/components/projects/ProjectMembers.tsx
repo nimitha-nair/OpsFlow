@@ -216,7 +216,7 @@ export function ProjectMembers({
                           {member.user?.position
                             ? `${member.user.position} · `
                             : ""}
-                          {member.user?.email ?? member.userId}
+                          {member.user?.email ?? "Account removed"}
                         </span>
                       </div>
                     </TableCell>

@@ -18,7 +18,6 @@ import {
 } from "../../components/ui/select";
 import { ConfidenceMeter } from "../../components/expenses/ConfidenceMeter";
 import { LowConfidenceBanner } from "../../components/expenses/LowConfidenceBanner";
-import { MockAnalysisBadge } from "../../components/expenses/MockAnalysisBadge";
 import { MultiReceiptViewer } from "../../components/expenses/MultiReceiptViewer";
 import { AnalysisBreakdown } from "../../components/expenses/AnalysisBreakdown";
 import { getExpenseAnalysis, updateExpenseAnalysis } from "../../lib/expense-analysis-api";
@@ -130,9 +129,23 @@ export function ExpenseVerificationPage() {
   // PROJECT-scope expenses must be allocated to a project before submitting.
   const needsProject = scope === "PROJECT" && !form.projectId;
 
+  // Core fields must be valid before an expense can be submitted for approval.
+  const amountNum = Number(form.amount);
+  const invalidAmount = !form.amount || Number.isNaN(amountNum) || amountNum <= 0;
+  const invalidVendor = form.vendorName.trim() === "";
+  const hasFieldErrors = invalidAmount || invalidVendor;
+
   const confirmAndSubmit = async () => {
     if (needsProject) {
       toast.error("Select a project to allocate this expense to.");
+      return;
+    }
+    if (invalidAmount) {
+      toast.error("Enter a valid amount greater than zero.");
+      return;
+    }
+    if (invalidVendor) {
+      toast.error("Enter the vendor / merchant name.");
       return;
     }
     setSaving(true);
@@ -177,7 +190,6 @@ export function ExpenseVerificationPage() {
             <Sparkles className="size-4 text-ai" />
             Verify extracted values
           </CardTitle>
-          {analysis?.provider === "mock" && <MockAnalysisBadge />}
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {analysis?.status === "LOW_CONFIDENCE" && (
@@ -280,7 +292,7 @@ export function ExpenseVerificationPage() {
             <Button
               className="btn-primary"
               onClick={confirmAndSubmit}
-              disabled={saving || needsProject}
+              disabled={saving || needsProject || hasFieldErrors}
             >
               Confirm &amp; submit for approval
             </Button>

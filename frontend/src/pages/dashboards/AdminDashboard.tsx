@@ -1,20 +1,31 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   Bot,
+  BarChart3,
+  Briefcase,
+  Building2,
   CheckCircle2,
   Clock,
   HandCoins,
+  Plus,
   Wallet,
 } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+
+import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { SectionCard } from "../../components/common/SectionCard";
 import { MetricCard } from "../../components/common/MetricCard";
+import { QuickCreateTaskDialog } from "../../components/tasks/QuickCreateTaskDialog";
+import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
 import { DashboardHero } from "../../components/dashboard/DashboardHero";
+import { ActivityFeed } from "../../components/activity/ActivityFeed";
+import { TicketsWidget } from "../../components/dashboard/TicketsWidget";
 import { BarList, ColumnChart } from "../../components/reports/charts";
 import {
   ApprovalStatusBadge,
@@ -62,6 +73,9 @@ export function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [range, setRange] = useState<DateRange>(() => makeRange("all"));
+  const [quickOpen, setQuickOpen] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
@@ -96,12 +110,18 @@ export function AdminDashboard() {
 
   const employeeName = (id: string) => userNames.get(id) ?? "Unknown";
 
+  // Date range scopes every expense-derived metric on the dashboard.
+  const dated = useMemo(
+    () => filterByDate(expenses, (e) => e.expenseDate, range),
+    [expenses, range],
+  );
+
   const kpis = useMemo(() => {
     let spend = 0;
     let pending = 0;
     let approved = 0;
     let reimbursePending = 0;
-    for (const e of expenses) {
+    for (const e of dated) {
       if (e.approvalStatus === "APPROVED") {
         approved += 1;
         spend += e.amount;
@@ -111,26 +131,26 @@ export function AdminDashboard() {
       }
     }
     return { spend, pending, approved, reimbursePending };
-  }, [expenses]);
+  }, [dated]);
 
   const reimbursementQueue = useMemo(
     () =>
-      expenses
+      dated
         .filter(
           (e) =>
             e.approvalStatus === "APPROVED" && e.reimbursementStatus !== "PAID",
         )
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
         .slice(0, 6),
-    [expenses],
+    [dated],
   );
 
   const recent = useMemo(
     () =>
-      [...expenses]
+      [...dated]
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
         .slice(0, 6),
-    [expenses],
+    [dated],
   );
 
   return (
@@ -171,6 +191,25 @@ export function AdminDashboard() {
         />
       ) : (
         <div className="flex flex-col gap-6">
+          <div className="no-print flex flex-wrap items-center justify-end gap-2">
+            <Button size="sm" onClick={() => setQuickOpen(true)}>
+              <Plus className="size-4" />
+              New Task
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => navigate("/admin/projects/new")}>
+              <Briefcase className="size-4" />
+              New Project
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => navigate("/admin/departments")}>
+              <Building2 className="size-4" />
+              New Department
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => navigate("/admin/reports")}>
+              <BarChart3 className="size-4" />
+              Reports
+            </Button>
+            <DateRangeFilter value={range} onChange={setRange} />
+          </div>
           <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
             <MetricCard
               index={0}
@@ -283,23 +322,31 @@ export function AdminDashboard() {
               description="Approved spend vs budget"
             >
               {projects && projects.projects.length > 0 ? (
-                <BarList
-                  items={[...projects.projects]
+                (() => {
+                  const top = [...projects.projects]
                     .sort((a, b) => b.totalSpent - a.totalSpent)
-                    .slice(0, 6)
-                    .map((p) => ({
-                      label: p.projectName,
-                      valueText:
-                        p.utilization === null
-                          ? formatMoney(p.totalSpent, projects.currency)
-                          : `${p.utilization}%`,
-                      ratio:
-                        p.utilization === null
-                          ? 0
-                          : Math.min(1, p.utilization / 100),
-                      tone: utilTone(p.utilization),
-                    }))}
-                />
+                    .slice(0, 6);
+                  // Projects without a budget have null utilization; show their
+                  // spend relative to the highest spender so the bar still has
+                  // length instead of rendering empty.
+                  const maxSpent = Math.max(1, ...top.map((p) => p.totalSpent));
+                  return (
+                    <BarList
+                      items={top.map((p) => ({
+                        label: p.projectName,
+                        valueText:
+                          p.utilization === null
+                            ? formatMoney(p.totalSpent, projects.currency)
+                            : `${p.utilization}%`,
+                        ratio:
+                          p.utilization === null
+                            ? Math.min(1, p.totalSpent / maxSpent)
+                            : Math.min(1, p.utilization / 100),
+                        tone: utilTone(p.utilization),
+                      }))}
+                    />
+                  );
+                })()
               ) : (
                 <EmptyState
                   compact
@@ -370,7 +417,23 @@ export function AdminDashboard() {
                 compact
                 icon={Wallet}
                 title="No activity yet"
-                description="Expense activity will appear here."
+                description="Once employees submit expenses, the latest movements show up here. Start by setting up your projects and team."
+                action={
+                  <div className="flex items-center gap-3">
+                    <Link
+                      to="/admin/projects"
+                      className="text-xs font-medium text-primary hover:underline"
+                    >
+                      Set up projects
+                    </Link>
+                    <Link
+                      to="/admin/users"
+                      className="text-xs font-medium text-primary hover:underline"
+                    >
+                      Add team members
+                    </Link>
+                  </div>
+                }
               />
             ) : (
               <ul className="flex flex-col divide-y">
@@ -400,8 +463,32 @@ export function AdminDashboard() {
               </ul>
             )}
           </SectionCard>
+
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <TicketsWidget basePath="/admin" showRequester />
+            <SectionCard
+              title="Organization activity"
+              description="Tickets, tasks, expenses and team changes"
+              actions={
+                <Link
+                  to="/admin/activity"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  View all <ArrowRight className="size-3" />
+                </Link>
+              }
+            >
+              <ActivityFeed limit={8} compact />
+            </SectionCard>
+          </div>
         </div>
       )}
+
+      <QuickCreateTaskDialog
+        open={quickOpen}
+        onOpenChange={setQuickOpen}
+        onCreated={() => setReloadKey((k) => k + 1)}
+      />
     </>
   );
 }

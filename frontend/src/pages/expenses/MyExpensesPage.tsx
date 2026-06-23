@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Eye, Pencil, Plus, Wallet } from "lucide-react";
+import { Check, Eye, Pencil, Plus, Trash2, Wallet, X } from "lucide-react";
+import { toast } from "sonner";
 
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -12,6 +14,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { DateRangeFilter } from "../../components/common/DateRangeFilter";
+import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
@@ -20,10 +24,43 @@ import {
   ApprovalStatusBadge,
   ReimbursementBadge,
 } from "../../components/expenses/ExpenseBadges";
+import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
 import { formatDate, formatMoney } from "../../lib/format";
-import { apiErrorMessage, listMyExpenses } from "../../lib/expenses-api";
+import {
+  apiErrorMessage,
+  deleteExpense,
+  listMyExpenses,
+} from "../../lib/expenses-api";
 import { listMyProjects } from "../../lib/projects-api";
 import { CATEGORY_LABELS, type Expense } from "../../types/expense";
+
+function CheckBox({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onChange}
+      className={cn(
+        "flex size-4 items-center justify-center rounded border transition-colors",
+        checked
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border bg-background text-transparent hover:border-primary/60",
+      )}
+    >
+      <Check className="size-3" />
+    </button>
+  );
+}
+
+type DeleteTarget = { kind: "single"; id: string; code: string } | { kind: "bulk" } | null;
 
 export function MyExpensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -33,6 +70,9 @@ export function MyExpensesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [range, setRange] = useState<DateRange>(() => makeRange("all"));
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,6 +109,70 @@ export function MyExpensesPage() {
     [projectNames],
   );
 
+  const visible = useMemo(
+    () => filterByDate(expenses, (e) => e.expenseDate, range),
+    [expenses, range],
+  );
+
+  // Selection only applies to drafts (the only deletable status).
+  const visibleDraftIds = useMemo(
+    () =>
+      visible.filter((e) => e.approvalStatus === "DRAFT").map((e) => e.id),
+    [visible],
+  );
+  const selectedDraftIds = visibleDraftIds.filter((id) => selectedIds.has(id));
+  const allDraftsSelected =
+    visibleDraftIds.length > 0 &&
+    selectedDraftIds.length === visibleDraftIds.length;
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleSelectAll() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allDraftsSelected) visibleDraftIds.forEach((id) => next.delete(id));
+      else visibleDraftIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
+  async function deleteOne(id: string) {
+    try {
+      await deleteExpense(id);
+      setExpenses((prev) => prev.filter((e) => e.id !== id));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      toast.success("Draft deleted.");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Couldn't delete the draft."));
+    }
+  }
+
+  async function deleteSelected() {
+    const ids = [...selectedDraftIds];
+    const results = await Promise.allSettled(ids.map((id) => deleteExpense(id)));
+    const deleted = ids.filter((_, i) => results[i]!.status === "fulfilled");
+    setExpenses((prev) => prev.filter((e) => !deleted.includes(e.id)));
+    setSelectedIds(new Set());
+    if (deleted.length) {
+      toast.success(
+        `${deleted.length} draft${deleted.length === 1 ? "" : "s"} deleted.`,
+      );
+    }
+    if (deleted.length < ids.length) {
+      toast.error(`${ids.length - deleted.length} couldn't be deleted.`);
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -76,13 +180,16 @@ export function MyExpensesPage() {
         description="Track your submitted expenses and their status."
         breadcrumbs={[{ label: "Expenses" }]}
         actions={
-          <Link
-            to="/employee/expenses/new"
-            className={buttonVariants({ size: "sm" })}
-          >
-            <Plus className="size-4" />
-            Submit Expense
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <DateRangeFilter value={range} onChange={setRange} />
+            <Link
+              to="/employee/expenses/new"
+              className={buttonVariants({ size: "sm" })}
+            >
+              <Plus className="size-4" />
+              Submit Expense
+            </Link>
+          </div>
         }
       />
 
@@ -105,11 +212,29 @@ export function MyExpensesPage() {
               description="Submit your first expense to get started."
             />
           </div>
+        ) : visible.length === 0 ? (
+          <div className="p-6">
+            <EmptyState
+              icon={Wallet}
+              title="No expenses in range"
+              description="None of your expenses fall in the selected date range."
+            />
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader className="bg-muted/40">
                 <TableRow>
+                  <TableHead className="w-10">
+                    {visibleDraftIds.length > 0 && (
+                      <CheckBox
+                        checked={allDraftsSelected}
+                        onChange={toggleSelectAll}
+                        label="Select all drafts"
+                      />
+                    )}
+                  </TableHead>
+                  <TableHead>Ref</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Project</TableHead>
                   <TableHead>Category</TableHead>
@@ -120,53 +245,142 @@ export function MyExpensesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {expenses.map((expense) => (
-                  <TableRow key={expense.id}>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {formatDate(expense.expenseDate)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {projectLabel(expense)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {CATEGORY_LABELS[expense.category]}
-                    </TableCell>
-                    <TableCell className="tabular-nums font-medium text-foreground">
-                      {formatMoney(expense.amount, expense.currency)}
-                    </TableCell>
-                    <TableCell>
-                      <ApprovalStatusBadge status={expense.approvalStatus} />
-                    </TableCell>
-                    <TableCell>
-                      <ReimbursementBadge status={expense.reimbursementStatus} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        {expense.approvalStatus === "DRAFT" && (
+                {visible.map((expense) => {
+                  const isDraft = expense.approvalStatus === "DRAFT";
+                  return (
+                    <TableRow
+                      key={expense.id}
+                      className={cn(
+                        isDraft && selectedIds.has(expense.id) && "bg-primary/[0.04]",
+                      )}
+                    >
+                      <TableCell className="w-10">
+                        {isDraft && (
+                          <CheckBox
+                            checked={selectedIds.has(expense.id)}
+                            onChange={() => toggleSelect(expense.id)}
+                            label="Select draft"
+                          />
+                        )}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
+                        {expense.code ?? "—"}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        {formatDate(expense.expenseDate)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {projectLabel(expense)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {CATEGORY_LABELS[expense.category]}
+                      </TableCell>
+                      <TableCell className="tabular-nums font-medium text-foreground">
+                        {formatMoney(expense.amount, expense.currency)}
+                      </TableCell>
+                      <TableCell>
+                        <ApprovalStatusBadge status={expense.approvalStatus} />
+                      </TableCell>
+                      <TableCell>
+                        <ReimbursementBadge status={expense.reimbursementStatus} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          {isDraft && (
+                            <>
+                              <Link
+                                to={`/employee/expenses/${expense.id}/edit`}
+                                className={buttonVariants({ variant: "ghost", size: "sm" })}
+                              >
+                                <Pencil className="size-4" />
+                                Edit
+                              </Link>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() =>
+                                  setDeleteTarget({
+                                    kind: "single",
+                                    id: expense.id,
+                                    code: expense.code ?? "this draft",
+                                  })
+                                }
+                              >
+                                <Trash2 className="size-4" />
+                                Delete
+                              </Button>
+                            </>
+                          )}
                           <Link
-                            to={`/employee/expenses/${expense.id}/edit`}
+                            to={`/employee/expenses/${expense.id}`}
                             className={buttonVariants({ variant: "ghost", size: "sm" })}
                           >
-                            <Pencil className="size-4" />
-                            Edit
+                            <Eye className="size-4" />
+                            View
                           </Link>
-                        )}
-                        <Link
-                          to={`/employee/expenses/${expense.id}`}
-                          className={buttonVariants({ variant: "ghost", size: "sm" })}
-                        >
-                          <Eye className="size-4" />
-                          View
-                        </Link>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
         )}
       </Card>
+
+      {/* Bulk action bar */}
+      {selectedDraftIds.length > 0 && (
+        <div className="no-print fixed inset-x-0 bottom-6 z-40 flex justify-center px-4">
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-popover px-4 py-2.5 shadow-lg ring-1 ring-foreground/10">
+            <span className="text-sm font-medium text-foreground">
+              {selectedDraftIds.length} selected
+            </span>
+            <span className="text-muted-foreground">·</span>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setDeleteTarget({ kind: "bulk" })}
+            >
+              <Trash2 className="size-4" />
+              Delete drafts
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Clear selection"
+              onClick={() => setSelectedIds(new Set())}
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+        destructive
+        title={
+          deleteTarget?.kind === "bulk"
+            ? `Delete ${selectedDraftIds.length} draft${selectedDraftIds.length === 1 ? "" : "s"}?`
+            : "Delete draft?"
+        }
+        description={
+          deleteTarget?.kind === "bulk"
+            ? "These draft expenses will be permanently removed. This can't be undone."
+            : `${deleteTarget?.kind === "single" ? deleteTarget.code : "This draft"} will be permanently removed. This can't be undone.`
+        }
+        confirmLabel="Delete"
+        onConfirm={() =>
+          deleteTarget?.kind === "bulk"
+            ? deleteSelected()
+            : deleteTarget?.kind === "single"
+              ? deleteOne(deleteTarget.id)
+              : undefined
+        }
+      />
     </>
   );
 }

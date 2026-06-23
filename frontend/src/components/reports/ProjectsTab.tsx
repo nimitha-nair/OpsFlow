@@ -114,6 +114,9 @@ export function ProjectsTab() {
 
   const { totals } = data;
   const rows = sortRows(data.projects, sort);
+  // For projects without a budget (utilization n/a) we show spend relative to
+  // the highest-spending project so the bar still has length.
+  const maxSpent = Math.max(1, ...rows.map((r) => r.totalSpent));
 
   return (
     <div className="flex flex-col gap-6">
@@ -195,6 +198,7 @@ export function ProjectsTab() {
                 project={p}
                 currency={data.currency}
                 index={i}
+                maxSpent={maxSpent}
               />
             ))}
           </ul>
@@ -208,13 +212,20 @@ function ProjectRow({
   project: p,
   currency,
   index = 0,
+  maxSpent = 1,
 }: {
   project: ProjectReportRow;
   currency: string;
   index?: number;
+  maxSpent?: number;
 }) {
   const band = utilBand(p.utilization);
-  const barWidth = p.utilization === null ? 0 : Math.min(100, p.utilization);
+  // With a budget, the bar shows utilization %. Without one, fall back to spend
+  // relative to the top spender so the bar isn't permanently empty.
+  const barWidth =
+    p.utilization === null
+      ? Math.min(100, (p.totalSpent / maxSpent) * 100)
+      : Math.min(100, p.utilization);
   return (
     <li className="flex flex-col gap-1.5">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">

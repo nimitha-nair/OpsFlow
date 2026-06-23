@@ -1,8 +1,22 @@
-import { ChevronDown, LogOut, Menu, User } from "lucide-react";
+import { useState } from "react";
+import {
+  ChevronDown,
+  ClipboardList,
+  LifeBuoy,
+  LogOut,
+  Menu,
+  Plus,
+  Receipt,
+  Briefcase,
+  User,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { ThemeToggle } from "./ThemeToggle";
+import { NotificationBell } from "./NotificationBell";
+import { GlobalSearch } from "./GlobalSearch";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { QuickCreateTaskDialog } from "../tasks/QuickCreateTaskDialog";
 import { useAuth } from "../../context/auth-context";
 
 function initialsOf(name: string | undefined): string {
@@ -29,6 +44,24 @@ interface AppTopbarProps {
 export function AppTopbar({ onMenuClick }: AppTopbarProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [taskOpen, setTaskOpen] = useState(false);
+
+  const role = user?.role;
+  const isAdmin = role === "ADMIN";
+  const isEmployee = role === "EMPLOYEE";
+  // Role-aware "create" shortcuts surfaced from the global header.
+  const newActions =
+    isAdmin
+      ? [
+          { label: "New Task", icon: ClipboardList, onSelect: () => setTaskOpen(true) },
+          { label: "New Project", icon: Briefcase, onSelect: () => navigate("/admin/projects/new") },
+        ]
+      : isEmployee
+        ? [
+            { label: "New Expense", icon: Receipt, onSelect: () => navigate("/employee/expenses/new") },
+            { label: "New Ticket", icon: LifeBuoy, onSelect: () => navigate("/employee/helpdesk") },
+          ]
+        : [];
 
   function handleLogout() {
     // Clear auth state + storage, then redirect imperatively. Doing the
@@ -49,7 +82,32 @@ export function AppTopbar({ onMenuClick }: AppTopbarProps) {
         <Menu className="size-5" />
       </button>
 
+      <GlobalSearch />
+
       <div className="ml-auto flex items-center gap-1.5">
+        {newActions.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger render={
+              <Button size="sm" className="gap-1.5">
+                <Plus className="size-4" />
+                <span className="hidden sm:inline">New</span>
+                <ChevronDown className="size-3.5 opacity-80" />
+              </Button>
+            } />
+            <DropdownMenuContent align="end" className="w-48">
+              {newActions.map((action) => {
+                const Icon = action.icon;
+                return (
+                  <DropdownMenuItem key={action.label} onClick={action.onSelect}>
+                    <Icon className="size-4" />
+                    {action.label}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+        <NotificationBell />
         <ThemeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg p-1 pr-2 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -90,6 +148,10 @@ export function AppTopbar({ onMenuClick }: AppTopbarProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {isAdmin && (
+        <QuickCreateTaskDialog open={taskOpen} onOpenChange={setTaskOpen} />
+      )}
     </header>
   );
 }

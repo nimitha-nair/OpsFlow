@@ -46,8 +46,8 @@ export function downloadCsv<T>(
   columns: CsvColumn<T>[],
 ): void {
   const csv = toCsv(rows, columns);
-  // Prepend a BOM so Excel opens UTF-8 correctly.
-  const blob = new Blob([`﻿${csv}`], {
+  // Prepend a UTF-8 BOM so Excel opens it with the correct encoding.
+  const blob = new Blob([String.fromCharCode(0xfeff), csv], {
     type: "text/csv;charset=utf-8;",
   });
   const url = URL.createObjectURL(blob);
@@ -69,32 +69,106 @@ function sanitizeFileName(name: string): string {
     .toLowerCase();
 }
 
-/**
- * Export a DOM subtree to PDF using the browser print dialog. Temporarily marks
- * `target` as the sole `[data-print-root]` so the print stylesheet renders only
- * that section, swaps the document title (browsers use it as the default PDF
- * filename), and restores everything afterward. Pass no target to print the
- * current print root as-is.
- */
-export function printElement(target?: HTMLElement | null, title?: string): void {
-  const previousRoots = Array.from(
-    document.querySelectorAll<HTMLElement>("[data-print-root]"),
-  );
-  const previousTitle = document.title;
+/** Lazily create the top-level container that print clones are rendered into. */
+function ensurePrintPortal(): HTMLElement {
+  let portal = document.getElementById("print-portal");
+  if (!portal) {
+    portal = document.createElement("div");
+    portal.id = "print-portal";
+    document.body.appendChild(portal);
+  }
+  return portal;
+}
 
-  if (target) {
-    previousRoots.forEach((n) => n.removeAttribute("data-print-root"));
-    target.setAttribute("data-print-root", "");
+let printSeq = 0;
+
+/**
+ * Suffix every `id` in the clone (and the references to it) so duplicate ids
+ * between the live, hidden app and the clone don't make SVG paint servers
+ * (gradients, clip paths) resolve to the hidden originals — which would render
+ * blank fills in the PDF.
+ */
+function isolateIds(root: HTMLElement): void {
+  const ided = Array.from(root.querySelectorAll<HTMLElement>("[id]"));
+  if (ided.length === 0) return;
+  printSeq += 1;
+  const suffix = `_pp${printSeq}`;
+  const ids = new Set<string>();
+  for (const el of ided) {
+    ids.add(el.id);
+    el.id = el.id + suffix;
   }
-  if (title) {
-    document.title = sanitizeFileName(title);
+  const refAttrs = [
+    "href",
+    "xlink:href",
+    "fill",
+    "stroke",
+    "clip-path",
+    "mask",
+    "filter",
+  ];
+  for (const el of Array.from(root.querySelectorAll<HTMLElement>("*"))) {
+    for (const attr of refAttrs) {
+      const val = el.getAttribute(attr);
+      if (!val || !val.includes("#")) continue;
+      let next = val;
+      for (const id of ids) {
+        next = next
+          .split(`#${id})`).join(`#${id}${suffix})`)
+          .split(`#${id}"`).join(`#${id}${suffix}"`);
+        if (next === `#${id}`) next = `#${id}${suffix}`;
+      }
+      if (next !== val) el.setAttribute(attr, next);
+    }
+    const style = el.getAttribute("style");
+    if (style && style.includes("url(#")) {
+      let next = style;
+      for (const id of ids) {
+        next = next.split(`url(#${id})`).join(`url(#${id}${suffix})`);
+      }
+      if (next !== style) el.setAttribute("style", next);
+    }
   }
+}
+
+/**
+ * Export a DOM subtree to PDF using the browser print dialog. Clones `target`
+ * into a top-level `#print-portal` and adds `body.printing`, so the print
+ * stylesheet hides the live app (`display:none`, no leftover blank pages) and
+ * renders only the clone. `prepare` can transform the clone before printing
+ * (e.g. reveal hidden tab panels for a full-report export). The document title
+ * is swapped so it becomes the default PDF filename.
+ */
+export function printElement(
+  target?: HTMLElement | null,
+  title?: string,
+  prepare?: (clone: HTMLElement) => void,
+): void {
+  if (!target) {
+    window.print();
+    return;
+  }
+  const portal = ensurePrintPortal();
+  const previousTitle = document.title;
+  if (title) document.title = sanitizeFileName(title);
+
+  // Always print on the light theme: dark-mode tokens (light text, dark
+  // surfaces) become invisible once the printer drops background colors. The
+  // live app is hidden during print, so this only affects the printout.
+  const docRoot = document.documentElement;
+  const wasDark = docRoot.classList.contains("dark");
+  if (wasDark) docRoot.classList.remove("dark");
+
+  const clone = target.cloneNode(true) as HTMLElement;
+  prepare?.(clone);
+  isolateIds(clone);
+  portal.replaceChildren(clone);
+  document.body.classList.add("printing");
 
   const restore = () => {
-    if (target) {
-      target.removeAttribute("data-print-root");
-      previousRoots.forEach((n) => n.setAttribute("data-print-root", ""));
-    }
+    portal.replaceChildren();
+    document.body.classList.remove("printing");
+    if (wasDark) docRoot.classList.add("dark");
     document.title = previousTitle;
     window.removeEventListener("afterprint", restore);
   };

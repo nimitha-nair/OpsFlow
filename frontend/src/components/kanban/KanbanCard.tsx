@@ -115,6 +115,11 @@ function CardInner({
         <TaskPriorityBadge priority={task.priority} />
         <DueDate dueDate={task.dueDate} status={task.status} />
       </div>
+      {task.version && (
+        <span className="mt-2 inline-flex w-fit rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+          v{task.version}
+        </span>
+      )}
       <div className="mt-2.5 flex items-center gap-2 border-t border-border/60 pt-2.5">
         <AssigneeAvatar name={assigneeName} />
         <span className="truncate text-xs text-muted-foreground">{assigneeName}</span>

@@ -14,11 +14,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { ProjectStatusBadge } from "../../components/projects/ProjectStatusBadge";
+import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
 import { formatCurrency, formatDate } from "../../lib/format";
 import { apiErrorMessage, listProjects } from "../../lib/projects-api";
 import type { Project } from "../../types/project";
@@ -29,6 +31,7 @@ export function ProjectListPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+  const [range, setRange] = useState<DateRange>(() => makeRange("all"));
 
   useEffect(() => {
     let cancelled = false;
@@ -55,14 +58,15 @@ export function ProjectListPage() {
   }, [reloadKey]);
 
   const filtered = useMemo(() => {
+    const dated = filterByDate(projects, (p) => p.startDate, range);
     const q = search.trim().toLowerCase();
-    if (!q) return projects;
-    return projects.filter(
+    if (!q) return dated;
+    return dated.filter(
       (p) =>
         p.name.toLowerCase().includes(q) ||
         p.clientName.toLowerCase().includes(q),
     );
-  }, [projects, search]);
+  }, [projects, search, range]);
 
   const reload = () => setReloadKey((k) => k + 1);
 
@@ -83,13 +87,14 @@ export function ProjectListPage() {
         }
       />
 
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name or client…"
           className="max-w-xs"
         />
+        <DateRangeFilter value={range} onChange={setRange} />
         <Button
           variant="outline"
           size="icon"
@@ -143,6 +148,7 @@ export function ProjectListPage() {
             <Table>
               <TableHeader className="bg-muted/40">
                 <TableRow>
+                  <TableHead>Code</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Client</TableHead>
                   <TableHead>Status</TableHead>
@@ -154,6 +160,9 @@ export function ProjectListPage() {
               <TableBody>
                 {filtered.map((project) => (
                   <TableRow key={project.id}>
+                    <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
+                      {project.code ?? "—"}
+                    </TableCell>
                     <TableCell className="font-medium text-foreground">
                       {project.name}
                     </TableCell>

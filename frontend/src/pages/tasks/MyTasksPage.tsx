@@ -18,12 +18,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { DueDate } from "../../components/tasks/DueDate";
+import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
 import { TaskPriorityBadge } from "../../components/tasks/TaskBadges";
+import { TaskStatusControl } from "../../components/tasks/TaskStatusControl";
 import { listMyProjects } from "../../lib/projects-api";
 import {
   apiErrorMessage,
@@ -46,6 +49,10 @@ export function MyTasksPage() {
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [range, setRange] = useState<DateRange>(() => makeRange("all"));
+  const [statusFilter, setStatusFilter] = useState<TaskStatus | "all">("all");
+  const [versionFilter, setVersionFilter] = useState("all");
+  const [sortBy, setSortBy] = useState<"due" | "version" | "priority">("due");
 
   useEffect(() => {
     let cancelled = false;
@@ -74,10 +81,14 @@ export function MyTasksPage() {
     };
   }, [reloadKey]);
 
-  async function handleStatusChange(taskId: string, status: TaskStatus) {
+  async function handleStatusChange(
+    taskId: string,
+    status: TaskStatus,
+    reason?: string,
+  ) {
     setUpdatingId(taskId);
     try {
-      const updated = await updateTaskStatus(taskId, status);
+      const updated = await updateTaskStatus(taskId, status, reason);
       setTasks((prev) =>
         prev.map((t) => (t.id === taskId ? updated : t)),
       );
@@ -89,10 +100,31 @@ export function MyTasksPage() {
     }
   }
 
-  const sorted = useMemo(
-    () => [...tasks].sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
+  // Employees progress their own work but cannot complete or reopen tasks;
+  // putting a task on hold requires a reason.
+  const EMPLOYEE_ALLOWED: TaskStatus[] = ["IN_PROGRESS", "REVIEW", "ON_HOLD"];
+
+  const versions = useMemo(
+    () =>
+      [...new Set(tasks.map((t) => t.version).filter((v): v is string => Boolean(v)))].sort(),
     [tasks],
   );
+
+  const sorted = useMemo(() => {
+    let list = [...tasks];
+    if (statusFilter !== "all") list = list.filter((t) => t.status === statusFilter);
+    if (versionFilter !== "all") list = list.filter((t) => t.version === versionFilter);
+    list = filterByDate(list, (t) => t.dueDate, range);
+    const priorityRank: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+    list.sort((a, b) => {
+      if (sortBy === "version")
+        return (a.version ?? "").localeCompare(b.version ?? "", undefined, { numeric: true });
+      if (sortBy === "priority")
+        return (priorityRank[a.priority] ?? 9) - (priorityRank[b.priority] ?? 9);
+      return a.dueDate.localeCompare(b.dueDate);
+    });
+    return list;
+  }, [tasks, range, statusFilter, versionFilter, sortBy]);
 
   return (
     <>
@@ -103,6 +135,58 @@ export function MyTasksPage() {
           { label: "Employee", to: "/employee" },
           { label: "My Tasks" },
         ]}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => setStatusFilter((v ?? "all") as TaskStatus | "all")}
+            >
+              <SelectTrigger size="sm" className="w-36">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                {TASK_STATUSES.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {TASK_STATUS_LABELS[s]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {versions.length > 0 && (
+              <Select
+                value={versionFilter}
+                onValueChange={(v) => setVersionFilter(v ?? "all")}
+              >
+                <SelectTrigger size="sm" className="w-36">
+                  <SelectValue placeholder="Version" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All versions</SelectItem>
+                  {versions.map((ver) => (
+                    <SelectItem key={ver} value={ver}>
+                      v{ver}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Select
+              value={sortBy}
+              onValueChange={(v) => setSortBy((v ?? "due") as typeof sortBy)}
+            >
+              <SelectTrigger size="sm" className="w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="due">Sort: Due date</SelectItem>
+                <SelectItem value="priority">Sort: Priority</SelectItem>
+                <SelectItem value="version">Sort: Version</SelectItem>
+              </SelectContent>
+            </Select>
+            <DateRangeFilter value={range} onChange={setRange} />
+          </div>
+        }
       />
 
       <Card className="overflow-hidden p-0">
@@ -120,8 +204,12 @@ export function MyTasksPage() {
           <div className="p-6">
             <EmptyState
               icon={ClipboardList}
-              title="No tasks assigned"
-              description="Tasks assigned to you will appear here."
+              title={tasks.length === 0 ? "No tasks assigned" : "No tasks in range"}
+              description={
+                tasks.length === 0
+                  ? "Tasks assigned to you will appear here."
+                  : "No tasks are due in the selected date range."
+              }
             />
           </div>
         ) : (
@@ -133,6 +221,7 @@ export function MyTasksPage() {
                   <TableHead>Project</TableHead>
                   <TableHead>Priority</TableHead>
                   <TableHead>Due</TableHead>
+                  <TableHead>Version</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -156,25 +245,19 @@ export function MyTasksPage() {
                     <TableCell>
                       <DueDate dueDate={task.dueDate} status={task.status} />
                     </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {task.version ? `v${task.version}` : "—"}
+                    </TableCell>
                     <TableCell>
-                      <Select
-                        value={task.status}
-                        onValueChange={(v) =>
-                          v && handleStatusChange(task.id, v as TaskStatus)
+                      <TaskStatusControl
+                        status={task.status}
+                        onChange={(s, reason) =>
+                          handleStatusChange(task.id, s, reason)
                         }
-                        disabled={updatingId === task.id}
-                      >
-                        <SelectTrigger className="w-36" size="sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TASK_STATUSES.map((s) => (
-                            <SelectItem key={s} value={s}>
-                              {TASK_STATUS_LABELS[s]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        busy={updatingId === task.id}
+                        allowed={task.status === "DONE" ? [] : EMPLOYEE_ALLOWED}
+                        reasonRequired={["ON_HOLD"]}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}

@@ -12,6 +12,8 @@ import {
 const STATUS_BAR: Record<TaskStatus, string> = {
   TODO: "bg-slate-400",
   IN_PROGRESS: "bg-blue-500",
+  ON_HOLD: "bg-amber-500",
+  REVIEW: "bg-violet-500",
   DONE: "bg-emerald-500",
 };
 

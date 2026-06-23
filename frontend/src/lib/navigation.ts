@@ -1,4 +1,5 @@
 import {
+  Activity,
   BarChart3,
   Briefcase,
   Building2,
@@ -45,6 +46,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     },
     { label: "Departments", icon: Building2, to: "/admin/departments" },
     { label: "Reports", icon: BarChart3, to: "/admin/reports" },
+    { label: "Activity", icon: Activity, to: "/admin/activity" },
   ],
   HR: [
     { label: "Dashboard", icon: LayoutDashboard, to: "/hr", end: true },
@@ -53,6 +55,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "Kanban", icon: SquareKanban, to: "/hr/kanban" },
     { label: "Expenses", icon: Wallet, to: "/hr/expenses" },
     { label: "Reports", icon: BarChart3, to: "/hr/reports" },
+    { label: "Activity", icon: Activity, to: "/hr/activity" },
   ],
   EMPLOYEE: [
     { label: "Dashboard", icon: LayoutDashboard, to: "/employee", end: true },
@@ -61,6 +64,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "My Tasks", icon: ClipboardList, to: "/employee/tasks" },
     { label: "Kanban", icon: SquareKanban, to: "/employee/kanban" },
     { label: "My Expenses", icon: Wallet, to: "/employee/expenses" },
+    { label: "Activity", icon: Activity, to: "/employee/activity" },
   ],
 };
 

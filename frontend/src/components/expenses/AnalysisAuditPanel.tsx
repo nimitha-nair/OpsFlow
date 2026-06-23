@@ -7,6 +7,7 @@ import { AnalysisBreakdown } from "./AnalysisBreakdown";
 import { ConfidenceMeter } from "./ConfidenceMeter";
 import { LowConfidenceBanner } from "./LowConfidenceBanner";
 import { MockAnalysisBadge } from "./MockAnalysisBadge";
+import { RiskAssessment } from "./RiskAssessment";
 import { getExpenseAnalysis } from "../../lib/expense-analysis-api";
 import { formatDateTime } from "../../lib/format";
 import {
@@ -47,7 +48,17 @@ function finalValue(
  * three-way comparison of AI vs employee corrections vs the final submitted values.
  * Self-hides when an expense was entered manually (no analysis exists).
  */
-export function AnalysisAuditPanel({ expense }: { expense: Expense }) {
+export function AnalysisAuditPanel({
+  expense,
+  showTechnical = false,
+  showRisk = false,
+}: {
+  expense: Expense;
+  /** Admin-only: reveal AI implementation details (provider, model, mock flag). */
+  showTechnical?: boolean;
+  /** HR/Admin only: reveal the receipt authenticity/risk assessment. */
+  showRisk?: boolean;
+}) {
   const [analysis, setAnalysis] = useState<ExpenseAnalysis | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -94,11 +105,12 @@ export function AnalysisAuditPanel({ expense }: { expense: Expense }) {
           AI extraction &amp; audit trail
         </CardTitle>
         <div className="flex flex-wrap items-center gap-2">
-          {analysis.provider === "mock" && <MockAnalysisBadge />}
+          {showTechnical && analysis.provider === "mock" && <MockAnalysisBadge />}
           <AnalysisStatusBadge status={analysis.status} />
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        {showRisk && <RiskAssessment analysis={analysis} />}
         {analysis.status === "LOW_CONFIDENCE" && (
           <LowConfidenceBanner reason={deriveLowConfidenceReason(analysis)} />
         )}
@@ -111,10 +123,17 @@ export function AnalysisAuditPanel({ expense }: { expense: Expense }) {
           currency={analysis.currency}
         />
 
-        {/* Provenance metadata. */}
-        <dl className="grid grid-cols-2 gap-y-1 rounded-md border bg-muted/20 px-3 py-2.5 text-xs sm:grid-cols-4">
-          <Meta label="Provider" value={provider} />
-          <Meta label="Model version" value={analysis.modelVersion || "—"} />
+        {/* Provenance metadata. Provider/model are AI implementation details —
+            shown only in the Admin AI audit (showTechnical). */}
+        <dl
+          className={`grid grid-cols-2 gap-y-1 rounded-md border bg-muted/20 px-3 py-2.5 text-xs ${
+            showTechnical ? "sm:grid-cols-4" : "sm:grid-cols-2"
+          }`}
+        >
+          {showTechnical && <Meta label="Provider" value={provider} />}
+          {showTechnical && (
+            <Meta label="Model version" value={analysis.modelVersion || "—"} />
+          )}
           <Meta label="Analyzed" value={formatDateTime(analysis.updatedAt)} />
           <Meta
             label="Confirmed"

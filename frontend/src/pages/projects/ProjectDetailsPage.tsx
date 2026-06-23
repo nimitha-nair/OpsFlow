@@ -93,10 +93,11 @@ export function ProjectDetailsPage() {
     <>
       <PageHeader
         title={project ? project.name : "Project"}
+        description={project?.code}
         breadcrumbs={[
           { label: "Admin", to: "/admin" },
           { label: "Projects", to: "/admin/projects" },
-          { label: project ? project.name : "Details" },
+          { label: project?.code ?? (project ? project.name : "Details") },
         ]}
         actions={
           project && (

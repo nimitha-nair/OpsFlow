@@ -1,46 +1,16 @@
 /**
- * Shared workspace shell for the executive report surfaces (Admin Reports and
- * the HR Insights Dashboard): a sticky section rail with scroll-spy and a
- * per-section frame carrying CSV/PDF export. Keeping these in one place means
- * both dashboards read and behave identically.
+ * Shared workspace shell components for the executive report surfaces: a sticky
+ * section rail and a per-section frame carrying CSV/PDF export. Non-component
+ * helpers (useScrollSpy, scrollToSection, SectionDef) live in report-sections.ts
+ * so this file stays components-only for fast refresh.
  */
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
+import { useRef, type ReactNode } from "react";
 import { FileSpreadsheet, FileText } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { printElement } from "../../../lib/export";
-
-export interface SectionDef {
-  id: string;
-  label: string;
-  icon: LucideIcon;
-}
-
-/** Highlight whichever section is currently in view. */
-export function useScrollSpy(ids: string[]): string {
-  const [active, setActive] = useState(ids[0] ?? "");
-  const key = ids.join(",");
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible[0]) setActive(visible[0].target.id);
-      },
-      { rootMargin: "-15% 0px -75% 0px", threshold: 0 },
-    );
-    ids.forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) observer.observe(el);
-    });
-    return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
-  return active;
-}
+import type { SectionDef } from "./report-sections";
 
 /** The sticky left navigation rail. */
 export function SectionRail({
@@ -123,9 +93,4 @@ export function SectionFrame({
       {children}
     </section>
   );
-}
-
-/** Helper to smooth-scroll the content area to a section by id. */
-export function scrollToSection(id: string) {
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }

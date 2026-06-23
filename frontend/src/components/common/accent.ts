@@ -24,6 +24,17 @@ export function paletteAt(index: number): string {
   return BAR_PALETTE[index % BAR_PALETTE.length]!;
 }
 
+/** Accent → SVG/text colour class (drives `currentColor` in the bi charts). */
+export const ACCENT_TEXT: Record<Accent, string> = {
+  indigo: "text-indigo-500",
+  violet: "text-violet-500",
+  emerald: "text-emerald-500",
+  amber: "text-amber-500",
+  rose: "text-rose-500",
+  sky: "text-sky-500",
+  slate: "text-slate-500",
+};
+
 /** Index var for the staggered entrance animations (`--r-i`). */
 export function riseStyle(index: number): CSSProperties {
   return { ["--r-i" as string]: index } as CSSProperties;

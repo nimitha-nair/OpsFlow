@@ -73,7 +73,7 @@ export function ProjectTasks({
         setMembers(
           memberList.map((m) => ({
             id: m.userId,
-            name: m.user?.name ?? m.userId,
+            name: m.user?.name ?? m.user?.email ?? "Unknown member",
           })),
         );
       } catch (err) {
@@ -166,7 +166,7 @@ export function ProjectTasks({
                       {task.title}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {nameById.get(task.assigneeId) ?? task.assigneeId}
+                      {nameById.get(task.assigneeId) ?? "Unknown member"}
                     </TableCell>
                     <TableCell>
                       <TaskPriorityBadge priority={task.priority} />

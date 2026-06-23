@@ -11,7 +11,7 @@
  * lifecycle list and the user directory — no fabricated numbers).
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   Banknote,
@@ -43,13 +43,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { DateRangeFilter } from "../common/DateRangeFilter";
+import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
 import { PageHeader } from "../layout/PageHeader";
 import { SectionCard } from "../common/SectionCard";
 import { LoadingState } from "../common/LoadingState";
@@ -61,18 +56,10 @@ import { AreaTrend, DonutGauge, Heatmap, KpiCard, RankingList } from "./bi";
 import { paletteAt } from "../common/accent";
 import { formatDateTime, formatMoney } from "../../lib/format";
 import { downloadCsv, printElement } from "../../lib/export";
-import {
-  getReportsOverview,
-  getReportsProjects,
-  getReportsExpenses,
-} from "../../lib/reports-api";
+import { getReportsOverview, getReportsProjects } from "../../lib/reports-api";
 import { listReviewExpenses } from "../../lib/expenses-api";
 import { listUsers } from "../../lib/users-api";
-import type {
-  OverviewReport,
-  ProjectsReport,
-  ExpensesReport,
-} from "../../types/reports";
+import type { OverviewReport, ProjectsReport } from "../../types/reports";
 import type { Expense } from "../../types/expense";
 import type { User } from "../../types/user";
 import {
@@ -82,16 +69,14 @@ import {
   deriveEmployees,
   deriveProcessing,
   deriveReimbursements,
-  lastMonths,
+  deriveKpis,
+  deriveMonthlyApproved,
   type DepartmentMetric,
 } from "./workspace/derive";
-import {
-  SectionFrame,
-  SectionRail,
-  scrollToSection,
-  useScrollSpy,
-  type SectionDef,
-} from "./workspace/shell";
+import { SectionFrame } from "./workspace/shell";
+import { type SectionDef } from "./workspace/report-sections";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 /* ----------------------------- shared bits ----------------------------- */
 
@@ -110,14 +95,14 @@ const compactMoney = (v: number, currency = "INR") => {
 
 const pct = (n: number) => `${Math.round(n)}%`;
 
-const SECTIONS: SectionDef[] = [
-  { id: "overview", label: "Executive Overview", icon: LayoutDashboard },
-  { id: "expense", label: "Expense Analytics", icon: Wallet },
-  { id: "department", label: "Department Analytics", icon: Building2 },
-  { id: "employee", label: "Employee Analytics", icon: Users },
-  { id: "reimbursement", label: "Reimbursement", icon: Banknote },
+const TABS: SectionDef[] = [
+  { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "expense", label: "Expenses", icon: Wallet },
+  { id: "department", label: "Departments", icon: Building2 },
+  { id: "employee", label: "Employees", icon: Users },
+  { id: "reimbursement", label: "Reimbursements", icon: Banknote },
+  { id: "ai", label: "AI Analytics", icon: Sparkles },
   { id: "audit", label: "Audit & Compliance", icon: ShieldCheck },
-  { id: "ai", label: "AI Extraction Accuracy", icon: Sparkles },
 ];
 
 /* ------------------------------- workspace ------------------------------ */
@@ -125,45 +110,52 @@ const SECTIONS: SectionDef[] = [
 interface LoadedData {
   overview: OverviewReport;
   projects: ProjectsReport | null;
-  expenses: ExpensesReport;
   records: Expense[];
   users: User[];
 }
 
 export function ReportsWorkspace() {
-  const [months, setMonths] = useState(12);
+  const [range, setRange] = useState<DateRange>(() => makeRange("all"));
   const [data, setData] = useState<LoadedData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const active = useScrollSpy(SECTIONS.map((s) => s.id));
+  const [tab, setTab] = useState("overview");
+  const panelsRef = useRef<HTMLDivElement>(null);
+
+  const panelNode = (id: string) =>
+    panelsRef.current?.querySelector<HTMLElement>(`[data-panel="${id}"]`) ?? null;
+  const revealAll = (clone: HTMLElement) =>
+    clone.querySelectorAll(".report-panel").forEach((p) => p.classList.remove("hidden"));
+  const reveal = (clone: HTMLElement) => clone.classList.remove("hidden");
+
+  const exportCurrentTab = () => printElement(panelNode(tab), `opsflow-${tab}-report`, reveal);
+  const exportSummary = () => printElement(panelNode("overview"), "opsflow-executive-summary", reveal);
+  const exportAll = () => printElement(panelsRef.current, "opsflow-full-report", revealAll);
 
   const load = useCallback(async (signal?: { cancelled: boolean }) => {
-    const [overview, expenses, records, usersResp, projects] = await Promise.all([
+    const [overview, records, usersResp, projects] = await Promise.all([
       getReportsOverview(),
-      getReportsExpenses(months),
       listReviewExpenses("ALL"),
       listUsers({ limit: 1000 }),
       getReportsProjects().catch(() => null),
     ]);
     if (signal?.cancelled) return;
-    setData({
-      overview,
-      projects,
-      expenses,
-      records,
-      users: usersResp.data,
-    });
+    setData({ overview, projects, records, users: usersResp.data });
     setError(null);
-  }, [months]);
+  }, []);
 
   useEffect(() => {
     const signal = { cancelled: false };
-    setLoading(true);
-    load(signal)
-      .catch(() => !signal.cancelled && setError("We couldn't load the reports. Please try again."))
-      .finally(() => !signal.cancelled && setLoading(false));
+    void (async () => {
+      try {
+        await load(signal);
+      } catch {
+        if (!signal.cancelled) setError("We couldn't load the reports. Please try again.");
+      } finally {
+        if (!signal.cancelled) setLoading(false);
+      }
+    })();
     return () => {
       signal.cancelled = true;
     };
@@ -176,6 +168,15 @@ export function ReportsWorkspace() {
       .finally(() => setRefreshing(false));
   };
 
+  // The date range scopes every record-derived metric across all tabs.
+  const fdata = useMemo(
+    () =>
+      data
+        ? { ...data, records: filterByDate(data.records, (e) => e.expenseDate, range) }
+        : null,
+    [data, range],
+  );
+
   return (
     <>
       <PageHeader
@@ -184,32 +185,21 @@ export function ReportsWorkspace() {
         breadcrumbs={[{ label: "Reports" }]}
         actions={
           <div className="no-print flex flex-wrap items-center gap-2">
-            <Select value={String(months)} onValueChange={(v) => setMonths(Number(v))}>
-              <SelectTrigger size="sm" className="w-[130px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="3">Last 3 months</SelectItem>
-                <SelectItem value="6">Last 6 months</SelectItem>
-                <SelectItem value="12">Last 12 months</SelectItem>
-                <SelectItem value="24">Last 24 months</SelectItem>
-              </SelectContent>
-            </Select>
+            <DateRangeFilter value={range} onChange={setRange} />
             <Button variant="outline" size="sm" onClick={onRefresh} disabled={refreshing}>
               <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
               Refresh
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => printElement(document.getElementById("overview"), "opsflow-executive-summary")}
-            >
+            <Button variant="outline" size="sm" onClick={exportCurrentTab}>
               <FileText className="size-4" />
-              Executive Summary
+              This tab
             </Button>
-            <Button size="sm" onClick={() => printElement(rootRef.current, "opsflow-full-report")}>
+            <Button variant="outline" size="sm" onClick={exportSummary}>
+              Summary
+            </Button>
+            <Button size="sm" onClick={exportAll}>
               <Download className="size-4" />
-              Full Report PDF
+              Export all
             </Button>
           </div>
         }
@@ -217,40 +207,70 @@ export function ReportsWorkspace() {
 
       {loading ? (
         <LoadingState label="Loading reports…" />
-      ) : error || !data ? (
+      ) : error || !data || !fdata ? (
         <ErrorState
           title="Couldn't load reports"
-          description={error ?? "No data."}
+          description={
+            error ??
+            "We couldn't load report data. Please retry, or check back once there's activity to report on."
+          }
           onRetry={onRefresh}
         />
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[210px_minmax(0,1fr)]">
-          <SectionRail sections={SECTIONS} active={active} onGo={scrollToSection} />
+        <div className="flex min-w-0 flex-col gap-6">
+          <Tabs value={tab} onValueChange={(v) => setTab(v as string)}>
+            <TabsList variant="line" className="no-print w-full justify-start overflow-x-auto">
+              {TABS.map((t) => {
+                const Icon = t.icon;
+                return (
+                  <TabsTrigger key={t.id} value={t.id}>
+                    <Icon className="size-4" />
+                    {t.label}
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </Tabs>
 
-          {/* Sections */}
-          <div ref={rootRef} className="flex min-w-0 flex-col gap-12">
-            <p className="hidden text-xs text-muted-foreground print:block">
-              OpsFlow — generated {formatDateTime(data.overview.generatedAt)}
+          {/* All panels are mounted; only the active one is visible. Hidden
+              panels are revealed in the clone for the "Export all" PDF. */}
+          <div ref={panelsRef} className="flex min-w-0 flex-col">
+            <p className="mb-4 hidden text-xs text-muted-foreground print:block">
+              OpsFlow — generated {formatDateTime(fdata.overview.generatedAt)}
             </p>
-            <ExecutiveOverview data={data} />
-            <SectionFrame
-              id="expense"
-              title="Expense Analytics"
-              description="Category mix, scope split, and monthly spend trend."
-            >
-              <ExpensesTab />
-            </SectionFrame>
-            <DepartmentAnalytics data={data} />
-            <EmployeeAnalytics data={data} />
-            <ReimbursementAnalytics data={data} />
-            <AuditCompliance data={data} />
-            <SectionFrame
-              id="ai"
-              title="AI Extraction Accuracy"
-              description="Receipt extraction confidence, corrections, and provider performance."
-            >
-              <AiAnalyticsTab />
-            </SectionFrame>
+            <Panel id="overview" active={tab}>
+              <ExecutiveOverview data={fdata} />
+            </Panel>
+            <Panel id="expense" active={tab}>
+              <SectionFrame
+                id="expense"
+                title="Expense Analytics"
+                description="Category mix, scope split, and monthly spend trend."
+              >
+                <ExpensesTab />
+              </SectionFrame>
+            </Panel>
+            <Panel id="department" active={tab}>
+              <DepartmentAnalytics data={fdata} />
+            </Panel>
+            <Panel id="employee" active={tab}>
+              <EmployeeAnalytics data={fdata} />
+            </Panel>
+            <Panel id="reimbursement" active={tab}>
+              <ReimbursementAnalytics data={fdata} />
+            </Panel>
+            <Panel id="ai" active={tab}>
+              <SectionFrame
+                id="ai"
+                title="AI Extraction Accuracy"
+                description="Receipt extraction confidence, corrections, and provider performance."
+              >
+                <AiAnalyticsTab />
+              </SectionFrame>
+            </Panel>
+            <Panel id="audit" active={tab}>
+              <AuditCompliance data={fdata} />
+            </Panel>
           </div>
         </div>
       )}
@@ -258,12 +278,30 @@ export function ReportsWorkspace() {
   );
 }
 
+/** A tab panel: mounted always, hidden unless active (revealed in PDF clones). */
+function Panel({
+  id,
+  active,
+  children,
+}: {
+  id: string;
+  active: string;
+  children: ReactNode;
+}) {
+  return (
+    <div data-panel={id} className={cn("report-panel", active !== id && "hidden")}>
+      {children}
+    </div>
+  );
+}
+
 /* ----------------------------- Executive ------------------------------- */
 
 function ExecutiveOverview({ data }: { data: LoadedData }) {
-  const { overview, expenses, projects, records, users } = data;
-  const k = overview.kpis;
+  const { overview, projects, records, users } = data;
   const currency = overview.currency;
+  // KPIs derive from the (date-filtered) records so they honor the range.
+  const k = useMemo(() => deriveKpis(records), [records]);
   const decided = k.approved.count + k.rejected.count;
   const approvalRate = decided > 0 ? (k.approved.count / decided) * 100 : 0;
 
@@ -273,11 +311,9 @@ function ExecutiveOverview({ data }: { data: LoadedData }) {
     [records, users],
   );
 
-  const months = lastMonths(Math.min(12, expenses.monthlyTrend.length || 12));
-  const trendMap = new Map(expenses.monthlyTrend.map((m) => [m.month, m.amount]));
-  const trend = months.map((m) => ({ label: m.label, value: trendMap.get(m.key) ?? 0 }));
-
-  const lastTwo = expenses.monthlyTrend.slice(-2);
+  const monthly = useMemo(() => deriveMonthlyApproved(records, 12), [records]);
+  const trend = monthly.map((m) => ({ label: m.label, value: m.amount }));
+  const lastTwo = monthly.slice(-2);
   const momDelta =
     lastTwo.length === 2 && lastTwo[0]!.amount > 0
       ? ((lastTwo[1]!.amount - lastTwo[0]!.amount) / lastTwo[0]!.amount) * 100
@@ -317,7 +353,7 @@ function ExecutiveOverview({ data }: { data: LoadedData }) {
           value={compactMoney(k.approved.amount, currency)}
           hint={`${k.approved.count} approved of ${k.total.count} submitted`}
           trend={momDelta}
-          spark={expenses.monthlyTrend.slice(-8).map((m) => m.amount)}
+          spark={monthly.slice(-8).map((m) => m.amount)}
         />
         <KpiCard
           index={1}

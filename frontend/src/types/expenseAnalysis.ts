@@ -7,6 +7,43 @@ export type AnalysisStatus =
   | "FAILED"
   | "LOW_CONFIDENCE";
 
+export type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
+
+export type RiskReason =
+  | "SCREENSHOT"
+  | "SCREEN_PHOTO"
+  | "BLURRY"
+  | "CROPPED"
+  | "EDITED"
+  | "LOW_RESOLUTION"
+  | "MISSING_EDGES"
+  | "UNUSUAL_FORMAT"
+  | "SYNTHETIC"
+  | "DUPLICATE";
+
+/** Human-readable reason labels for HR review. */
+export const RISK_REASON_LABELS: Record<RiskReason, string> = {
+  SCREENSHOT: "Looks like a screenshot",
+  SCREEN_PHOTO: "Photo of a screen",
+  BLURRY: "Blurry / hard to read",
+  CROPPED: "Cropped receipt",
+  EDITED: "Possible editing / tampering",
+  LOW_RESOLUTION: "Low resolution",
+  MISSING_EDGES: "Missing edges",
+  UNUSUAL_FORMAT: "Unusual format",
+  SYNTHETIC: "AI-generated / synthetic look",
+  DUPLICATE: "Possible duplicate receipt",
+};
+
+export const RISK_LEVEL_META: Record<
+  RiskLevel,
+  { label: string; tone: "emerald" | "amber" | "red" }
+> = {
+  LOW: { label: "Low risk", tone: "emerald" },
+  MEDIUM: { label: "Medium risk", tone: "amber" },
+  HIGH: { label: "High risk", tone: "red" },
+};
+
 /** Immutable snapshot of the original AI extraction — the audit-trail source. */
 export interface AiExtractionSnapshot {
   vendorName: string | null;
@@ -50,6 +87,10 @@ export interface ExpenseAnalysis {
   taxInformation?: string;
   lowConfidenceReason?: string;
   confidenceScore?: number;
+  /** Receipt authenticity/risk — present only on staff (HR/Admin) responses. */
+  authenticityScore?: number;
+  riskLevel?: RiskLevel;
+  riskReasons?: RiskReason[];
   /** Original AI extraction, preserved verbatim (present on analyses run after audit tracking). */
   aiExtraction?: AiExtractionSnapshot;
   extractedData?: Record<string, unknown>;

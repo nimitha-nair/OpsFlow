@@ -17,18 +17,7 @@ import { Link } from "react-router-dom";
 
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { ACCENTS, riseStyle, type Accent } from "../common/accent";
-
-/** Accent → SVG/text colour class (drives `currentColor` in the charts). */
-export const ACCENT_TEXT: Record<Accent, string> = {
-  indigo: "text-indigo-500",
-  violet: "text-violet-500",
-  emerald: "text-emerald-500",
-  amber: "text-amber-500",
-  rose: "text-rose-500",
-  sky: "text-sky-500",
-  slate: "text-slate-500",
-};
+import { ACCENT_TEXT, ACCENTS, riseStyle, type Accent } from "../common/accent";
 
 /* ------------------------------------------------------------------ */
 /* Trend delta badge                                                   */
@@ -348,7 +337,11 @@ export interface RankItem {
 /** A ranked list with position badges and proportional bars. */
 export function RankingList({ items, accent = "indigo" }: { items: RankItem[]; accent?: Accent }) {
   if (items.length === 0) {
-    return <p className="text-sm text-muted-foreground">No data.</p>;
+    return (
+      <div className="flex min-h-24 items-center justify-center rounded-lg border border-dashed border-border/70 px-4 py-6 text-center text-xs text-muted-foreground">
+        No data in this range yet.
+      </div>
+    );
   }
   const a = ACCENTS[accent];
   return (

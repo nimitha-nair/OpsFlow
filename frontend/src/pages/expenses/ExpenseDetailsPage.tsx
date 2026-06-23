@@ -271,10 +271,10 @@ export function ExpenseDetailsPage() {
   return (
     <>
       <PageHeader
-        title="Expense Details"
+        title={expense?.code ? `Expense ${expense.code}` : "Expense Details"}
         breadcrumbs={[
           { label: "Expenses", to: `${base}/expenses` },
-          { label: "Details" },
+          { label: expense?.code ?? "Details" },
         ]}
         actions={
           expense && expense.approvalStatus !== "DRAFT" ? (
@@ -336,7 +336,7 @@ export function ExpenseDetailsPage() {
             downloading={docDownloading}
           />
           {expense.approvalStatus !== "DRAFT" && (
-            <AnalysisAuditPanel expense={expense} />
+            <AnalysisAuditPanel expense={expense} showRisk />
           )}
           {(expense.approvalStatus === "APPROVED" ||
             expense.approvalStatus === "REJECTED") && (

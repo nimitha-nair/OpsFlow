@@ -7,8 +7,11 @@ import { useAuth } from "./context/auth-context";
 import { AdminDashboard } from "./pages/dashboards/AdminDashboard";
 import { EmployeeDashboard } from "./pages/dashboards/EmployeeDashboard";
 import { HrDashboard } from "./pages/dashboards/HrDashboard";
+import { ActivityPage } from "./pages/ActivityPage";
+import { NotificationsPage } from "./pages/NotificationsPage";
 import { DepartmentsPage } from "./pages/DepartmentsPage";
 import { DepartmentDetailsPage } from "./pages/DepartmentDetailsPage";
+import { HelpDeskPage } from "./pages/HelpDeskPage";
 import { EmployeesPage } from "./pages/EmployeesPage";
 import { KanbanPage } from "./pages/KanbanPage";
 import { Login } from "./pages/Login";
@@ -97,6 +100,9 @@ function App() {
           element={<ModulePlaceholder title="Leave Management" />}
         />
         <Route path="reports" element={<ReportsPage />} />
+        <Route path="activity" element={<ActivityPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="helpdesk" element={<HelpDeskPage />} />
       </Route>
 
       {/* HR */}
@@ -121,6 +127,9 @@ function App() {
           element={<ModulePlaceholder title="Leave Management" />}
         />
         <Route path="reports" element={<ReportsPage />} />
+        <Route path="activity" element={<ActivityPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="helpdesk" element={<HelpDeskPage />} />
       </Route>
 
       {/* EMPLOYEE */}
@@ -144,6 +153,9 @@ function App() {
         <Route path="expenses/:id/verify" element={<ExpenseVerificationPage />} />
         <Route path="expenses/:id/report" element={<ExpenseReportPage />} />
         <Route path="expenses/:id" element={<ExpenseDetailsPage />} />
+        <Route path="activity" element={<ActivityPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="helpdesk" element={<HelpDeskPage />} />
       </Route>
 
       <Route path="/" element={<RootRedirect />} />

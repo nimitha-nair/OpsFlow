@@ -30,6 +30,8 @@ export type ReimbursementStatus = (typeof REIMBURSEMENT_STATUSES)[number];
 
 export interface Expense {
   id: string;
+  /** Human-readable reference (EXP-0001). Absent on docs created before backfill. */
+  code?: string;
   employeeId: string;
   scope: ExpenseScope;
   projectId?: string;
@@ -51,6 +53,8 @@ export interface Expense {
   reviewedById?: string;
   reviewedByName?: string;
   reviewedAt?: string;
+  /** Receipt risk, present only on the staff review list (/expenses/review). */
+  riskLevel?: "LOW" | "MEDIUM" | "HIGH";
   createdAt: string;
   updatedAt: string;
 }

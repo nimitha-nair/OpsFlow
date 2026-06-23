@@ -16,6 +16,7 @@ import {
   ExpenseTypeBadge,
   ReimbursementBadge,
 } from "./ExpenseBadges";
+import { RiskBadge } from "./RiskAssessment";
 import { formatDate, formatMoney } from "../../lib/format";
 import { CATEGORY_LABELS, type Expense } from "../../types/expense";
 
@@ -41,6 +42,7 @@ export function ExpensesTable({
       <Table>
         <TableHeader className="bg-muted/40">
           <TableRow>
+            <TableHead>Ref</TableHead>
             <TableHead>Date</TableHead>
             <TableHead>Employee</TableHead>
             <TableHead>Project</TableHead>
@@ -55,6 +57,9 @@ export function ExpensesTable({
         <TableBody>
           {expenses.map((expense) => (
             <TableRow key={expense.id}>
+              <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
+                {expense.code ?? "—"}
+              </TableCell>
               <TableCell className="whitespace-nowrap text-muted-foreground">
                 {formatDate(expense.expenseDate)}
               </TableCell>
@@ -79,7 +84,12 @@ export function ExpensesTable({
                 {formatMoney(expense.amount, expense.currency)}
               </TableCell>
               <TableCell>
-                <ApprovalStatusBadge status={expense.approvalStatus} />
+                <div className="flex flex-wrap items-center gap-1">
+                  <ApprovalStatusBadge status={expense.approvalStatus} />
+                  {expense.riskLevel && expense.riskLevel !== "LOW" && (
+                    <RiskBadge level={expense.riskLevel} />
+                  )}
+                </div>
               </TableCell>
               {showReimbursement && (
                 <TableCell>

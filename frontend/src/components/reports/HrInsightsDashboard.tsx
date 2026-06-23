@@ -8,13 +8,14 @@
  * gracefully when it is unavailable).
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   Banknote,
   CheckCircle2,
   Clock,
   Download,
+  FileText,
   Receipt,
   RefreshCw,
   ShieldCheck,
@@ -22,6 +23,7 @@ import {
   Timer,
   UserPlus,
   Users,
+  Wallet,
   XCircle,
 } from "lucide-react";
 
@@ -42,14 +44,14 @@ import { ErrorState } from "../common/ErrorState";
 import { BarList } from "./charts";
 import { DonutGauge, KpiCard, RankingList } from "./bi";
 import { paletteAt } from "../common/accent";
-import {
-  SectionFrame,
-  SectionRail,
-  scrollToSection,
-  useScrollSpy,
-  type SectionDef,
-} from "./workspace/shell";
+import { SectionFrame } from "./workspace/shell";
+import { type SectionDef } from "./workspace/report-sections";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
+import { ExpensesTab } from "./ExpensesTab";
 import { formatCompactMoney, formatMoney } from "../../lib/format";
+import { DateRangeFilter } from "../common/DateRangeFilter";
+import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
 import { downloadCsv, printElement } from "../../lib/export";
 import { getReportsOverview, getReportsAiAnalytics } from "../../lib/reports-api";
 import { listReviewExpenses } from "../../lib/expenses-api";
@@ -63,12 +65,13 @@ import {
   deriveReimbursements,
 } from "./workspace/derive";
 
-const SECTIONS: SectionDef[] = [
-  { id: "workforce", label: "Workforce Overview", icon: Users },
-  { id: "governance", label: "Expense Governance", icon: ShieldCheck },
-  { id: "reimbursement", label: "Reimbursement Ops", icon: Banknote },
-  { id: "ai", label: "AI Processing", icon: Sparkles },
-  { id: "risk", label: "Audit & Risk", icon: AlertTriangle },
+const TABS: SectionDef[] = [
+  { id: "workforce", label: "Workforce", icon: Users },
+  { id: "expense", label: "Expenses", icon: Wallet },
+  { id: "approvals", label: "Approvals", icon: ShieldCheck },
+  { id: "reimbursement", label: "Reimbursements", icon: Banknote },
+  { id: "ai", label: "AI Metrics", icon: Sparkles },
+  { id: "compliance", label: "Compliance", icon: AlertTriangle },
 ];
 
 const pct = (n: number) => `${Math.round(n)}%`;
@@ -91,8 +94,18 @@ export function HrInsightsDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const active = useScrollSpy(SECTIONS.map((s) => s.id));
+  const [tab, setTab] = useState("workforce");
+  const [range, setRange] = useState<DateRange>(() => makeRange("all"));
+  const panelsRef = useRef<HTMLDivElement>(null);
+
+  const panelNode = (id: string) =>
+    panelsRef.current?.querySelector<HTMLElement>(`[data-panel="${id}"]`) ?? null;
+  const reveal = (clone: HTMLElement) => clone.classList.remove("hidden");
+  const revealAll = (clone: HTMLElement) =>
+    clone.querySelectorAll(".report-panel").forEach((p) => p.classList.remove("hidden"));
+
+  const exportCurrentTab = () => printElement(panelNode(tab), `opsflow-hr-${tab}`, reveal);
+  const exportAll = () => printElement(panelsRef.current, "opsflow-hr-report", revealAll);
 
   const load = useCallback(async (signal?: { cancelled: boolean }) => {
     const [overview, records, usersResp, ai] = await Promise.all([
@@ -108,10 +121,15 @@ export function HrInsightsDashboard() {
 
   useEffect(() => {
     const signal = { cancelled: false };
-    setLoading(true);
-    load(signal)
-      .catch(() => !signal.cancelled && setError("We couldn't load HR insights. Please try again."))
-      .finally(() => !signal.cancelled && setLoading(false));
+    void (async () => {
+      try {
+        await load(signal);
+      } catch {
+        if (!signal.cancelled) setError("We couldn't load HR insights. Please try again.");
+      } finally {
+        if (!signal.cancelled) setLoading(false);
+      }
+    })();
     return () => {
       signal.cancelled = true;
     };
@@ -124,6 +142,15 @@ export function HrInsightsDashboard() {
       .finally(() => setRefreshing(false));
   };
 
+  // The date range scopes the record-derived sections.
+  const fdata = useMemo(
+    () =>
+      data
+        ? { ...data, records: filterByDate(data.records, (e) => e.expenseDate, range) }
+        : null,
+    [data, range],
+  );
+
   return (
     <>
       <PageHeader
@@ -133,11 +160,16 @@ export function HrInsightsDashboard() {
         actions={
           !loading && !error && data ? (
             <div className="no-print flex flex-wrap items-center gap-2">
+              <DateRangeFilter value={range} onChange={setRange} />
               <Button variant="outline" size="sm" onClick={onRefresh} disabled={refreshing}>
                 <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
-              <Button size="sm" onClick={() => printElement(rootRef.current, "opsflow-hr-report")}>
+              <Button variant="outline" size="sm" onClick={exportCurrentTab}>
+                <FileText className="size-4" />
+                This tab
+              </Button>
+              <Button size="sm" onClick={exportAll}>
                 <Download className="size-4" />
                 Complete HR Report
               </Button>
@@ -148,21 +180,53 @@ export function HrInsightsDashboard() {
 
       {loading ? (
         <LoadingState label="Loading HR insights…" />
-      ) : error || !data ? (
+      ) : error || !data || !fdata ? (
         <ErrorState
           title="Couldn't load HR insights"
           description={error ?? "No data."}
           onRetry={onRefresh}
         />
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[210px_minmax(0,1fr)]">
-          <SectionRail sections={SECTIONS} active={active} onGo={scrollToSection} />
-          <div ref={rootRef} className="flex min-w-0 flex-col gap-12">
-            <Workforce data={data} />
-            <Governance data={data} />
-            <Reimbursement data={data} />
-            <AiProcessing data={data} />
-            <AuditRisk data={data} />
+        <div className="flex min-w-0 flex-col gap-6">
+          <Tabs value={tab} onValueChange={(v) => setTab(v as string)}>
+            <TabsList variant="line" className="no-print w-full justify-start overflow-x-auto">
+              {TABS.map((t) => {
+                const Icon = t.icon;
+                return (
+                  <TabsTrigger key={t.id} value={t.id}>
+                    <Icon className="size-4" />
+                    {t.label}
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </Tabs>
+
+          <div ref={panelsRef} className="flex min-w-0 flex-col">
+            <HrPanel id="workforce" active={tab}>
+              <Workforce data={fdata} />
+            </HrPanel>
+            <HrPanel id="expense" active={tab}>
+              <SectionFrame
+                id="hr-expense"
+                title="Expense Analytics"
+                description="Category mix, scope split, and monthly spend trend."
+              >
+                <ExpensesTab />
+              </SectionFrame>
+            </HrPanel>
+            <HrPanel id="approvals" active={tab}>
+              <Governance data={fdata} />
+            </HrPanel>
+            <HrPanel id="reimbursement" active={tab}>
+              <Reimbursement data={fdata} />
+            </HrPanel>
+            <HrPanel id="ai" active={tab}>
+              <AiProcessing data={fdata} />
+            </HrPanel>
+            <HrPanel id="compliance" active={tab}>
+              <AuditRisk data={fdata} />
+            </HrPanel>
           </div>
         </div>
       )}
@@ -171,6 +235,23 @@ export function HrInsightsDashboard() {
 }
 
 /* ----------------------------- Workforce ------------------------------- */
+
+/** A tab panel: mounted always, hidden unless active (revealed in PDF clones). */
+function HrPanel({
+  id,
+  active,
+  children,
+}: {
+  id: string;
+  active: string;
+  children: ReactNode;
+}) {
+  return (
+    <div data-panel={id} className={cn("report-panel", active !== id && "hidden")}>
+      {children}
+    </div>
+  );
+}
 
 function Workforce({ data }: { data: LoadedData }) {
   const { users } = data;

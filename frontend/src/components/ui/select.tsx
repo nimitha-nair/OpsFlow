@@ -4,7 +4,47 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+type DerivedItem = { value: unknown; label: React.ReactNode }
+
+/**
+ * Walk the JSX children and collect every <SelectItem>'s value→label pair.
+ * Base UI's <Select.Value> renders the raw selected value when the Root has no
+ * `items` map (the open popup may be unmounted, so it can't read item text).
+ * Deriving the map here makes the closed trigger show the human-readable label
+ * for every Select in the app, with no call-site changes.
+ */
+function collectSelectItems(node: React.ReactNode, acc: DerivedItem[]): void {
+  React.Children.forEach(node, (child) => {
+    if (!React.isValidElement(child)) return
+    if (child.type === SelectItem) {
+      const props = child.props as { value?: unknown; children?: React.ReactNode }
+      if (props.value !== undefined) {
+        acc.push({ value: props.value, label: props.children })
+      }
+      return
+    }
+    const props = child.props as { children?: React.ReactNode }
+    if (props?.children) collectSelectItems(props.children, acc)
+  })
+}
+
+function Select<Value, Multiple extends boolean | undefined = false>({
+  children,
+  items,
+  ...props
+}: SelectPrimitive.Root.Props<Value, Multiple>) {
+  const derivedItems = React.useMemo<DerivedItem[] | undefined>(() => {
+    if (items != null) return items as unknown as DerivedItem[]
+    const acc: DerivedItem[] = []
+    collectSelectItems(children, acc)
+    return acc.length > 0 ? acc : undefined
+  }, [children, items])
+  return (
+    <SelectPrimitive.Root items={derivedItems as never} {...props}>
+      {children}
+    </SelectPrimitive.Root>
+  )
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (

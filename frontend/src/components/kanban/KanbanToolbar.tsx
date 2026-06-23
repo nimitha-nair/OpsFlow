@@ -19,7 +19,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TASK_PRIORITIES, TASK_PRIORITY_LABELS, type TaskPriority } from "../../types/task";
+import { DateRangeFilter } from "../common/DateRangeFilter";
+import type { DateRange } from "../../lib/date-range";
+import {
+  TASK_PRIORITIES,
+  TASK_PRIORITY_LABELS,
+  TASK_STATUSES,
+  TASK_STATUS_LABELS,
+  type TaskPriority,
+  type TaskStatus,
+} from "../../types/task";
 
 export type SavedView = "my" | "team" | "department" | "completed";
 export type BoardView = "board" | "calendar" | "timeline";
@@ -48,6 +57,13 @@ interface KanbanToolbarProps {
   priority: TaskPriority | "all";
   onPriority: (v: TaskPriority | "all") => void;
 
+  status: TaskStatus | "all";
+  onStatus: (v: TaskStatus | "all") => void;
+
+  versions: string[];
+  versionFilter: string;
+  onVersion: (v: string) => void;
+
   projects: { id: string; name: string }[];
   projectFilter: string;
   onProject: (v: string) => void;
@@ -56,6 +72,9 @@ interface KanbanToolbarProps {
   departments: string[];
   departmentFilter: string;
   onDepartment: (v: string) => void;
+
+  dateRange: DateRange;
+  onDateRange: (r: DateRange) => void;
 
   boardView: BoardView;
   onBoardView: (v: BoardView) => void;
@@ -152,6 +171,42 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
           </SelectContent>
         </Select>
 
+        <Select
+          value={props.status}
+          onValueChange={(v) => props.onStatus((v as TaskStatus | "all") ?? "all")}
+        >
+          <SelectTrigger size="sm" className="w-36">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            {TASK_STATUSES.map((s) => (
+              <SelectItem key={s} value={s}>
+                {TASK_STATUS_LABELS[s]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {props.versions.length > 0 && (
+          <Select
+            value={props.versionFilter}
+            onValueChange={(v) => props.onVersion(v ?? "all")}
+          >
+            <SelectTrigger size="sm" className="w-36">
+              <SelectValue placeholder="Version" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All versions</SelectItem>
+              {props.versions.map((ver) => (
+                <SelectItem key={ver} value={ver}>
+                  v{ver}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
         {props.projects.length > 0 && (
           <Select value={props.projectFilter} onValueChange={(v) => props.onProject(v ?? "all")}>
             <SelectTrigger size="sm" className="w-44">
@@ -186,6 +241,8 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
             </SelectContent>
           </Select>
         )}
+
+        <DateRangeFilter value={props.dateRange} onChange={props.onDateRange} />
       </div>
     </div>
   );

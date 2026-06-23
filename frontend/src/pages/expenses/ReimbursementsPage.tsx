@@ -12,11 +12,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { ReimbursementBadge } from "../../components/expenses/ExpenseBadges";
+import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
 import {
   apiErrorMessage,
   listReviewExpenses,
@@ -60,6 +62,7 @@ export function ReimbursementsPage() {
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [range, setRange] = useState<DateRange>(() => makeRange("all"));
 
   useEffect(() => {
     let cancelled = false;
@@ -98,6 +101,11 @@ export function ReimbursementsPage() {
     [projectNames],
   );
 
+  const visible = useMemo(
+    () => filterByDate(expenses, (e) => e.expenseDate, range),
+    [expenses, range],
+  );
+
   async function changeStatus(expense: Expense, status: ReimbursementStatus) {
     if (status === expense.reimbursementStatus) return;
     setSavingId(expense.id);
@@ -123,6 +131,7 @@ export function ReimbursementsPage() {
           { label: "Expenses", to: "/admin/expenses" },
           { label: "Reimbursements" },
         ]}
+        actions={<DateRangeFilter value={range} onChange={setRange} />}
       />
 
       {error ? (
@@ -145,12 +154,21 @@ export function ReimbursementsPage() {
             description="Approved expenses awaiting reimbursement will appear here."
           />
         </Card>
+      ) : visible.length === 0 ? (
+        <Card className="p-6">
+          <EmptyState
+            icon={Wallet}
+            title="No reimbursements in range"
+            description="No approved expenses fall in the selected date range."
+          />
+        </Card>
       ) : (
         <Card className="overflow-hidden p-0">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader className="bg-muted/40">
                 <TableRow>
+                  <TableHead>Ref</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Employee</TableHead>
                   <TableHead>Project</TableHead>
@@ -160,8 +178,11 @@ export function ReimbursementsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {expenses.map((expense) => (
+                {visible.map((expense) => (
                   <TableRow key={expense.id}>
+                    <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
+                      {expense.code ?? "—"}
+                    </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground">
                       {formatDate(expense.expenseDate)}
                     </TableCell>

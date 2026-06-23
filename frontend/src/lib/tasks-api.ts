@@ -44,13 +44,22 @@ export async function updateTask(
   return data;
 }
 
-/** PATCH /tasks/:id/status (ADMIN any, EMPLOYEE own) */
+/** PATCH /tasks/:id/status (ADMIN any, EMPLOYEE own). `reason` required for ON_HOLD. */
 export async function updateTaskStatus(
   id: string,
   status: TaskStatus,
+  reason?: string,
 ): Promise<Task> {
-  const { data } = await api.patch<Task>(`/tasks/${id}/status`, { status });
+  const { data } = await api.patch<Task>(`/tasks/${id}/status`, {
+    status,
+    ...(reason ? { reason } : {}),
+  });
   return data;
+}
+
+/** DELETE /tasks/:id (ADMIN) */
+export async function deleteTask(id: string): Promise<void> {
+  await api.delete(`/tasks/${id}`);
 }
 
 export { apiErrorMessage };

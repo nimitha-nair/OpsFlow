@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { GanttChart, X } from "lucide-react";
+import { GanttChart, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -17,10 +17,19 @@ import {
   type BoardView,
   type SavedView,
 } from "../components/kanban/KanbanToolbar";
+import { QuickCreateTaskDialog } from "../components/tasks/QuickCreateTaskDialog";
+import {
+  TaskFormDialog,
+  type AssigneeOption,
+} from "../components/tasks/TaskFormDialog";
+import { listProjectMembers } from "../lib/project-members-api";
+import { filterByDate, makeRange, type DateRange } from "../lib/date-range";
+import { fuzzyMatchAny } from "../lib/fuzzy";
 import { useAuth } from "../context/auth-context";
 import { listMyProjects, listProjects } from "../lib/projects-api";
 import {
   apiErrorMessage,
+  deleteTask,
   listMyTasks,
   listTasks,
   updateTaskStatus,
@@ -42,6 +51,7 @@ interface NamedProject {
 export function KanbanPage() {
   const { user } = useAuth();
   const isEmployee = user?.role === "EMPLOYEE";
+  const isAdmin = user?.role === "ADMIN";
   // HR is view-only; ADMIN and the assigned EMPLOYEE may move tasks.
   const canMove = user?.role !== "HR";
 
@@ -61,10 +71,16 @@ export function KanbanPage() {
   const [boardView, setBoardView] = useState<BoardView>("board");
   const [search, setSearch] = useState("");
   const [priority, setPriority] = useState<TaskPriority | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<TaskStatus | "all">("all");
+  const [versionFilter, setVersionFilter] = useState("all");
   const [projectFilter, setProjectFilter] = useState("all");
   const [departmentFilter, setDepartmentFilter] = useState("all");
+  const [range, setRange] = useState<DateRange>(() => makeRange("all"));
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [editTask, setEditTask] = useState<Task | null>(null);
+  const [editMembers, setEditMembers] = useState<AssigneeOption[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -116,7 +132,10 @@ export function KanbanPage() {
     () => new Map(projects.map((p) => [p.id, p.name])),
     [projects],
   );
-  const getAssigneeName = useMemo(() => (id: string) => names.get(id) ?? id, [names]);
+  const getAssigneeName = useMemo(
+    () => (id: string) => names.get(id) ?? "Unknown",
+    [names],
+  );
   const getProjectName = useMemo(
     () => (id: string) => projectNames.get(id) ?? "—",
     [projectNames],
@@ -125,6 +144,11 @@ export function KanbanPage() {
   const departments = useMemo(
     () => [...new Set([...depts.values()])].sort(),
     [depts],
+  );
+  const versions = useMemo(
+    () =>
+      [...new Set(tasks.map((t) => t.version).filter((v): v is string => Boolean(v)))].sort(),
+    [tasks],
   );
 
   /** Apply a saved view to the raw task list. */
@@ -148,27 +172,48 @@ export function KanbanPage() {
     [user?.id, departmentFilter, depts],
   );
 
+  const viewsKey = availableViews.join(",");
   const viewCounts = useMemo(() => {
     const counts = {} as Record<SavedView, number>;
     for (const v of availableViews) counts[v] = applyView(tasks, v).length;
     return counts;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks, applyView, availableViews.join(",")]);
+  }, [tasks, applyView, viewsKey]);
 
   const filteredTasks = useMemo(() => {
     let list = applyView(tasks, savedView);
     if (projectFilter !== "all") list = list.filter((t) => t.projectId === projectFilter);
     if (priority !== "all") list = list.filter((t) => t.priority === priority);
-    const q = search.trim().toLowerCase();
+    if (statusFilter !== "all") list = list.filter((t) => t.status === statusFilter);
+    if (versionFilter !== "all") list = list.filter((t) => t.version === versionFilter);
+    list = filterByDate(list, (t) => t.dueDate, range);
+    const q = search.trim();
     if (q) {
-      list = list.filter(
-        (t) =>
-          t.title.toLowerCase().includes(q) ||
-          getAssigneeName(t.assigneeId).toLowerCase().includes(q),
+      // Fuzzy search across title, assignee, project, status, and version.
+      list = list.filter((t) =>
+        fuzzyMatchAny(q, [
+          t.title,
+          getAssigneeName(t.assigneeId),
+          getProjectName(t.projectId),
+          TASK_STATUS_LABELS[t.status],
+          t.version,
+        ]),
       );
     }
     return list;
-  }, [applyView, tasks, savedView, projectFilter, priority, search, getAssigneeName]);
+  }, [
+    applyView,
+    tasks,
+    savedView,
+    projectFilter,
+    priority,
+    statusFilter,
+    versionFilter,
+    search,
+    range,
+    getAssigneeName,
+    getProjectName,
+  ]);
 
   // Keep the selection consistent with what's actually visible.
   const visibleIds = useMemo(() => new Set(filteredTasks.map((t) => t.id)), [filteredTasks]);
@@ -206,11 +251,38 @@ export function KanbanPage() {
     }
   }
 
+  async function openEdit(task: Task) {
+    setSelectedTask(null);
+    setEditTask(task);
+    try {
+      const ms = await listProjectMembers(task.projectId);
+      setEditMembers(ms.map((m) => ({ id: m.userId, name: m.user?.name ?? "Unknown" })));
+    } catch {
+      setEditMembers([]);
+    }
+  }
+
+  function reopenTask(task: Task) {
+    setSelectedTask(null);
+    void handleMoveTask(task.id, "IN_PROGRESS");
+  }
+
+  async function removeTask(task: Task) {
+    if (!window.confirm(`Delete "${task.title}"? This can't be undone.`)) return;
+    setSelectedTask(null);
+    try {
+      await deleteTask(task.id);
+      setTasks((prev) => prev.filter((t) => t.id !== task.id));
+      toast.success("Task deleted.");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Failed to delete task."));
+    }
+  }
+
   async function bulkMove(status: TaskStatus) {
     const ids = [...activeSelection];
     setSelectedIds(new Set());
     for (const id of ids) {
-      // eslint-disable-next-line no-await-in-loop
       await handleMoveTask(id, status);
     }
     toast.success(`Moved ${ids.length} task${ids.length === 1 ? "" : "s"} to ${TASK_STATUS_LABELS[status]}.`);
@@ -226,6 +298,14 @@ export function KanbanPage() {
             : "Plan and track work across saved views and visualizations."
         }
         breadcrumbs={[{ label: "Kanban" }]}
+        actions={
+          isAdmin ? (
+            <Button size="sm" onClick={() => setQuickOpen(true)}>
+              <Plus className="size-4" />
+              New Task
+            </Button>
+          ) : undefined
+        }
       />
 
       {loading ? (
@@ -246,6 +326,11 @@ export function KanbanPage() {
             onSearch={setSearch}
             priority={priority}
             onPriority={setPriority}
+            status={statusFilter}
+            onStatus={setStatusFilter}
+            versions={versions}
+            versionFilter={versionFilter}
+            onVersion={setVersionFilter}
             projects={projects}
             projectFilter={projectFilter}
             onProject={setProjectFilter}
@@ -253,6 +338,8 @@ export function KanbanPage() {
             departments={departments}
             departmentFilter={departmentFilter}
             onDepartment={setDepartmentFilter}
+            dateRange={range}
+            onDateRange={setRange}
             boardView={boardView}
             onBoardView={setBoardView}
             counts={viewCounts}
@@ -336,6 +423,31 @@ export function KanbanPage() {
         assigneeName={selectedTask ? getAssigneeName(selectedTask.assigneeId) : ""}
         onOpenChange={(open) => {
           if (!open) setSelectedTask(null);
+        }}
+        canManage={isAdmin}
+        onEdit={openEdit}
+        onReopen={reopenTask}
+        onDelete={removeTask}
+      />
+
+      <QuickCreateTaskDialog
+        open={quickOpen}
+        onOpenChange={setQuickOpen}
+        onCreated={() => setReloadKey((k) => k + 1)}
+      />
+
+      <TaskFormDialog
+        open={editTask !== null}
+        mode="edit"
+        projectId={editTask?.projectId ?? ""}
+        members={editMembers}
+        task={editTask ?? undefined}
+        onOpenChange={(open) => {
+          if (!open) setEditTask(null);
+        }}
+        onSaved={() => {
+          setEditTask(null);
+          setReloadKey((k) => k + 1);
         }}
       />
     </>

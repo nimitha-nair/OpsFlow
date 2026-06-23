@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
+  AlertTriangle,
   Banknote,
   CheckCircle2,
+  ClipboardList,
   FileSpreadsheet,
   FileText,
   FolderKanban,
   HeartPulse,
+  ListChecks,
   Timer,
   Users,
   Wallet,
@@ -27,17 +30,20 @@ import { SectionCard } from "../components/common/SectionCard";
 import { PageHeader } from "../components/layout/PageHeader";
 import { KpiCard, AreaTrend, DonutGauge, RankingList } from "../components/reports/bi";
 import { BarList } from "../components/reports/charts";
+import { TaskStatusSummary } from "../components/dashboard/TaskStatusSummary";
 import {
   deriveDepartmentDetail,
   type DepartmentDetail,
 } from "../components/reports/workspace/derive";
 import { apiErrorMessage, listUsers } from "../lib/users-api";
 import { listReviewExpenses } from "../lib/expenses-api";
+import { listTasks } from "../lib/tasks-api";
 import { getReportsProjects } from "../lib/reports-api";
 import { downloadCsv, printElement } from "../lib/export";
 import { formatCompactMoney, formatMoney } from "../lib/format";
 import { CATEGORY_LABELS, type ExpenseCategory } from "../types/expense";
 import type { Expense } from "../types/expense";
+import type { Task } from "../types/task";
 import type { User } from "../types/user";
 
 export function DepartmentDetailsPage() {
@@ -46,6 +52,7 @@ export function DepartmentDetailsPage() {
 
   const [users, setUsers] = useState<User[]>([]);
   const [records, setRecords] = useState<Expense[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [projectNames, setProjectNames] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,14 +65,16 @@ export function DepartmentDetailsPage() {
       setLoading(true);
       setError(null);
       try {
-        const [usersResp, recs, projects] = await Promise.all([
+        const [usersResp, recs, projects, taskList] = await Promise.all([
           listUsers({ limit: 1000 }),
           listReviewExpenses("ALL"),
           getReportsProjects().catch(() => null),
+          listTasks({ limit: 1000 }).catch(() => []),
         ]);
         if (cancelled) return;
         setUsers(usersResp.data);
         setRecords(recs);
+        setTasks(taskList);
         setProjectNames(
           new Map((projects?.projects ?? []).map((p) => [p.projectId, p.projectName])),
         );
@@ -85,6 +94,28 @@ export function DepartmentDetailsPage() {
     () => deriveDepartmentDetail(name, records, users, projectNames),
     [name, records, users, projectNames],
   );
+
+  // Task load = tasks assigned to this department's members.
+  const deptTasks = useMemo(() => {
+    const memberIds = new Set(
+      users
+        .filter((u) => (u.department?.trim() || "Unassigned") === name)
+        .map((u) => u.id),
+    );
+    return tasks.filter((t) => memberIds.has(t.assigneeId));
+  }, [tasks, users, name]);
+
+  const taskStats = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const open = deptTasks.filter((t) => t.status !== "DONE");
+    return {
+      total: deptTasks.length,
+      open: open.length,
+      done: deptTasks.filter((t) => t.status === "DONE").length,
+      overdue: open.filter((t) => t.dueDate && t.dueDate < today).length,
+      activeProjects: new Set(open.map((t) => t.projectId)).size,
+    };
+  }, [deptTasks]);
 
   return (
     <>
@@ -160,6 +191,45 @@ export function DepartmentDetailsPage() {
               value={detail.projectsEngaged}
             />
           </div>
+
+          {/* Operations — task load across the department's members. */}
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard
+              index={0}
+              accent="indigo"
+              icon={ListChecks}
+              label="Open tasks"
+              value={taskStats.open}
+              hint={`${taskStats.total} total · ${taskStats.done} done`}
+            />
+            <KpiCard
+              index={1}
+              accent="rose"
+              icon={AlertTriangle}
+              label="Overdue tasks"
+              value={taskStats.overdue}
+              invertTrend
+            />
+            <KpiCard
+              index={2}
+              accent="violet"
+              icon={FolderKanban}
+              label="Active projects"
+              value={taskStats.activeProjects}
+              hint="with open work"
+            />
+            <KpiCard
+              index={3}
+              accent="emerald"
+              icon={ClipboardList}
+              label="Completed"
+              value={taskStats.done}
+            />
+          </div>
+
+          <SectionCard title="Task load" description="Open and completed work by status">
+            <TaskStatusSummary tasks={deptTasks} />
+          </SectionCard>
 
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
             <SectionCard

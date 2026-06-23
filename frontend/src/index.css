@@ -178,22 +178,72 @@
   flex-direction: column;
 }
 
-/* Print-to-PDF: show only the report subtree, hide all app chrome. */
+/* Print-to-PDF. Two independent mechanisms:
+ *  1. Portal clone (reports/dashboards): printElement() clones content into
+ *     #print-portal and sets body.printing. The live app is display:none'd, so
+ *     there are no leftover blank pages.
+ *  2. data-print-root (standalone print pages, e.g. the expense report): the
+ *     page marks its subtree and calls window.print() directly. Only active
+ *     when NOT portal-printing.
+ */
+#print-portal {
+  display: none;
+}
+
 @media print {
-  body * {
+  /* Mechanism 1 — portal clone. */
+  body.printing > #root {
+    display: none !important;
+  }
+  body.printing > #print-portal {
+    display: block !important;
+    padding: 0;
+    color-scheme: light;
+    background: #fff;
+  }
+
+  /* Force backgrounds, gradients and chart fills to actually print — browsers
+     drop background colors/images by default, which is why charts and badges
+     came out blank. */
+  body.printing #print-portal *,
+  [data-print-root] * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Keep cards and chart blocks from splitting across page boundaries. */
+  body.printing #print-portal [data-slot="card"],
+  body.printing #print-portal section {
+    break-inside: avoid;
+  }
+
+  /* Charts grow via scaleX/scaleY entrance animations. Print snapshots them at
+     scale(0) — collapsed columns/bars inside fixed-height boxes, i.e. blank
+     white space. Force the final, fully-grown state for print. */
+  .r-bar,
+  .r-col,
+  .r-rise {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+
+  /* Mechanism 2 — data-print-root visibility (only when not portal-printing). */
+  body:not(.printing) * {
     visibility: hidden;
   }
-  [data-print-root],
-  [data-print-root] * {
+  body:not(.printing) [data-print-root],
+  body:not(.printing) [data-print-root] * {
     visibility: visible;
   }
-  [data-print-root] {
+  body:not(.printing) [data-print-root] {
     position: absolute;
     left: 0;
     top: 0;
     width: 100%;
     padding: 0;
   }
+
   .no-print {
     display: none !important;
   }

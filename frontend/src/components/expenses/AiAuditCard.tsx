@@ -49,7 +49,7 @@ export function AiAuditCard({ expense }: { expense: Expense }) {
               No receipt was attached (manual entry).
             </p>
           )}
-          <AnalysisAuditPanel expense={expense} />
+          <AnalysisAuditPanel expense={expense} showTechnical showRisk />
         </CardContent>
       )}
     </Card>

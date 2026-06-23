@@ -11,10 +11,19 @@ export interface BarItem {
   tone?: string;
 }
 
+/** Compact inline placeholder for an empty chart primitive. */
+function ChartEmpty({ label }: { label: string }) {
+  return (
+    <div className="flex min-h-24 items-center justify-center rounded-lg border border-dashed border-border/70 px-4 py-6 text-center text-xs text-muted-foreground">
+      {label}
+    </div>
+  );
+}
+
 /** Horizontal labelled bars (category / status / provider breakdowns). */
 export function BarList({ items }: { items: BarItem[] }) {
   if (items.length === 0) {
-    return <p className="text-sm text-muted-foreground">No data.</p>;
+    return <ChartEmpty label="No data in this range yet." />;
   }
   return (
     <ul className="flex flex-col gap-3.5">
@@ -56,13 +65,16 @@ export interface ColumnItem {
 
 /** Vertical column chart for monthly trends. */
 export function ColumnChart({ items }: { items: ColumnItem[] }) {
+  if (items.length === 0 || items.every((it) => it.ratio <= 0)) {
+    return <ChartEmpty label="No trend data in this range yet." />;
+  }
   return (
     <div className="flex flex-col gap-2">
       <div className="flex h-44 items-end gap-1.5">
         {items.map((it, i) => (
           <div
             key={it.key}
-            className="group flex flex-1 items-end justify-center"
+            className="group flex h-full flex-1 items-end justify-center"
             title={it.title}
           >
             <div

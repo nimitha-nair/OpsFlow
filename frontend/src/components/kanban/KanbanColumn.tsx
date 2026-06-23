@@ -12,6 +12,8 @@ import type { Task, TaskStatus } from "../../types/task";
 const STATUS_DOT: Record<TaskStatus, string> = {
   TODO: "bg-slate-400",
   IN_PROGRESS: "bg-sky-500",
+  ON_HOLD: "bg-amber-500",
+  REVIEW: "bg-violet-500",
   DONE: "bg-emerald-500",
 };
 
@@ -45,7 +47,7 @@ export function KanbanColumn({
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-col rounded-xl border border-border bg-muted/30 transition-colors",
+        "flex w-72 shrink-0 flex-col rounded-xl border border-border bg-muted/30 transition-colors",
         isOver && "border-primary/40",
       )}
     >
@@ -71,9 +73,12 @@ export function KanbanColumn({
           strategy={verticalListSortingStrategy}
         >
           {tasks.length === 0 ? (
-            <p className="px-1 py-6 text-center text-xs text-muted-foreground">
-              No tasks
-            </p>
+            <div className="flex flex-col items-center gap-1 rounded-lg border border-dashed border-border/70 px-2 py-6 text-center">
+              <p className="text-xs font-medium text-muted-foreground">No tasks</p>
+              <p className="text-[11px] text-muted-foreground/70">
+                {canMove ? "Drag a card here" : "Nothing in this column"}
+              </p>
+            </div>
           ) : (
             tasks.map((task) => (
               <KanbanCard

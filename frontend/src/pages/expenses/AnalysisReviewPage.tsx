@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "../../components/ui/button";
@@ -13,13 +13,11 @@ import {
 import { AnalysisStatusBadge } from "../../components/expenses/AnalysisStatusBadge";
 import { ConfidenceMeter } from "../../components/expenses/ConfidenceMeter";
 import { LowConfidenceBanner } from "../../components/expenses/LowConfidenceBanner";
-import { MockAnalysisBadge } from "../../components/expenses/MockAnalysisBadge";
 import { MultiReceiptViewer } from "../../components/expenses/MultiReceiptViewer";
 import { AnalysisBreakdown } from "../../components/expenses/AnalysisBreakdown";
 import { analyzeExpense, getExpenseAnalysis } from "../../lib/expense-analysis-api";
 import { getExpense } from "../../lib/expenses-api";
 import { getProject } from "../../lib/projects-api";
-import { formatDateTime } from "../../lib/format";
 import {
   combinedVendorLabel,
   deriveLowConfidenceReason,
@@ -137,7 +135,19 @@ export function AnalysisReviewPage() {
         <CardHeader className="flex flex-row items-center justify-between gap-2">
           <CardTitle className="text-base">AI analysis</CardTitle>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {analysis?.provider === "mock" && <MockAnalysisBadge />}
+            {analysis &&
+              isTerminalStatus(analysis.status) &&
+              analysis.status !== "FAILED" &&
+              hasDocument && (
+                <Button variant="ghost" size="sm" onClick={onAnalyze} disabled={busy}>
+                  {busy ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="size-4" />
+                  )}
+                  Reanalyze
+                </Button>
+              )}
             {analysis && <AnalysisStatusBadge status={analysis.status} />}
           </div>
         </CardHeader>
@@ -220,8 +230,6 @@ export function AnalysisReviewPage() {
             <ConfidenceMeter score={analysis.confidenceScore} />
           )}
 
-          {canVerify && analysis && <ProviderMeta analysis={analysis} />}
-
           {canVerify && (
             <div className="flex flex-wrap gap-2">
               {isHighConfidence && (
@@ -245,29 +253,5 @@ function Row({ label, value }: { label: string; value?: string | null }) {
       <dt className="text-muted-foreground">{label}</dt>
       <dd className="text-right font-medium text-foreground">{value || "—"}</dd>
     </div>
-  );
-}
-
-function ProviderMeta({ analysis }: { analysis: ExpenseAnalysis }) {
-  return (
-    <section className="rounded-md border bg-muted/20 px-3 py-2.5">
-      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Analysis metadata
-      </h3>
-      <dl className="grid grid-cols-2 gap-y-1 text-xs">
-        <dt className="text-muted-foreground">Provider</dt>
-        <dd className="text-right font-medium text-foreground">
-          {analysis.provider === "mock" ? "Mock" : analysis.provider === "kimi" ? "Kimi" : "—"}
-        </dd>
-        <dt className="text-muted-foreground">Model version</dt>
-        <dd className="text-right font-medium text-foreground">
-          {analysis.modelVersion || "—"}
-        </dd>
-        <dt className="text-muted-foreground">Analysis time</dt>
-        <dd className="text-right font-medium text-foreground">
-          {formatDateTime(analysis.updatedAt)}
-        </dd>
-      </dl>
-    </section>
   );
 }

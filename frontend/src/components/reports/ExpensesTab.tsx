@@ -106,7 +106,13 @@ export function ExpensesTab() {
     );
   if (!data) return null;
 
-  const isEmpty = data.spendByCategory.length === 0;
+  // Show the analytics grid when EITHER the category breakdown OR the monthly
+  // trend has data — they're computed independently, so a missing category must
+  // not hide the trend (and vice versa). Each chart shows its own placeholder
+  // when its specific series is empty.
+  const hasCategory = data.spendByCategory.length > 0;
+  const hasMonthly = data.monthlyTrend.some((m) => m.amount > 0);
+  const isEmpty = !hasCategory && !hasMonthly;
 
   return (
     <div className="flex flex-col gap-6">

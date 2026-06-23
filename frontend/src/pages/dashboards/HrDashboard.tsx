@@ -1,20 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   CheckCircle2,
   ClipboardCheck,
   Clock,
+  LifeBuoy,
   PencilLine,
   XCircle,
 } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+
+import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { SectionCard } from "../../components/common/SectionCard";
 import { MetricCard } from "../../components/common/MetricCard";
 import { DashboardHero } from "../../components/dashboard/DashboardHero";
+import { ActivityFeed } from "../../components/activity/ActivityFeed";
+import { TicketsWidget } from "../../components/dashboard/TicketsWidget";
+import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
 import {
   ApprovalStatusBadge,
   CreationMethodBadge,
@@ -33,6 +40,8 @@ export function HrDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [range, setRange] = useState<DateRange>(() => makeRange("all"));
+  const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
@@ -61,10 +70,15 @@ export function HrDashboard() {
 
   const employeeName = (id: string) => userNames.get(id) ?? "Unknown";
 
+  const dated = useMemo(
+    () => filterByDate(expenses, (e) => e.expenseDate, range),
+    [expenses, range],
+  );
+
   const stats = useMemo(() => {
     const d = today();
     const s = { pending: 0, approvedToday: 0, rejectedToday: 0, manual: 0 };
-    for (const e of expenses) {
+    for (const e of dated) {
       if (PENDING.includes(e.approvalStatus)) s.pending += 1;
       if (e.approvalStatus === "APPROVED" && e.reviewedAt?.slice(0, 10) === d)
         s.approvedToday += 1;
@@ -73,15 +87,15 @@ export function HrDashboard() {
       if (e.creationMethod === "MANUAL") s.manual += 1;
     }
     return s;
-  }, [expenses]);
+  }, [dated]);
 
   const queue = useMemo(
     () =>
-      [...expenses]
+      [...dated]
         .filter((e) => PENDING.includes(e.approvalStatus))
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
         .slice(0, 8),
-    [expenses],
+    [dated],
   );
 
   return (
@@ -128,6 +142,17 @@ export function HrDashboard() {
         />
       ) : (
         <div className="flex flex-col gap-6">
+          <div className="no-print flex flex-wrap items-center justify-end gap-2">
+            <Button size="sm" onClick={() => navigate("/hr/expenses")}>
+              <ClipboardCheck className="size-4" />
+              Review Expenses
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => navigate("/hr/helpdesk")}>
+              <LifeBuoy className="size-4" />
+              Help Desk
+            </Button>
+            <DateRangeFilter value={range} onChange={setRange} />
+          </div>
           <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
             <MetricCard
               index={0}
@@ -178,7 +203,23 @@ export function HrDashboard() {
                 compact
                 icon={ClipboardCheck}
                 title="Nothing to review"
-                description="New submissions will appear here for your decision."
+                description="You're all caught up. While the queue is clear, explore your team and insights."
+                action={
+                  <div className="flex items-center gap-3">
+                    <Link
+                      to="/hr/reports"
+                      className="text-xs font-medium text-primary hover:underline"
+                    >
+                      View HR insights
+                    </Link>
+                    <Link
+                      to="/hr/employees"
+                      className="text-xs font-medium text-primary hover:underline"
+                    >
+                      Manage employees
+                    </Link>
+                  </div>
+                }
               />
             ) : (
               <ul className="flex flex-col divide-y">
@@ -211,6 +252,24 @@ export function HrDashboard() {
               </ul>
             )}
           </SectionCard>
+
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <TicketsWidget basePath="/hr" showRequester />
+            <SectionCard
+              title="Compliance activity"
+              description="Expense, approval and ticket activity"
+              actions={
+                <Link
+                  to="/hr/activity"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  View all <ArrowRight className="size-3" />
+                </Link>
+              }
+            >
+              <ActivityFeed limit={8} compact />
+            </SectionCard>
+          </div>
         </div>
       )}
     </>

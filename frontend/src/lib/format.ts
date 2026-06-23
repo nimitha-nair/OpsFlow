@@ -47,6 +47,21 @@ export function formatDate(value: string): string {
   }).format(new Date(timestamp));
 }
 
+/** Short relative time, e.g. "just now", "5m ago", "3h ago", "2d ago". */
+export function formatRelativeTime(value: string): string {
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) return value || "—";
+  const seconds = Math.round((Date.now() - timestamp) / 1000);
+  if (seconds < 45) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return formatDate(value);
+}
+
 export function formatDateTime(value: string): string {
   const timestamp = Date.parse(value);
   if (Number.isNaN(timestamp)) {

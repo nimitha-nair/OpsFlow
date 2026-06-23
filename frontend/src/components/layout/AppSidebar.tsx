@@ -3,7 +3,7 @@ import { NavLink } from "react-router-dom";
 
 import { cn } from "@/lib/utils";
 import { Brand } from "../brand/Brand";
-import { navByRole, roleWorkspaceLabel } from "../../lib/navigation";
+import { navByRole } from "../../lib/navigation";
 import type { Role } from "../../types/auth";
 
 interface AppSidebarProps {
@@ -84,16 +84,6 @@ export function AppSidebar({ role, mobileOpen, onClose }: AppSidebarProps) {
             );
           })}
         </nav>
-
-        {/* Footer */}
-        <div className="border-t border-sidebar-border p-3">
-          <div className="rounded-lg bg-muted/50 px-3 py-2.5 text-xs text-muted-foreground">
-            <span className="block font-medium text-foreground">
-              {roleWorkspaceLabel[role]}
-            </span>
-            workspace
-          </div>
-        </div>
       </aside>
     </>
   );

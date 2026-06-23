@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -24,16 +24,23 @@ export function CalendarView({ tasks, onTaskClick }: CalendarViewProps) {
   const [mode, setMode] = useState<"month" | "week">("month");
   const [viewDate, setViewDate] = useState<Date>(() => new Date());
 
+  // Only bucket tasks with a real YYYY-MM-DD due date; a missing/invalid date
+  // would otherwise silently drop the task (or bucket it under "undefined").
+  const validTasks = useMemo(
+    () => tasks.filter((t) => /^\d{4}-\d{2}-\d{2}/.test(t.dueDate ?? "")),
+    [tasks],
+  );
+
   const tasksByDay = useMemo(() => {
     const map = new Map<string, Task[]>();
-    for (const task of tasks) {
+    for (const task of validTasks) {
       const key = task.dueDate.slice(0, 10);
       const list = map.get(key);
       if (list) list.push(task);
       else map.set(key, [task]);
     }
     return map;
-  }, [tasks]);
+  }, [validTasks]);
 
   const days = mode === "month" ? monthMatrix(viewDate) : weekDays(viewDate);
   const todayKey = ymd(new Date());
@@ -90,6 +97,13 @@ export function CalendarView({ tasks, onTaskClick }: CalendarViewProps) {
           ))}
         </div>
       </div>
+
+      {validTasks.length === 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2.5 text-sm text-muted-foreground">
+          <CalendarDays className="size-4 shrink-0" />
+          No tasks have a due date yet. Scheduled tasks will appear on the calendar here.
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-xl border border-border">
         <div className="grid grid-cols-7 border-b border-border bg-muted/40">

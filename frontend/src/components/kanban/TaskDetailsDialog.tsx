@@ -1,12 +1,18 @@
+import { Pencil, RotateCcw, Trash2 } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DueDate } from "../tasks/DueDate";
 import { TaskPriorityBadge, TaskStatusBadge } from "../tasks/TaskBadges";
+import { TaskComments } from "../tasks/TaskComments";
+import { TaskAttachments } from "../tasks/TaskAttachments";
 import type { Task } from "../../types/task";
 
 interface TaskDetailsDialogProps {
@@ -14,6 +20,11 @@ interface TaskDetailsDialogProps {
   projectName: string;
   assigneeName: string;
   onOpenChange: (open: boolean) => void;
+  /** Admin-only actions. When omitted, the dialog is read-only. */
+  canManage?: boolean;
+  onEdit?: (task: Task) => void;
+  onReopen?: (task: Task) => void;
+  onDelete?: (task: Task) => void;
 }
 
 function Row({
@@ -36,15 +47,25 @@ export function TaskDetailsDialog({
   projectName,
   assigneeName,
   onOpenChange,
+  canManage,
+  onEdit,
+  onReopen,
+  onDelete,
 }: TaskDetailsDialogProps) {
   return (
     <Dialog open={task !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         {task && (
           <>
             <DialogHeader>
               <DialogTitle>{task.title}</DialogTitle>
-              <DialogDescription>{projectName}</DialogDescription>
+              <DialogDescription>
+                {task.code && (
+                  <span className="font-mono text-xs">{task.code}</span>
+                )}
+                {task.code ? " · " : ""}
+                {projectName}
+              </DialogDescription>
             </DialogHeader>
 
             <dl className="grid grid-cols-2 gap-4 py-2">
@@ -58,6 +79,7 @@ export function TaskDetailsDialog({
               <Row label="Status">
                 <TaskStatusBadge status={task.status} />
               </Row>
+              {task.version && <Row label="Version">{task.version}</Row>}
             </dl>
 
             {task.description && (
@@ -69,6 +91,45 @@ export function TaskDetailsDialog({
                   {task.description}
                 </p>
               </div>
+            )}
+
+            <div className="border-t border-border/60 pt-3">
+              <TaskAttachments taskId={task.id} />
+            </div>
+
+            <div className="border-t border-border/60 pt-3">
+              <TaskComments taskId={task.id} projectId={task.projectId} />
+            </div>
+
+            {canManage && (onEdit || onReopen || onDelete) && (
+              <DialogFooter className="mt-2 sm:justify-between">
+                <div>
+                  {onDelete && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => onDelete(task)}
+                    >
+                      <Trash2 className="size-4" />
+                      Delete
+                    </Button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  {onReopen && task.status === "DONE" && (
+                    <Button variant="outline" size="sm" onClick={() => onReopen(task)}>
+                      <RotateCcw className="size-4" />
+                      Reopen
+                    </Button>
+                  )}
+                  {onEdit && (
+                    <Button size="sm" onClick={() => onEdit(task)}>
+                      <Pencil className="size-4" />
+                      Edit
+                    </Button>
+                  )}
+                </div>
+              </DialogFooter>
             )}
           </>
         )}

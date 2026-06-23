@@ -34,9 +34,29 @@ const STATE_LABEL: Record<UtilizationState, string> = {
   critical: "Critical",
 };
 
-function ProjectSpendCard({ p }: { p: ProjectSpendingSummary }) {
+function ProjectSpendCard({
+  p,
+  maxSpent,
+}: {
+  p: ProjectSpendingSummary;
+  maxSpent: number;
+}) {
   const pct = Math.round(p.utilization);
   const state = utilizationState(p.utilization);
+  const hasBudget = p.budget > 0;
+  // With a budget, the bar tracks utilization. Without one, utilization is
+  // always 0, so show spend relative to the top spender — otherwise the bar is
+  // permanently empty even when money has been spent.
+  const rawPct = hasBudget
+    ? p.utilization
+    : (p.totalSpent / maxSpent) * 100;
+  // Any non-zero spend gets a visible minimum sliver so a tiny utilization
+  // (e.g. ₹100 of a ₹50k budget = 0.2%) doesn't render as an empty bar.
+  const barWidth =
+    p.totalSpent > 0 ? Math.min(100, Math.max(rawPct, 2)) : 0;
+  // Show "<1%" rather than a misleading "0%" when there is real but tiny spend.
+  const pctLabel =
+    p.utilization > 0 && p.utilization < 1 ? "<1%" : `${pct}%`;
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-2 pb-2">
@@ -47,17 +67,27 @@ function ProjectSpendCard({ p }: { p: ProjectSpendingSummary }) {
           <ProjectStatusBadge status={p.status as ProjectStatus} />
         </div>
         <div className="text-right">
-          <div className={cn("text-lg font-semibold tabular-nums", TEXT_COLOR[state])}>
-            {pct}%
+          <div
+            className={cn(
+              "text-lg font-semibold tabular-nums",
+              hasBudget ? TEXT_COLOR[state] : "text-muted-foreground",
+            )}
+          >
+            {hasBudget ? pctLabel : "—"}
           </div>
-          <div className="text-xs text-muted-foreground">{STATE_LABEL[state]}</div>
+          <div className="text-xs text-muted-foreground">
+            {hasBudget ? STATE_LABEL[state] : "No budget"}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
           <div
-            className={cn("h-full rounded-full transition-all", BAR_COLOR[state])}
-            style={{ width: `${Math.min(100, pct)}%` }}
+            className={cn(
+              "h-full rounded-full transition-all",
+              hasBudget ? BAR_COLOR[state] : "bg-sky-500",
+            )}
+            style={{ width: `${barWidth}%` }}
           />
         </div>
         <dl className="grid grid-cols-3 gap-2 text-sm">
@@ -127,6 +157,8 @@ export function ProjectExpensesPage() {
     };
   }, [rows]);
 
+  const maxSpent = Math.max(1, ...rows.map((r) => r.totalSpent));
+
   return (
     <>
       <PageHeader
@@ -182,7 +214,7 @@ export function ProjectExpensesPage() {
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {rows.map((p) => (
-              <ProjectSpendCard key={p.projectId} p={p} />
+              <ProjectSpendCard key={p.projectId} p={p} maxSpent={maxSpent} />
             ))}
           </div>
         </div>
