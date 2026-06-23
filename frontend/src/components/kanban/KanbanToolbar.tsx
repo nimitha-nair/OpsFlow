@@ -1,7 +1,9 @@
+import { useState } from "react";
 import {
   CalendarDays,
   GanttChart,
   Search,
+  SlidersHorizontal,
   SquareKanban,
   User as UserIcon,
   Users,
@@ -83,6 +85,7 @@ interface KanbanToolbarProps {
 }
 
 export function KanbanToolbar(props: KanbanToolbarProps) {
+  const [filtersOpen, setFiltersOpen] = useState(false);
   return (
     <div className="flex flex-col gap-3">
       {/* Saved views + visualization toggle */}
@@ -142,23 +145,40 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
         </div>
       </div>
 
-      {/* Filter row */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-50 flex-1 sm:max-w-xs">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={props.search}
-            onChange={(e) => props.onSearch(e.target.value)}
-            placeholder="Search tasks…"
-            className="h-8 pl-8"
-          />
+      {/* Filter row — search always visible; the rest collapses on mobile. */}
+      <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1 sm:max-w-xs">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={props.search}
+              onChange={(e) => props.onSearch(e.target.value)}
+              placeholder="Search tasks…"
+              className="h-8 pl-8"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((v) => !v)}
+            aria-expanded={filtersOpen}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-input bg-transparent px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted md:hidden"
+          >
+            <SlidersHorizontal className="size-4" />
+            Filters
+          </button>
         </div>
 
+        <div
+          className={cn(
+            "flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center md:flex",
+            filtersOpen ? "flex" : "hidden",
+          )}
+        >
         <Select
           value={props.priority}
           onValueChange={(v) => props.onPriority((v as TaskPriority | "all") ?? "all")}
         >
-          <SelectTrigger size="sm" className="w-36">
+          <SelectTrigger size="sm" className="w-full sm:w-36">
             <SelectValue placeholder="Priority" />
           </SelectTrigger>
           <SelectContent>
@@ -175,7 +195,7 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
           value={props.status}
           onValueChange={(v) => props.onStatus((v as TaskStatus | "all") ?? "all")}
         >
-          <SelectTrigger size="sm" className="w-36">
+          <SelectTrigger size="sm" className="w-full sm:w-36">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -193,7 +213,7 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
             value={props.versionFilter}
             onValueChange={(v) => props.onVersion(v ?? "all")}
           >
-            <SelectTrigger size="sm" className="w-36">
+            <SelectTrigger size="sm" className="w-full sm:w-36">
               <SelectValue placeholder="Version" />
             </SelectTrigger>
             <SelectContent>
@@ -209,7 +229,7 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
 
         {props.projects.length > 0 && (
           <Select value={props.projectFilter} onValueChange={(v) => props.onProject(v ?? "all")}>
-            <SelectTrigger size="sm" className="w-44">
+            <SelectTrigger size="sm" className="w-full sm:w-44">
               <SelectValue placeholder="All projects" />
             </SelectTrigger>
             <SelectContent>
@@ -228,7 +248,7 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
             value={props.departmentFilter}
             onValueChange={(v) => props.onDepartment(v ?? "all")}
           >
-            <SelectTrigger size="sm" className="w-44">
+            <SelectTrigger size="sm" className="w-full sm:w-44">
               <SelectValue placeholder="All departments" />
             </SelectTrigger>
             <SelectContent>
@@ -242,7 +262,12 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
           </Select>
         )}
 
-        <DateRangeFilter value={props.dateRange} onChange={props.onDateRange} />
+        <DateRangeFilter
+          value={props.dateRange}
+          onChange={props.onDateRange}
+          className="w-full sm:w-auto"
+        />
+        </div>
       </div>
     </div>
   );

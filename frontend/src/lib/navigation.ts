@@ -3,6 +3,7 @@ import {
   BarChart3,
   Briefcase,
   Building2,
+  ClipboardCheck,
   ClipboardList,
   HandCoins,
   LayoutDashboard,
@@ -64,6 +65,31 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "My Tasks", icon: ClipboardList, to: "/employee/tasks" },
     { label: "Kanban", icon: SquareKanban, to: "/employee/kanban" },
     { label: "My Expenses", icon: Wallet, to: "/employee/expenses" },
+    { label: "Activity", icon: Activity, to: "/employee/activity" },
+  ],
+};
+
+/**
+ * The 4 primary destinations per role for the mobile bottom navigation bar
+ * (a 5th "More" slot opens the full drawer). Kept short and thumb-reachable.
+ */
+export const bottomNavByRole: Record<Role, NavItem[]> = {
+  ADMIN: [
+    { label: "Home", icon: LayoutDashboard, to: "/admin", end: true },
+    { label: "Kanban", icon: SquareKanban, to: "/admin/kanban" },
+    { label: "Expenses", icon: Wallet, to: "/admin/expenses" },
+    { label: "Reports", icon: BarChart3, to: "/admin/reports" },
+  ],
+  HR: [
+    { label: "Home", icon: LayoutDashboard, to: "/hr", end: true },
+    { label: "Review", icon: ClipboardCheck, to: "/hr/expenses" },
+    { label: "People", icon: Users, to: "/hr/employees" },
+    { label: "Reports", icon: BarChart3, to: "/hr/reports" },
+  ],
+  EMPLOYEE: [
+    { label: "Home", icon: LayoutDashboard, to: "/employee", end: true },
+    { label: "Tasks", icon: ClipboardList, to: "/employee/tasks" },
+    { label: "Expenses", icon: Wallet, to: "/employee/expenses" },
     { label: "Activity", icon: Activity, to: "/employee/activity" },
   ],
 };

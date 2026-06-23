@@ -200,7 +200,7 @@ export function AiAnalyticsTab() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 lg:grid-cols-6">
         <KpiCard index={0} accent="indigo" label="Total analyses" value={t.total} icon={Bot} />
         <KpiCard index={1} accent="sky" label="Avg confidence" value={pctText(t.averageConfidence)} icon={Gauge} />
         <KpiCard index={2} accent="emerald" label="Success rate" value={pctText(t.successRate)} icon={CheckCircle2} />

@@ -147,7 +147,7 @@ export function ProjectsTab() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
         <KpiCard
           index={0}
           accent="indigo"

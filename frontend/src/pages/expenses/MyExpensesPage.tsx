@@ -221,7 +221,8 @@ export function MyExpensesPage() {
             />
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            <div className="hidden overflow-x-auto md:block">
             <Table>
               <TableHeader className="bg-muted/40">
                 <TableRow>
@@ -326,13 +327,85 @@ export function MyExpensesPage() {
                 })}
               </TableBody>
             </Table>
-          </div>
+            </div>
+
+            {/* Mobile: expense cards */}
+            <ul className="flex flex-col divide-y md:hidden">
+              {visible.map((expense) => {
+                const isDraft = expense.approvalStatus === "DRAFT";
+                return (
+                  <li key={expense.id} className="flex gap-3 p-4">
+                    {isDraft && (
+                      <CheckBox
+                        checked={selectedIds.has(expense.id)}
+                        onChange={() => toggleSelect(expense.id)}
+                        label="Select draft"
+                      />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="tabular-nums font-semibold text-foreground">
+                          {formatMoney(expense.amount, expense.currency)}
+                        </span>
+                        <ApprovalStatusBadge status={expense.approvalStatus} />
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                        {expense.code && (
+                          <span className="font-mono">{expense.code}</span>
+                        )}
+                        <span>{formatDate(expense.expenseDate)}</span>
+                        <span>·</span>
+                        <span>{CATEGORY_LABELS[expense.category]}</span>
+                        <span>·</span>
+                        <span>{projectLabel(expense)}</span>
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-1">
+                        {isDraft && (
+                          <>
+                            <Link
+                              to={`/employee/expenses/${expense.id}/edit`}
+                              className={buttonVariants({ variant: "outline", size: "sm" })}
+                            >
+                              <Pencil className="size-4" />
+                              Edit
+                            </Link>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() =>
+                                setDeleteTarget({
+                                  kind: "single",
+                                  id: expense.id,
+                                  code: expense.code ?? "this draft",
+                                })
+                              }
+                            >
+                              <Trash2 className="size-4" />
+                              Delete
+                            </Button>
+                          </>
+                        )}
+                        <Link
+                          to={`/employee/expenses/${expense.id}`}
+                          className={buttonVariants({ variant: "outline", size: "sm" })}
+                        >
+                          <Eye className="size-4" />
+                          View
+                        </Link>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
         )}
       </Card>
 
       {/* Bulk action bar */}
       {selectedDraftIds.length > 0 && (
-        <div className="no-print fixed inset-x-0 bottom-6 z-40 flex justify-center px-4">
+        <div className="no-print fixed inset-x-0 bottom-20 z-40 flex justify-center px-4 md:bottom-6">
           <div className="flex items-center gap-3 rounded-xl border border-border bg-popover px-4 py-2.5 shadow-lg ring-1 ring-foreground/10">
             <span className="text-sm font-medium text-foreground">
               {selectedDraftIds.length} selected

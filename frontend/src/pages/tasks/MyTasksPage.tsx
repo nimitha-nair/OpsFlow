@@ -213,7 +213,8 @@ export function MyTasksPage() {
             />
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            <div className="hidden overflow-x-auto md:block">
             <Table>
               <TableHeader className="bg-muted/40">
                 <TableRow>
@@ -263,7 +264,43 @@ export function MyTasksPage() {
                 ))}
               </TableBody>
             </Table>
-          </div>
+            </div>
+
+            {/* Mobile: list-based task cards */}
+            <ul className="flex flex-col divide-y md:hidden">
+              {sorted.map((task) => (
+                <li key={task.id} className="flex flex-col gap-2 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground">{task.title}</p>
+                      {task.description && (
+                        <p className="truncate text-xs text-muted-foreground">
+                          {task.description}
+                        </p>
+                      )}
+                    </div>
+                    <TaskPriorityBadge priority={task.priority} />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span>{projectNames.get(task.projectId) ?? "—"}</span>
+                    <DueDate dueDate={task.dueDate} status={task.status} />
+                    {task.version && <span>v{task.version}</span>}
+                  </div>
+                  <div>
+                    <TaskStatusControl
+                      status={task.status}
+                      onChange={(s, reason) =>
+                        handleStatusChange(task.id, s, reason)
+                      }
+                      busy={updatingId === task.id}
+                      allowed={task.status === "DONE" ? [] : EMPLOYEE_ALLOWED}
+                      reasonRequired={["ON_HOLD"]}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </Card>
     </>

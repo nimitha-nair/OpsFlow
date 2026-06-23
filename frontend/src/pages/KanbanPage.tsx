@@ -10,6 +10,7 @@ import { LoadingState } from "../components/common/LoadingState";
 import { PageHeader } from "../components/layout/PageHeader";
 import { CalendarView } from "../components/kanban/CalendarView";
 import { KanbanBoard } from "../components/kanban/KanbanBoard";
+import { KanbanMobileList } from "../components/kanban/KanbanMobileList";
 import { TaskDetailsDialog } from "../components/kanban/TaskDetailsDialog";
 import { TimelineView } from "../components/kanban/TimelineView";
 import {
@@ -231,7 +232,11 @@ export function KanbanPage() {
     });
   }
 
-  async function handleMoveTask(taskId: string, status: TaskStatus) {
+  async function handleMoveTask(
+    taskId: string,
+    status: TaskStatus,
+    reason?: string,
+  ) {
     const previous = tasks;
     const current = tasks.find((t) => t.id === taskId);
     if (!current || current.status === status) return;
@@ -243,7 +248,7 @@ export function KanbanPage() {
 
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status } : t)));
     try {
-      const updated = await updateTaskStatus(taskId, status);
+      const updated = await updateTaskStatus(taskId, status, reason);
       setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t)));
     } catch (err) {
       setTasks(previous);
@@ -356,16 +361,30 @@ export function KanbanPage() {
               </CardContent>
             </Card>
           ) : boardView === "board" ? (
-            <KanbanBoard
-              tasks={filteredTasks}
-              getAssigneeName={getAssigneeName}
-              getProjectName={getProjectName}
-              canMove={canMove}
-              onMoveTask={handleMoveTask}
-              selectable={canMove}
-              selectedIds={selectedIds}
-              onToggleSelect={toggleSelect}
-            />
+            <>
+              {/* Desktop: horizontal board */}
+              <div className="hidden md:block">
+                <KanbanBoard
+                  tasks={filteredTasks}
+                  getAssigneeName={getAssigneeName}
+                  getProjectName={getProjectName}
+                  canMove={canMove}
+                  onMoveTask={handleMoveTask}
+                  selectable={canMove}
+                  selectedIds={selectedIds}
+                  onToggleSelect={toggleSelect}
+                />
+              </div>
+              {/* Mobile: status-grouped vertical list */}
+              <KanbanMobileList
+                tasks={filteredTasks}
+                getAssigneeName={getAssigneeName}
+                getProjectName={getProjectName}
+                canMove={canMove}
+                onMove={handleMoveTask}
+                onOpen={setSelectedTask}
+              />
+            </>
           ) : boardView === "calendar" ? (
             <Card>
               <CardContent className="pt-6">
@@ -388,8 +407,8 @@ export function KanbanPage() {
 
       {/* Bulk action bar */}
       {canMove && activeSelection.length > 0 && (
-        <div className="no-print fixed inset-x-0 bottom-6 z-40 flex justify-center px-4">
-          <div className="flex items-center gap-3 rounded-xl border border-border bg-popover px-4 py-2.5 shadow-lg ring-1 ring-foreground/10">
+        <div className="no-print fixed inset-x-0 bottom-20 z-40 flex justify-center px-4 md:bottom-6">
+          <div className="flex max-w-full flex-wrap items-center justify-center gap-2 rounded-xl border border-border bg-popover px-4 py-2.5 shadow-lg ring-1 ring-foreground/10">
             <span className="text-sm font-medium text-foreground">
               {activeSelection.length} selected
             </span>

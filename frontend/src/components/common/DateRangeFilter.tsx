@@ -37,15 +37,15 @@ export function DateRangeFilter({
 }: DateRangeFilterProps) {
   return (
     <div className={cn("no-print flex flex-wrap items-center gap-2", className)}>
-      <div className="flex items-center gap-1.5">
-        {!hideIcon && <CalendarDays className="size-4 text-muted-foreground" />}
+      <div className="flex flex-1 items-center gap-1.5 sm:flex-initial">
+        {!hideIcon && <CalendarDays className="size-4 shrink-0 text-muted-foreground" />}
         <Select
           value={value.preset}
           onValueChange={(v) =>
             onChange(makeRange(v as DateRangePreset, value.customStart, value.customEnd))
           }
         >
-          <SelectTrigger size="sm" className="w-[150px]">
+          <SelectTrigger size="sm" className="w-full sm:w-[150px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -59,14 +59,14 @@ export function DateRangeFilter({
       </div>
 
       {value.preset === "custom" && (
-        <div className="flex items-center gap-1.5">
+        <div className="flex w-full items-center gap-1.5 sm:w-auto">
           <Input
             type="date"
             aria-label="From date"
             value={value.customStart ?? ""}
             max={value.customEnd || undefined}
             onChange={(e) => onChange(makeRange("custom", e.target.value, value.customEnd))}
-            className="h-8 w-[150px]"
+            className="h-8 w-full sm:w-[150px]"
           />
           <span className="text-xs text-muted-foreground">to</span>
           <Input
@@ -75,7 +75,7 @@ export function DateRangeFilter({
             value={value.customEnd ?? ""}
             min={value.customStart || undefined}
             onChange={(e) => onChange(makeRange("custom", value.customStart, e.target.value))}
-            className="h-8 w-[150px]"
+            className="h-8 w-full sm:w-[150px]"
           />
         </div>
       )}

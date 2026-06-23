@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "../../context/auth-context";
 import { AppSidebar } from "./AppSidebar";
 import { AppTopbar } from "./AppTopbar";
+import { MobileBottomNav } from "./MobileBottomNav";
 import { SupportWidget } from "./SupportWidget";
 
 /**
@@ -31,13 +32,15 @@ export function AppLayout() {
 
       <div className="flex min-h-svh flex-col lg:pl-64">
         <AppTopbar onMenuClick={() => setMobileOpen(true)} />
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        {/* Extra bottom padding on mobile so content clears the bottom nav bar. */}
+        <main className="flex-1 px-4 pb-24 pt-6 sm:px-6 md:pb-6 lg:px-8">
           <div className="mx-auto w-full max-w-7xl">
             <Outlet />
           </div>
         </main>
       </div>
       <SupportWidget />
+      <MobileBottomNav role={user.role} onMore={() => setMobileOpen(true)} />
       <Toaster richColors closeButton />
     </div>
   );

@@ -38,7 +38,8 @@ export function ExpensesTable({
   showReimbursement,
 }: ExpensesTableProps) {
   return (
-    <div className="overflow-x-auto">
+    <>
+    <div className="hidden overflow-x-auto md:block">
       <Table>
         <TableHeader className="bg-muted/40">
           <TableRow>
@@ -110,5 +111,49 @@ export function ExpensesTable({
         </TableBody>
       </Table>
     </div>
+
+    {/* Mobile: expense cards */}
+    <ul className="flex flex-col divide-y md:hidden">
+      {expenses.map((expense) => (
+        <li key={expense.id}>
+          <Link
+            to={`${basePath}/${expense.id}`}
+            className="flex flex-col gap-2 p-4 transition-colors hover:bg-muted/40"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <span className="min-w-0 truncate font-medium text-foreground">
+                {getEmployeeName(expense.employeeId)}
+              </span>
+              <span className="shrink-0 tabular-nums font-semibold text-foreground">
+                {formatMoney(expense.amount, expense.currency)}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              {expense.code && <span className="font-mono">{expense.code}</span>}
+              <span>{formatDate(expense.expenseDate)}</span>
+              <span>·</span>
+              <span>{CATEGORY_LABELS[expense.category]}</span>
+              <span>·</span>
+              <span>
+                {expense.scope === "GENERAL"
+                  ? "General"
+                  : getProjectName(expense.projectId ?? "")}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <ApprovalStatusBadge status={expense.approvalStatus} />
+              {expense.riskLevel && expense.riskLevel !== "LOW" && (
+                <RiskBadge level={expense.riskLevel} />
+              )}
+              <CreationMethodBadge method={expense.creationMethod} />
+              {showReimbursement && (
+                <ReimbursementBadge status={expense.reimbursementStatus} />
+              )}
+            </div>
+          </Link>
+        </li>
+      ))}
+    </ul>
+    </>
   );
 }
