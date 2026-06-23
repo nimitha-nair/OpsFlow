@@ -2,12 +2,16 @@ import express from "express";
 import type { ErrorRequestHandler } from "express";
 import helmet from "helmet";
 
+import activityRoutes from "./routes/activity.routes";
 import authRoutes from "./routes/auth.routes";
 import exampleRoutes from "./routes/example.routes";
 import expenseRoutes from "./routes/expense.routes";
+import notificationRoutes from "./routes/notification.routes";
 import projectRoutes from "./routes/project.routes";
 import reportsRoutes from "./routes/reports.routes";
+import searchRoutes from "./routes/search.routes";
 import taskRoutes from "./routes/task.routes";
+import ticketRoutes from "./routes/ticket.routes";
 import userRoutes from "./routes/user.routes";
 import { authenticate } from "./middleware/auth.middleware";
 import { apiRateLimiter } from "./middleware/rate-limit";
@@ -60,6 +64,10 @@ app.use("/projects", projectRoutes);
 app.use("/tasks", taskRoutes);
 app.use("/expenses", expenseRoutes);
 app.use("/reports", reportsRoutes);
+app.use("/search", searchRoutes);
+app.use("/notifications", notificationRoutes);
+app.use("/tickets", ticketRoutes);
+app.use("/activity", activityRoutes);
 app.use("/example", exampleRoutes);
 
 app.get("/test-protected", authenticate, (req, res) => {

@@ -2,6 +2,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { db } from "../config/firebase";
 import { ApiError } from "../utils/errors";
+import { generateCode } from "./code-generator";
 import type {
   ApprovalStatus,
   Expense,
@@ -110,6 +111,9 @@ function toPublicExpense(expense: ExpenseDocument): Expense {
     createdAt: tsIso(expense.createdAt),
     updatedAt: tsIso(expense.updatedAt),
   };
+  if (expense.code !== undefined) {
+    result.code = expense.code;
+  }
   if (expense.projectId !== undefined) {
     result.projectId = expense.projectId;
   }
@@ -191,6 +195,7 @@ export async function createExpense(
   const now = FieldValue.serverTimestamp();
   const type = input.type ?? "DOCUMENT";
   const data: Record<string, unknown> = {
+    code: await generateCode("expense"),
     employeeId: input.employeeId,
     scope: input.scope,
     type,

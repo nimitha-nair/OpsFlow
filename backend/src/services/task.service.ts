@@ -10,6 +10,7 @@ import type {
 } from "../types/task.types";
 import { assertProjectNotArchived, getProjectById } from "./project.service";
 import { isProjectMember } from "./projectMember.service";
+import { generateCode } from "./code-generator";
 
 const TASKS_COLLECTION = "tasks";
 
@@ -21,6 +22,7 @@ export interface CreateTaskInput {
   priority: TaskPriority;
   status: TaskStatus;
   dueDate: string;
+  version?: string;
   createdBy: string;
 }
 
@@ -31,6 +33,7 @@ export interface UpdateTaskInput {
   priority?: TaskPriority;
   status?: TaskStatus;
   dueDate?: string;
+  version?: string;
 }
 
 export interface ListTasksParams {
@@ -65,6 +68,7 @@ function timestampToIso(value: Timestamp): string {
 function toPublicTask(task: TaskDocument): Task {
   return {
     id: task.id,
+    ...(task.code !== undefined ? { code: task.code } : {}),
     projectId: task.projectId,
     title: task.title,
     description: task.description,
@@ -72,6 +76,10 @@ function toPublicTask(task: TaskDocument): Task {
     priority: task.priority,
     status: task.status,
     dueDate: task.dueDate,
+    ...(task.version !== undefined ? { version: task.version } : {}),
+    ...(task.onHoldReason !== undefined
+      ? { onHoldReason: task.onHoldReason }
+      : {}),
     createdBy: task.createdBy,
     createdAt: timestampToIso(task.createdAt),
     updatedAt: timestampToIso(task.updatedAt),
@@ -100,6 +108,15 @@ export async function getTaskById(id: string): Promise<Task> {
   return toPublicTask(await getTaskDocumentById(id));
 }
 
+/** Delete a task. Throws 404 if it does not exist. */
+export async function deleteTask(id: string): Promise<void> {
+  const task = await getTaskDocById(id);
+  if (!task) {
+    throw new ApiError(404, "Task not found");
+  }
+  await db.collection(TASKS_COLLECTION).doc(id).delete();
+}
+
 /** Assert the project exists and the assignee is a member of it. */
 async function assertAssigneeIsMember(
   projectId: string,
@@ -122,6 +139,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
 
   const now = FieldValue.serverTimestamp();
   const ref = await db.collection(TASKS_COLLECTION).add({
+    code: await generateCode("task"),
     projectId: input.projectId,
     title: input.title.trim(),
     description: input.description.trim(),
@@ -129,6 +147,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
     priority: input.priority,
     status: input.status,
     dueDate: input.dueDate,
+    ...(input.version ? { version: input.version } : {}),
     createdBy: input.createdBy,
     createdAt: now,
     updatedAt: now,
@@ -227,6 +246,7 @@ export async function updateTask(
   if (input.priority !== undefined) updates.priority = input.priority;
   if (input.status !== undefined) updates.status = input.status;
   if (input.dueDate !== undefined) updates.dueDate = input.dueDate;
+  if (input.version !== undefined) updates.version = input.version;
 
   if (input.assigneeId !== undefined && input.assigneeId !== task.assigneeId) {
     // New assignee must also be a member of the task's project.
@@ -253,15 +273,19 @@ export async function updateTask(
   return toPublicTask(updated);
 }
 
-/** Update only a task's status. */
+/** Update only a task's status (with an optional ON_HOLD reason). */
 export async function updateTaskStatus(
   id: string,
   status: TaskStatus,
+  reason?: string,
 ): Promise<Task> {
   await getTaskDocumentById(id);
 
   await db.collection(TASKS_COLLECTION).doc(id).update({
     status,
+    // Record the reason when going ON_HOLD; clear it for any other status.
+    onHoldReason:
+      status === "ON_HOLD" && reason ? reason : FieldValue.delete(),
     updatedAt: FieldValue.serverTimestamp(),
   });
 

@@ -13,6 +13,8 @@ export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 /** Internal representation of a project as stored in Firestore. */
 export interface ProjectDocument {
   id: string;
+  /** Human-readable code (PRJ-001). Optional until backfilled. */
+  code?: string;
   name: string;
   description: string;
   clientName: string;
@@ -31,6 +33,7 @@ export interface ProjectDocument {
 /** Client-facing project shape; timestamps serialized as ISO-8601 strings. */
 export interface Project {
   id: string;
+  code?: string;
   name: string;
   description: string;
   clientName: string;

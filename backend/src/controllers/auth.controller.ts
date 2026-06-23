@@ -11,8 +11,12 @@ import type { LoginInput } from "../validation/auth.schema";
 export async function login(req: Request, res: Response): Promise<Response> {
   const { email, password } = req.valid?.body as LoginInput;
 
+  // TEMP DEBUG (login trace) — remove after diagnosis.
+  console.log("[login-controller-debug] entered", { email });
+
   try {
     const result = await loginWithCredentials(email, password);
+    console.log("[login-controller-debug] success", { email });
     return res.status(200).json(result);
   } catch (err) {
     if (err instanceof AuthError) {

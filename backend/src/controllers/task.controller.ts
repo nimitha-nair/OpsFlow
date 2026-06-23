@@ -5,6 +5,7 @@ import UserRole from "../types/roles";
 import type { TaskStatus } from "../types/task.types";
 import {
   createTask,
+  deleteTask,
   getTaskById,
   listTasks,
   listTasksForAssignee,
@@ -16,6 +17,7 @@ import type {
   ListTasksParams,
   UpdateTaskInput,
 } from "../services/task.service";
+import { notify } from "../services/notification.service";
 import type { IdParams } from "../validation/common";
 
 function handleError(res: Response, err: unknown): Response {
@@ -34,6 +36,16 @@ export async function postTask(req: Request, res: Response): Promise<Response> {
   try {
     const input = req.valid?.body as Omit<CreateTaskInput, "createdBy">;
     const task = await createTask({ ...input, createdBy: req.user.userId });
+    await notify(
+      [task.assigneeId],
+      {
+        type: "TASK_ASSIGNED",
+        title: "New task assigned",
+        body: `You were assigned "${task.title}".`,
+        taskId: task.id,
+      },
+      req.user.userId,
+    );
     return res.status(201).json(task);
   } catch (err) {
     return handleError(res, err);
@@ -94,12 +106,52 @@ export async function getTask(req: Request, res: Response): Promise<Response> {
   }
 }
 
+/** DELETE /tasks/:id — ADMIN only. */
+export async function deleteTaskHandler(
+  req: Request,
+  res: Response,
+): Promise<Response> {
+  try {
+    const { id } = req.valid?.params as IdParams;
+    await deleteTask(id);
+    return res.status(204).send();
+  } catch (err) {
+    return handleError(res, err);
+  }
+}
+
 /** PATCH /tasks/:id — ADMIN only (full edit). */
 export async function patchTask(req: Request, res: Response): Promise<Response> {
   try {
     const { id } = req.valid?.params as IdParams;
     const input = req.valid?.body as UpdateTaskInput;
+    const before = await getTaskById(id);
     const task = await updateTask(id, input);
+
+    const actor = req.user?.userId;
+    if (input.assigneeId && before.assigneeId !== task.assigneeId) {
+      await notify([task.assigneeId], {
+        type: "TASK_ASSIGNED",
+        title: "Task assigned to you",
+        body: `You were assigned "${task.title}".`,
+        taskId: task.id,
+      }, actor);
+    } else if (input.dueDate && before.dueDate !== task.dueDate) {
+      await notify([task.assigneeId], {
+        type: "TASK_DUE_DATE",
+        title: "Task due date changed",
+        body: `"${task.title}" is now due ${task.dueDate}.`,
+        taskId: task.id,
+      }, actor);
+    } else {
+      await notify([task.assigneeId], {
+        type: "TASK_UPDATED",
+        title: "Task updated",
+        body: `"${task.title}" was updated.`,
+        taskId: task.id,
+      }, actor);
+    }
+
     return res.status(200).json(task);
   } catch (err) {
     return handleError(res, err);
@@ -119,26 +171,50 @@ export async function patchTaskStatus(
   }
   try {
     const { id } = req.valid?.params as IdParams;
-    const { status } = req.valid?.body as { status: TaskStatus };
+    const { status, reason } = req.valid?.body as {
+      status: TaskStatus;
+      reason?: string;
+    };
 
     const task = await getTaskById(id);
-    if (
-      req.user.role === UserRole.EMPLOYEE &&
-      task.assigneeId !== req.user.userId
-    ) {
+    const isEmployee = req.user.role === UserRole.EMPLOYEE;
+
+    if (isEmployee && task.assigneeId !== req.user.userId) {
       return res
         .status(403)
         .json({ error: "You can only update tasks assigned to you" });
     }
 
     // Completed tasks are read-only for employees; only an admin can reopen them.
-    if (task.status === "DONE" && req.user.role === UserRole.EMPLOYEE) {
+    if (task.status === "DONE" && isEmployee) {
       return res.status(403).json({
         error: "This task is completed and read-only. Ask an admin to reopen it.",
       });
     }
 
-    const updated = await updateTaskStatus(id, status);
+    // Employees can progress work but cannot complete or reopen a task — only
+    // an admin marks DONE or moves a task back to TODO.
+    const EMPLOYEE_ALLOWED: TaskStatus[] = ["IN_PROGRESS", "REVIEW", "ON_HOLD"];
+    if (isEmployee && !EMPLOYEE_ALLOWED.includes(status)) {
+      return res.status(403).json({
+        error:
+          status === "DONE"
+            ? "Only an admin can mark a task as done."
+            : "You can move tasks to In Progress, Review or On Hold only.",
+      });
+    }
+
+    const updated = await updateTaskStatus(id, status, reason);
+    await notify(
+      [task.assigneeId, task.createdBy],
+      {
+        type: "TASK_STATUS",
+        title: "Task status changed",
+        body: `"${task.title}" moved to ${status}.`,
+        taskId: task.id,
+      },
+      req.user.userId,
+    );
     return res.status(200).json(updated);
   } catch (err) {
     return handleError(res, err);

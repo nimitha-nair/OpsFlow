@@ -34,6 +34,8 @@ export type ReimbursementStatus = (typeof REIMBURSEMENT_STATUSES)[number];
 /** Internal expense document as stored in Firestore. */
 export interface ExpenseDocument {
   id: string;
+  /** Human-readable code (EXP-0001). Optional until backfilled. */
+  code?: string;
   employeeId: string;
   scope: ExpenseScope;
   /** Required when scope is PROJECT; absent for GENERAL expenses. */
@@ -63,6 +65,7 @@ export interface ExpenseDocument {
 /** Client-facing expense; timestamps serialized as ISO-8601 strings. */
 export interface Expense {
   id: string;
+  code?: string;
   employeeId: string;
   scope: ExpenseScope;
   projectId?: string;

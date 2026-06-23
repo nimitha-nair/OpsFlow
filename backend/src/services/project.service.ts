@@ -2,6 +2,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { db } from "../config/firebase";
 import { ApiError } from "../utils/errors";
+import { generateCode } from "./code-generator";
 import type {
   Project,
   ProjectDocument,
@@ -73,6 +74,7 @@ export function stripBudget(project: Project): SafeProject {
     createdAt: project.createdAt,
     updatedAt: project.updatedAt,
   };
+  if (project.code !== undefined) safe.code = project.code;
   if (project.archivedAt !== undefined) safe.archivedAt = project.archivedAt;
   return safe;
 }
@@ -92,6 +94,7 @@ function toPublicProject(project: ProjectDocument): Project {
     createdAt: timestampToIso(project.createdAt),
     updatedAt: timestampToIso(project.updatedAt),
   };
+  if (project.code !== undefined) result.code = project.code;
   if (project.archivedAt !== undefined) {
     result.archivedAt = timestampToIso(project.archivedAt);
   }
@@ -184,6 +187,7 @@ export async function createProject(
   const now = FieldValue.serverTimestamp();
 
   const data = {
+    code: await generateCode("project"),
     name: input.name.trim(),
     description: input.description.trim(),
     clientName: input.clientName.trim(),

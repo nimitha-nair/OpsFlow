@@ -22,6 +22,12 @@ export const createTaskBody = z
     priority: prioritySchema.default("MEDIUM"),
     status: statusSchema.default("TODO"),
     dueDate: dateString,
+    version: z
+      .string()
+      .trim()
+      .max(40)
+      .optional()
+      .transform((v) => (v && v.length > 0 ? v : undefined)),
   })
   .strict();
 
@@ -34,16 +40,29 @@ export const updateTaskBody = z
     priority: prioritySchema.optional(),
     status: statusSchema.optional(),
     dueDate: dateString.optional(),
+    version: z
+      .string()
+      .trim()
+      .max(40)
+      .optional()
+      .transform((v) => (v && v.length > 0 ? v : undefined)),
   })
   .strict()
   .refine((v) => Object.keys(v).length > 0, {
     message: "Provide at least one field to update",
   });
 
-/** PATCH /tasks/:id/status */
+/** PATCH /tasks/:id/status — `reason` is required when moving to ON_HOLD. */
 export const taskStatusBody = z
-  .object({ status: statusSchema })
-  .strict();
+  .object({
+    status: statusSchema,
+    reason: z.string().trim().max(500).optional(),
+  })
+  .strict()
+  .refine((v) => v.status !== "ON_HOLD" || (v.reason && v.reason.length > 0), {
+    message: "A reason is required to put a task on hold",
+    path: ["reason"],
+  });
 
 /** GET /tasks */
 export const listTasksQuery = z.object({

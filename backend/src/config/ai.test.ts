@@ -12,8 +12,10 @@ afterEach(() => {
 
 describe("getAiConfig", () => {
   it("defaults to the mock provider and documented values", () => {
+    // Deterministic regardless of any ambient AI_PROVIDER in the environment.
+    delete process.env.AI_PROVIDER;
     const cfg = getAiConfig();
-    expect(cfg.provider).toBe("kimi");
+    expect(cfg.provider).toBe("mock");
     expect(cfg.nvidiaBaseUrl).toBe("https://integrate.api.nvidia.com/v1");
     expect(cfg.nvidiaModel).toBe("moonshotai/kimi-k2.6");
     expect(cfg.confidenceThreshold).toBe(70);
