@@ -17,6 +17,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useAuth } from "../../context/auth-context";
 import { roleBasePath } from "../../lib/navigation";
 import { globalSearch } from "../../lib/search-api";
+import { loadRecent, saveRecent } from "../../lib/recent-search";
 import {
   SEARCH_ENTITY_LABELS,
   type SearchEntity,
@@ -41,25 +42,7 @@ const ENTITY_STYLE: Record<SearchEntity, string> = {
   ticket: "bg-sky-500/12 text-sky-600 dark:text-sky-400",
 };
 
-const RECENT_KEY = "opsflow.search.recent";
 const RECENT_MAX = 6;
-
-function loadRecent(): SearchResult[] {
-  try {
-    const raw = localStorage.getItem(RECENT_KEY);
-    const arr = raw ? (JSON.parse(raw) as unknown) : [];
-    return Array.isArray(arr) ? (arr as SearchResult[]).slice(0, RECENT_MAX) : [];
-  } catch {
-    return [];
-  }
-}
-function saveRecent(items: SearchResult[]): void {
-  try {
-    localStorage.setItem(RECENT_KEY, JSON.stringify(items.slice(0, RECENT_MAX)));
-  } catch {
-    /* ignore quota/availability errors */
-  }
-}
 
 /** Best-effort destination for a result, given the viewer's role. */
 function hrefFor(r: SearchResult, role: Role): string {
@@ -101,7 +84,7 @@ export function GlobalSearch() {
   function setPaletteOpen(next: boolean) {
     setOpen(next);
     if (next) {
-      setRecent(loadRecent());
+      if (user) setRecent(loadRecent(user.id));
     } else {
       setQuery("");
       setResults([]);
@@ -109,19 +92,19 @@ export function GlobalSearch() {
     }
   }
 
-  // Open with Cmd/Ctrl+K from anywhere. Only stable setters are used, so the
-  // mount-only listener needs no extra deps.
+  // Open with Cmd/Ctrl+K from anywhere. Re-bound when the user changes so recent
+  // history is loaded for the currently signed-in user.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setOpen(true);
-        setRecent(loadRecent());
+        if (user) setRecent(loadRecent(user.id));
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [user]);
 
   // Debounced search whenever the query changes — all state is set inside the
   // timer callback (never synchronously in the effect body).
@@ -175,7 +158,7 @@ export function GlobalSearch() {
       r,
       ...recent.filter((x) => !(x.entity === r.entity && x.id === r.id)),
     ].slice(0, RECENT_MAX);
-    saveRecent(next);
+    saveRecent(user.id, next);
     setRecent(next);
     setOpen(false);
     navigate(hrefFor(r, user!.role));
