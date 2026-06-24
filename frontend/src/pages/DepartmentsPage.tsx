@@ -12,6 +12,7 @@ import {
 
 import { Card } from "@/components/ui/card";
 import { ActiveRangeBadge } from "../components/common/ActiveRangeBadge";
+import { DateBasisToggle } from "../components/common/DateBasisToggle";
 import { DateRangeFilter } from "../components/common/DateRangeFilter";
 import { EmptyState } from "../components/common/EmptyState";
 import { ErrorState } from "../components/common/ErrorState";
@@ -38,6 +39,11 @@ export function DepartmentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
+  // Operational view: default to submission date so a range like "Today" reflects
+  // department activity (what came in), not the receipt date of old expenses.
+  const [basis, setBasis] = useState<"expenseDate" | "submittedAt">(
+    "submittedAt",
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -47,7 +53,7 @@ export function DepartmentsPage() {
       try {
         const [usersResp, recs] = await Promise.all([
           listUsers({ limit: 1000 }),
-          listReviewExpenses("ALL", rangeToParams(range)),
+          listReviewExpenses("ALL", { ...rangeToParams(range), basis }),
         ]);
         if (!cancelled) {
           setUsers(usersResp.data);
@@ -63,7 +69,7 @@ export function DepartmentsPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey, range]);
+  }, [reloadKey, range, basis]);
 
   const departments = useMemo(
     () => deriveDepartments(records, users),
@@ -83,8 +89,12 @@ export function DepartmentsPage() {
         description="Operational performance across every department."
         breadcrumbs={[{ label: "Admin", to: "/admin" }, { label: "Departments" }]}
         actions={
-          <div className="flex items-center gap-2">
-            <ActiveRangeBadge range={range} />
+          <div className="flex flex-wrap items-center gap-2">
+            <ActiveRangeBadge
+              range={range}
+              basisLabel={basis === "submittedAt" ? "Submitted" : "Expense date"}
+            />
+            <DateBasisToggle value={basis} onChange={setBasis} />
             <DateRangeFilter value={range} onChange={setRange} />
           </div>
         }
