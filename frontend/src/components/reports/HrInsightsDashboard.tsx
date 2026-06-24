@@ -51,7 +51,8 @@ import { cn } from "@/lib/utils";
 import { ExpensesTab } from "./ExpensesTab";
 import { formatCompactMoney, formatMoney } from "../../lib/format";
 import { DateRangeFilter } from "../common/DateRangeFilter";
-import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
+import { makeRange, rangeToParams, rangeSlug, type DateRange } from "../../lib/date-range";
+import { ActiveRangeBadge } from "../common/ActiveRangeBadge";
 import { downloadCsv, printElement } from "../../lib/export";
 import { getReportsOverview, getReportsAiAnalytics } from "../../lib/reports-api";
 import { listReviewExpenses } from "../../lib/expenses-api";
@@ -108,16 +109,17 @@ export function HrInsightsDashboard() {
   const exportAll = () => printElement(panelsRef.current, "opsflow-hr-report", revealAll);
 
   const load = useCallback(async (signal?: { cancelled: boolean }) => {
+    const params = rangeToParams(range);
     const [overview, records, usersResp, ai] = await Promise.all([
-      getReportsOverview(),
-      listReviewExpenses("ALL"),
+      getReportsOverview(params),
+      listReviewExpenses("ALL", params),
       listUsers({ limit: 1000 }),
-      getReportsAiAnalytics(12).catch(() => null),
+      getReportsAiAnalytics(params).catch(() => null),
     ]);
     if (signal?.cancelled) return;
     setData({ overview, records, users: usersResp.data, ai });
     setError(null);
-  }, []);
+  }, [range]);
 
   useEffect(() => {
     const signal = { cancelled: false };
@@ -142,15 +144,6 @@ export function HrInsightsDashboard() {
       .finally(() => setRefreshing(false));
   };
 
-  // The date range scopes the record-derived sections.
-  const fdata = useMemo(
-    () =>
-      data
-        ? { ...data, records: filterByDate(data.records, (e) => e.expenseDate, range) }
-        : null,
-    [data, range],
-  );
-
   return (
     <>
       <PageHeader
@@ -160,6 +153,7 @@ export function HrInsightsDashboard() {
         actions={
           !loading && !error && data ? (
             <div className="no-print flex flex-wrap items-center gap-2">
+              <ActiveRangeBadge range={range} />
               <DateRangeFilter value={range} onChange={setRange} />
               <Button variant="outline" size="sm" onClick={onRefresh} disabled={refreshing}>
                 <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
@@ -180,7 +174,7 @@ export function HrInsightsDashboard() {
 
       {loading ? (
         <LoadingState label="Loading HR insights…" />
-      ) : error || !data || !fdata ? (
+      ) : error || !data ? (
         <ErrorState
           title="Couldn't load HR insights"
           description={error ?? "No data."}
@@ -204,7 +198,7 @@ export function HrInsightsDashboard() {
 
           <div ref={panelsRef} className="flex min-w-0 flex-col">
             <HrPanel id="workforce" active={tab}>
-              <Workforce data={fdata} />
+              <Workforce data={data} slug={rangeSlug(range)} />
             </HrPanel>
             <HrPanel id="expense" active={tab}>
               <SectionFrame
@@ -216,16 +210,16 @@ export function HrInsightsDashboard() {
               </SectionFrame>
             </HrPanel>
             <HrPanel id="approvals" active={tab}>
-              <Governance data={fdata} />
+              <Governance data={data} />
             </HrPanel>
             <HrPanel id="reimbursement" active={tab}>
-              <Reimbursement data={fdata} />
+              <Reimbursement data={data} slug={rangeSlug(range)} />
             </HrPanel>
             <HrPanel id="ai" active={tab}>
-              <AiProcessing data={fdata} />
+              <AiProcessing data={data} />
             </HrPanel>
             <HrPanel id="compliance" active={tab}>
-              <AuditRisk data={fdata} />
+              <AuditRisk data={data} slug={rangeSlug(range)} />
             </HrPanel>
           </div>
         </div>
@@ -253,7 +247,7 @@ function HrPanel({
   );
 }
 
-function Workforce({ data }: { data: LoadedData }) {
+function Workforce({ data, slug }: { data: LoadedData; slug: string }) {
   const { users } = data;
   const activeCount = users.filter((u) => u.isActive).length;
   const newHires = users.filter((u) => withinDays(u.createdAt, 30)).length;
@@ -281,7 +275,7 @@ function Workforce({ data }: { data: LoadedData }) {
       title="Workforce Overview"
       description="Headcount, distribution, and recent joiners."
       onCsv={() =>
-        downloadCsv("opsflow-hr-workforce", byDept, [
+        downloadCsv(`opsflow-hr-workforce_${slug}`, byDept, [
           { label: "Department", value: (d) => d.name },
           { label: "Headcount", value: (d) => d.count },
         ])
@@ -418,7 +412,7 @@ function Governance({ data }: { data: LoadedData }) {
 
 /* --------------------------- Reimbursement ----------------------------- */
 
-function Reimbursement({ data }: { data: LoadedData }) {
+function Reimbursement({ data, slug }: { data: LoadedData; slug: string }) {
   const { records, users, overview } = data;
   const currency = overview.currency;
   const model = useMemo(() => deriveReimbursements(records, users), [records, users]);
@@ -429,7 +423,7 @@ function Reimbursement({ data }: { data: LoadedData }) {
       title="Reimbursement Operations"
       description="Outstanding payouts and departmental distribution."
       onCsv={() =>
-        downloadCsv("opsflow-hr-reimbursement", model.byDepartment, [
+        downloadCsv(`opsflow-hr-reimbursement_${slug}`, model.byDepartment, [
           { label: "Department", value: (d) => d.name },
           { label: "Outstanding", value: (d) => d.outstanding },
           { label: "Paid", value: (d) => d.paid },
@@ -554,7 +548,7 @@ function AiProcessing({ data }: { data: LoadedData }) {
 
 /* ----------------------------- Audit & Risk ---------------------------- */
 
-function AuditRisk({ data }: { data: LoadedData }) {
+function AuditRisk({ data, slug }: { data: LoadedData; slug: string }) {
   const { records, users, overview } = data;
   const currency = overview.currency;
   const audit = useMemo(() => deriveAudit(records, users), [records, users]);
@@ -565,7 +559,7 @@ function AuditRisk({ data }: { data: LoadedData }) {
       title="Audit & Risk"
       description="Manual entries, missing documents, and policy flags."
       onCsv={() =>
-        downloadCsv("opsflow-hr-audit", audit.flags, [
+        downloadCsv(`opsflow-hr-audit_${slug}`, audit.flags, [
           { label: "Employee", value: (f) => f.employee },
           { label: "Department", value: (f) => f.department },
           { label: "Reason", value: (f) => f.reason },

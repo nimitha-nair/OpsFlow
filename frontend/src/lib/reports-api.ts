@@ -7,31 +7,33 @@ import type {
 } from "../types/reports";
 
 /** ADMIN/HR: expense KPI totals for the Reports → Overview tab. */
-export async function getReportsOverview(): Promise<OverviewReport> {
-  const { data } = await api.get<OverviewReport>("/reports/overview");
+export async function getReportsOverview(
+  params: { from?: string; to?: string } = {},
+): Promise<OverviewReport> {
+  const { data } = await api.get<OverviewReport>("/reports/overview", { params });
   return data;
 }
 
-/** ADMIN/HR: spend analytics (category / monthly trend / scope) for a trailing window. */
-export async function getReportsExpenses(months = 12): Promise<ExpensesReport> {
-  const { data } = await api.get<ExpensesReport>("/reports/expenses", {
-    params: { months },
-  });
+/** ADMIN/HR: spend analytics (category / monthly trend / scope) for a date range. */
+export async function getReportsExpenses(
+  params: { from?: string; to?: string } = {},
+): Promise<ExpensesReport> {
+  const { data } = await api.get<ExpensesReport>("/reports/expenses", { params });
   return data;
 }
 
 /** ADMIN: project spend vs budget / utilization. */
-export async function getReportsProjects(): Promise<ProjectsReport> {
-  const { data } = await api.get<ProjectsReport>("/reports/projects");
+export async function getReportsProjects(
+  params: { from?: string; to?: string } = {},
+): Promise<ProjectsReport> {
+  const { data } = await api.get<ProjectsReport>("/reports/projects", { params });
   return data;
 }
 
 /** ADMIN: AI Expense Intelligence analytics. */
 export async function getReportsAiAnalytics(
-  months = 12,
+  params: { from?: string; to?: string } = {},
 ): Promise<AiAnalyticsReport> {
-  const { data } = await api.get<AiAnalyticsReport>("/reports/ai", {
-    params: { months },
-  });
+  const { data } = await api.get<AiAnalyticsReport>("/reports/ai", { params });
   return data;
 }

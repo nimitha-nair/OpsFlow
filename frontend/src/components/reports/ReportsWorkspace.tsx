@@ -44,7 +44,8 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { DateRangeFilter } from "../common/DateRangeFilter";
-import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
+import { makeRange, rangeToParams, rangeSlug, type DateRange } from "../../lib/date-range";
+import { ActiveRangeBadge } from "../common/ActiveRangeBadge";
 import { PageHeader } from "../layout/PageHeader";
 import { SectionCard } from "../common/SectionCard";
 import { LoadingState } from "../common/LoadingState";
@@ -134,16 +135,17 @@ export function ReportsWorkspace() {
   const exportAll = () => printElement(panelsRef.current, "opsflow-full-report", revealAll);
 
   const load = useCallback(async (signal?: { cancelled: boolean }) => {
+    const params = rangeToParams(range);
     const [overview, records, usersResp, projects] = await Promise.all([
-      getReportsOverview(),
-      listReviewExpenses("ALL"),
+      getReportsOverview(params),
+      listReviewExpenses("ALL", params),
       listUsers({ limit: 1000 }),
-      getReportsProjects().catch(() => null),
+      getReportsProjects(params).catch(() => null),
     ]);
     if (signal?.cancelled) return;
     setData({ overview, projects, records, users: usersResp.data });
     setError(null);
-  }, []);
+  }, [range]);
 
   useEffect(() => {
     const signal = { cancelled: false };
@@ -168,15 +170,6 @@ export function ReportsWorkspace() {
       .finally(() => setRefreshing(false));
   };
 
-  // The date range scopes every record-derived metric across all tabs.
-  const fdata = useMemo(
-    () =>
-      data
-        ? { ...data, records: filterByDate(data.records, (e) => e.expenseDate, range) }
-        : null,
-    [data, range],
-  );
-
   return (
     <>
       <PageHeader
@@ -185,6 +178,7 @@ export function ReportsWorkspace() {
         breadcrumbs={[{ label: "Reports" }]}
         actions={
           <div className="no-print flex flex-wrap items-center gap-2">
+            <ActiveRangeBadge range={range} />
             <DateRangeFilter value={range} onChange={setRange} />
             <Button variant="outline" size="sm" onClick={onRefresh} disabled={refreshing}>
               <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
@@ -207,7 +201,7 @@ export function ReportsWorkspace() {
 
       {loading ? (
         <LoadingState label="Loading reports…" />
-      ) : error || !data || !fdata ? (
+      ) : error || !data ? (
         <ErrorState
           title="Couldn't load reports"
           description={
@@ -236,10 +230,10 @@ export function ReportsWorkspace() {
               panels are revealed in the clone for the "Export all" PDF. */}
           <div ref={panelsRef} className="flex min-w-0 flex-col">
             <p className="mb-4 hidden text-xs text-muted-foreground print:block">
-              OpsFlow — generated {formatDateTime(fdata.overview.generatedAt)}
+              OpsFlow — generated {formatDateTime(data.overview.generatedAt)}
             </p>
             <Panel id="overview" active={tab}>
-              <ExecutiveOverview data={fdata} />
+              <ExecutiveOverview data={data} slug={rangeSlug(range)} />
             </Panel>
             <Panel id="expense" active={tab}>
               <SectionFrame
@@ -251,13 +245,13 @@ export function ReportsWorkspace() {
               </SectionFrame>
             </Panel>
             <Panel id="department" active={tab}>
-              <DepartmentAnalytics data={fdata} />
+              <DepartmentAnalytics data={data} slug={rangeSlug(range)} />
             </Panel>
             <Panel id="employee" active={tab}>
-              <EmployeeAnalytics data={fdata} />
+              <EmployeeAnalytics data={data} slug={rangeSlug(range)} />
             </Panel>
             <Panel id="reimbursement" active={tab}>
-              <ReimbursementAnalytics data={fdata} />
+              <ReimbursementAnalytics data={data} slug={rangeSlug(range)} />
             </Panel>
             <Panel id="ai" active={tab}>
               <SectionFrame
@@ -269,7 +263,7 @@ export function ReportsWorkspace() {
               </SectionFrame>
             </Panel>
             <Panel id="audit" active={tab}>
-              <AuditCompliance data={fdata} />
+              <AuditCompliance data={data} slug={rangeSlug(range)} />
             </Panel>
           </div>
         </div>
@@ -297,7 +291,7 @@ function Panel({
 
 /* ----------------------------- Executive ------------------------------- */
 
-function ExecutiveOverview({ data }: { data: LoadedData }) {
+function ExecutiveOverview({ data, slug }: { data: LoadedData; slug: string }) {
   const { overview, projects, records, users } = data;
   const currency = overview.currency;
   // KPIs derive from the (date-filtered) records so they honor the range.
@@ -328,7 +322,7 @@ function ExecutiveOverview({ data }: { data: LoadedData }) {
       description="The numbers leadership checks first — spend, throughput, and risk."
       onCsv={() =>
         downloadCsv(
-          "opsflow-executive-overview",
+          `opsflow-executive-overview_${slug}`,
           [
             { metric: "Total submitted", value: k.total.amount, count: k.total.count },
             { metric: "Approved spend", value: k.approved.amount, count: k.approved.count },
@@ -448,7 +442,7 @@ function ExecutiveOverview({ data }: { data: LoadedData }) {
 
 /* --------------------------- Department -------------------------------- */
 
-function DepartmentAnalytics({ data }: { data: LoadedData }) {
+function DepartmentAnalytics({ data, slug }: { data: LoadedData; slug: string }) {
   const { records, users, overview } = data;
   const currency = overview.currency;
   const departments = useMemo(() => deriveDepartments(records, users), [records, users]);
@@ -469,7 +463,7 @@ function DepartmentAnalytics({ data }: { data: LoadedData }) {
       title="Department Analytics"
       description="Spend, headcount, throughput, and risk by department."
       onCsv={() =>
-        downloadCsv("opsflow-department-analytics", withSpend, [
+        downloadCsv(`opsflow-department-analytics_${slug}`, withSpend, [
           { label: "Department", value: (d) => d.name },
           { label: "Headcount", value: (d) => d.headcount },
           { label: "Active", value: (d) => d.activeHeadcount },
@@ -612,7 +606,7 @@ function RiskBadge({ risk }: { risk: number }) {
 
 /* ---------------------------- Employee --------------------------------- */
 
-function EmployeeAnalytics({ data }: { data: LoadedData }) {
+function EmployeeAnalytics({ data, slug }: { data: LoadedData; slug: string }) {
   const { records, users, overview } = data;
   const currency = overview.currency;
   const employees = useMemo(() => deriveEmployees(records, users), [records, users]);
@@ -625,7 +619,7 @@ function EmployeeAnalytics({ data }: { data: LoadedData }) {
       title="Employee Analytics"
       description="Who is spending, how much, and how clean their submissions are."
       onCsv={() =>
-        downloadCsv("opsflow-employee-analytics", spenders, [
+        downloadCsv(`opsflow-employee-analytics_${slug}`, spenders, [
           { label: "Employee", value: (e) => e.name },
           { label: "Department", value: (e) => e.department },
           { label: "Approved spend", value: (e) => e.totalSpend },
@@ -723,7 +717,7 @@ function EmployeeAnalytics({ data }: { data: LoadedData }) {
 
 /* -------------------------- Reimbursement ------------------------------ */
 
-function ReimbursementAnalytics({ data }: { data: LoadedData }) {
+function ReimbursementAnalytics({ data, slug }: { data: LoadedData; slug: string }) {
   const { records, users, overview } = data;
   const currency = overview.currency;
   const model = useMemo(() => deriveReimbursements(records, users), [records, users]);
@@ -734,7 +728,7 @@ function ReimbursementAnalytics({ data }: { data: LoadedData }) {
       title="Reimbursement Analytics"
       description="Outstanding payouts and how they are distributed."
       onCsv={() =>
-        downloadCsv("opsflow-reimbursement", model.byDepartment, [
+        downloadCsv(`opsflow-reimbursement_${slug}`, model.byDepartment, [
           { label: "Department", value: (d) => d.name },
           { label: "Outstanding", value: (d) => d.outstanding },
           { label: "Paid", value: (d) => d.paid },
@@ -837,7 +831,7 @@ function ratioOf(amount: number, model: ReturnType<typeof deriveReimbursements>)
 
 /* ----------------------------- Audit ----------------------------------- */
 
-function AuditCompliance({ data }: { data: LoadedData }) {
+function AuditCompliance({ data, slug }: { data: LoadedData; slug: string }) {
   const { records, users, overview } = data;
   const currency = overview.currency;
   const audit = useMemo(() => deriveAudit(records, users), [records, users]);
@@ -849,7 +843,7 @@ function AuditCompliance({ data }: { data: LoadedData }) {
       title="Audit & Compliance"
       description="Policy signals: manual entries, missing documents, and high-value flags."
       onCsv={() =>
-        downloadCsv("opsflow-audit-flags", audit.flags, [
+        downloadCsv(`opsflow-audit-flags_${slug}`, audit.flags, [
           { label: "Employee", value: (f) => f.employee },
           { label: "Department", value: (f) => f.department },
           { label: "Reason", value: (f) => f.reason },
