@@ -3,11 +3,23 @@
  *
  * Tabs: Dashboard | List | Analytics
  * Create Task is a primary PageHeader action (not a tab).
- * The List tab is fully functional; Dashboard + Analytics are stubs.
+ * The List tab is fully functional; Dashboard + Analytics are date-scoped.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ClipboardList, Plus, Search } from "lucide-react";
+import {
+  AlertTriangle,
+  BarChart3,
+  CheckCircle2,
+  ClipboardList,
+  Clock,
+  Layers,
+  PauseCircle,
+  Plus,
+  Search,
+  Timer,
+  Zap,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -33,11 +45,14 @@ import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
+import { MetricCard } from "../../components/common/MetricCard";
+import { SectionCard } from "../../components/common/SectionCard";
+import { BarList } from "../../components/reports/charts";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { DueDate } from "../../components/tasks/DueDate";
 import { TaskPriorityBadge, TaskStatusBadge } from "../../components/tasks/TaskBadges";
 import { QuickCreateTaskDialog } from "../../components/tasks/QuickCreateTaskDialog";
-import { makeRange, rangeToParams, type DateRange } from "../../lib/date-range";
+import { makeRange, rangeSlug, rangeToParams, type DateRange } from "../../lib/date-range";
 import { listProjects } from "../../lib/projects-api";
 import { apiErrorMessage, listTasks } from "../../lib/tasks-api";
 import {
@@ -89,11 +104,15 @@ export function AdminTasksPage() {
           </TabsList>
         </Tabs>
 
-        {tab === "dashboard" && <DashboardStub />}
+        {tab === "dashboard" && (
+          <DashboardTab
+            onNewTask={() => setCreateOpen(true)}
+          />
+        )}
         {tab === "list" && (
           <ListTab reloadKey={reloadKey} onCreated={() => setReloadKey((k) => k + 1)} />
         )}
-        {tab === "analytics" && <AnalyticsStub />}
+        {tab === "analytics" && <AnalyticsTab />}
       </div>
 
       <QuickCreateTaskDialog
@@ -110,22 +129,303 @@ export function AdminTasksPage() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Stubs                                                               */
+/*  Dashboard tab                                                       */
 /* ------------------------------------------------------------------ */
 
-function DashboardStub() {
+interface DashboardTabProps {
+  onNewTask: () => void;
+}
+
+function DashboardTab({ onNewTask }: DashboardTabProps) {
+  const [range, setRange] = useState<DateRange>(() => makeRange("30d"));
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async (signal: { cancelled: boolean }) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const fetched = await listTasks({ limit: 500, ...rangeToParams(range) });
+      if (!signal.cancelled) setTasks(fetched);
+    } catch (err) {
+      if (!signal.cancelled) setError(apiErrorMessage(err, "Failed to load tasks."));
+    } finally {
+      if (!signal.cancelled) setLoading(false);
+    }
+  }, [range]);
+
+  useEffect(() => {
+    const signal = { cancelled: false };
+    void load(signal);
+    return () => { signal.cancelled = true; };
+  }, [load]);
+
+  const now = Date.now();
+  const in7Days = now + 7 * 24 * 60 * 60 * 1000;
+
+  const kpis = useMemo(() => {
+    const total = tasks.length;
+    const byStatus = Object.fromEntries(
+      TASK_STATUSES.map((s) => [s, tasks.filter((t) => t.status === s).length]),
+    ) as Record<TaskStatus, number>;
+    const overdue = tasks.filter((t) => {
+      if (t.status === "DONE") return false;
+      const due = Date.parse(t.dueDate);
+      return !Number.isNaN(due) && due < now;
+    }).length;
+    const dueSoon = tasks.filter((t) => {
+      if (t.status === "DONE") return false;
+      const due = Date.parse(t.dueDate);
+      return !Number.isNaN(due) && due >= now && due <= in7Days;
+    }).length;
+    return { total, byStatus, overdue, dueSoon };
+  }, [tasks, now, in7Days]);
+
+  // Most recent 7 by dueDate descending (then createdAt desc)
+  const recent = useMemo(
+    () =>
+      [...tasks]
+        .sort((a, b) => {
+          const da = Date.parse(a.dueDate ?? "");
+          const db = Date.parse(b.dueDate ?? "");
+          if (!Number.isNaN(da) && !Number.isNaN(db)) return db - da;
+          return Date.parse(b.createdAt) - Date.parse(a.createdAt);
+        })
+        .slice(0, 7),
+    [tasks],
+  );
+
   return (
-    <p className="text-sm text-muted-foreground">
-      Dashboard metrics coming in this section.
-    </p>
+    <div className="flex flex-col gap-6">
+      {/* Date filter row */}
+      <div className="flex flex-wrap items-center gap-2">
+        <DateRangeFilter value={range} onChange={setRange} />
+        <ActiveRangeBadge range={range} />
+      </div>
+
+      {loading ? (
+        <LoadingState label="Loading dashboard…" />
+      ) : error ? (
+        <ErrorState title="Couldn't load tasks" description={error} />
+      ) : (
+        <>
+          {/* KPI grid */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <MetricCard index={0} accent="indigo" label="Total tasks" value={kpis.total} icon={ClipboardList} />
+            <MetricCard index={1} accent="sky" label="To Do" value={kpis.byStatus.TODO} icon={Layers} />
+            <MetricCard index={2} accent="amber" label="In Progress" value={kpis.byStatus.IN_PROGRESS} icon={Timer} />
+            <MetricCard index={3} accent="emerald" label="Done" value={kpis.byStatus.DONE} icon={CheckCircle2} />
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <MetricCard index={4} accent="violet" label="On Hold" value={kpis.byStatus.ON_HOLD} icon={PauseCircle} />
+            <MetricCard index={5} accent="sky" label="In Review" value={kpis.byStatus.REVIEW} icon={BarChart3} />
+            <MetricCard index={6} accent="rose" label="Overdue" value={kpis.overdue} icon={AlertTriangle} hint="Past due, not done" />
+            <MetricCard index={7} accent="amber" label="Due soon" value={kpis.dueSoon} icon={Clock} hint="Next 7 days, not done" />
+          </div>
+
+          {/* Quick action + Recent tasks */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            {/* New Task quick action */}
+            <Card
+              role="button"
+              tabIndex={0}
+              onClick={onNewTask}
+              onKeyDown={(e) => e.key === "Enter" && onNewTask()}
+              className="flex cursor-pointer flex-col items-center justify-center gap-3 border-dashed p-8 text-center transition-colors hover:border-primary/60 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <span className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <Zap className="size-6" />
+              </span>
+              <div>
+                <p className="font-semibold text-foreground">New Task</p>
+                <p className="text-xs text-muted-foreground">Quick-create a task</p>
+              </div>
+            </Card>
+
+            {/* Recent tasks */}
+            <SectionCard
+              title="Recent tasks"
+              description="Latest by due date"
+              className="lg:col-span-2"
+            >
+              {recent.length === 0 ? (
+                <EmptyState
+                  icon={ClipboardList}
+                  title="No tasks in range"
+                  description="Try expanding the date range."
+                />
+              ) : (
+                <ul className="flex flex-col divide-y">
+                  {recent.map((task) => (
+                    <li key={task.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                      <div className="min-w-0">
+                        {task.code && (
+                          <span className="font-mono text-[10px] text-muted-foreground">
+                            {task.code}{" "}
+                          </span>
+                        )}
+                        <span className="truncate text-sm font-medium text-foreground">
+                          {task.title}
+                        </span>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <TaskStatusBadge status={task.status} />
+                        <DueDate dueDate={task.dueDate} status={task.status} />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </SectionCard>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
-function AnalyticsStub() {
+/* ------------------------------------------------------------------ */
+/*  Analytics tab                                                       */
+/* ------------------------------------------------------------------ */
+
+function AnalyticsTab() {
+  const [range, setRange] = useState<DateRange>(() => makeRange("30d"));
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [projectNames, setProjectNames] = useState<Map<string, string>>(new Map());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async (signal: { cancelled: boolean }) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [fetched, projectsResp] = await Promise.all([
+        listTasks({ limit: 500, ...rangeToParams(range) }),
+        listProjects({ limit: 200 }),
+      ]);
+      if (!signal.cancelled) {
+        setTasks(fetched);
+        setProjectNames(new Map(projectsResp.data.map((p) => [p.id, p.name])));
+      }
+    } catch (err) {
+      if (!signal.cancelled) setError(apiErrorMessage(err, "Failed to load tasks."));
+    } finally {
+      if (!signal.cancelled) setLoading(false);
+    }
+  }, [range]);
+
+  useEffect(() => {
+    const signal = { cancelled: false };
+    void load(signal);
+    return () => { signal.cancelled = true; };
+  }, [load]);
+
+  const { statusItems, priorityItems, projectItems } = useMemo(() => {
+    const total = tasks.length || 1;
+
+    const statusItems = TASK_STATUSES.map((s) => {
+      const count = tasks.filter((t) => t.status === s).length;
+      return { label: TASK_STATUS_LABELS[s], valueText: String(count), ratio: count / total };
+    }).filter((it) => it.ratio > 0);
+
+    const priorityItems = TASK_PRIORITIES.map((p) => {
+      const count = tasks.filter((t) => t.priority === p).length;
+      return { label: TASK_PRIORITY_LABELS[p], valueText: String(count), ratio: count / total };
+    }).filter((it) => it.ratio > 0);
+
+    // Per-project breakdown (top 8)
+    const projectCounts = new Map<string, number>();
+    for (const t of tasks) {
+      projectCounts.set(t.projectId, (projectCounts.get(t.projectId) ?? 0) + 1);
+    }
+    const projectItems = [...projectCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([id, count]) => ({
+        label: projectNames.get(id) ?? id,
+        valueText: String(count),
+        ratio: count / total,
+      }));
+
+    return { statusItems, priorityItems, projectItems };
+  }, [tasks, projectNames]);
+
+  const onExport = () => {
+    const header = ["Code", "Title", "Status", "Priority", "Due Date", "Project"].join(",");
+    const rows = tasks.map((t) =>
+      [
+        t.code ?? "",
+        `"${t.title.replace(/"/g, '""')}"`,
+        t.status,
+        t.priority,
+        t.dueDate,
+        `"${(projectNames.get(t.projectId) ?? "").replace(/"/g, '""')}"`,
+      ].join(","),
+    );
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `tasks-${rangeSlug(range)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <p className="text-sm text-muted-foreground">
-      Analytics coming in this section.
-    </p>
+    <div className="flex flex-col gap-6">
+      {/* Date filter row */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <DateRangeFilter value={range} onChange={setRange} />
+          <ActiveRangeBadge range={range} />
+        </div>
+        {!loading && !error && tasks.length > 0 && (
+          <Button variant="outline" size="sm" onClick={onExport}>
+            Export CSV
+          </Button>
+        )}
+      </div>
+
+      {loading ? (
+        <LoadingState label="Loading analytics…" />
+      ) : error ? (
+        <ErrorState title="Couldn't load tasks" description={error} />
+      ) : tasks.length === 0 ? (
+        <EmptyState
+          icon={BarChart3}
+          title="No tasks in range"
+          description="Try expanding the date range to see analytics."
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <SectionCard
+            title="Status distribution"
+            description={`${tasks.length} task${tasks.length === 1 ? "" : "s"} in range`}
+          >
+            <BarList items={statusItems} />
+          </SectionCard>
+
+          <SectionCard
+            title="Priority distribution"
+            description="Breakdown by priority level"
+          >
+            <BarList items={priorityItems} />
+          </SectionCard>
+
+          {projectItems.length > 0 && (
+            <SectionCard
+              title="Tasks per project"
+              description="Top 8 projects by task count"
+              className="lg:col-span-2"
+            >
+              <BarList items={projectItems} />
+            </SectionCard>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
