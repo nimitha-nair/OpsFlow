@@ -59,6 +59,17 @@ export const httpUrl = z
     { message: "must be an http(s) URL" },
   );
 
+/**
+ * Reusable optional date-range query params (inclusive ISO bounds). Merge into
+ * any list endpoint's query schema: `listFooQuery.merge(dateRangeQuery)`.
+ */
+export const dateRangeQuery = z.object({
+  from: dateString.optional(),
+  to: dateString.optional(),
+});
+
+export type DateRangeParams = z.infer<typeof dateRangeQuery>;
+
 /** Pagination query params — lenient: invalid/missing values fall back. */
 export const pageQuery = z.coerce.number().int().positive().catch(1);
 export const limitQuery = z.coerce.number().int().min(1).max(100).catch(20);
