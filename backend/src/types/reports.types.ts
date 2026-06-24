@@ -50,7 +50,7 @@ export interface ScopeSplit {
 }
 
 export interface ExpensesReport {
-  range: { from: string; to: string; months: number };
+  range: { from: string | null; to: string | null };
   spendByCategory: CategorySpend[];
   monthlyTrend: MonthlySpend[];
   byScope: ScopeSplit;

@@ -1,30 +1,30 @@
 import { z } from "zod";
 
+import { dateRangeQuery } from "./common";
+
 /**
- * GET /reports/overview takes no parameters today. A strict empty object keeps
- * the contract explicit and gives later range filters (from/to/months) a home
- * without changing the route wiring.
+ * GET /reports/overview?from&to — optional inclusive ISO date window. The
+ * service filters expenses by `expenseDate` in memory (no composite index).
  */
-export const overviewQuery = z.object({}).strip();
+export const overviewQuery = z.object({}).merge(dateRangeQuery).strip();
 
 export type OverviewQuery = z.infer<typeof overviewQuery>;
 
 /**
- * GET /reports/expenses?months=N. Coerces to an int (defaulting to 12 for
- * missing/invalid input); the service clamps the final value to 1–24.
+ * GET /reports/expenses?from&to — optional inclusive ISO date window. The
+ * monthly-trend month count is derived from the window internally; there is no
+ * `months` param anymore.
  */
-export const expensesQuery = z
-  .object({ months: z.coerce.number().int().catch(12) })
-  .strip();
+export const expensesQuery = dateRangeQuery.strip();
 
 export type ExpensesQuery = z.infer<typeof expensesQuery>;
 
-/** GET /reports/projects — no parameters today. */
-export const projectsQuery = z.object({}).strip();
+/** GET /reports/projects?from&to — optional inclusive ISO date window. */
+export const projectsQuery = z.object({}).merge(dateRangeQuery).strip();
 
-/** GET /reports/ai?months=N — trailing window for the low-confidence trend. */
-export const aiQuery = z
-  .object({ months: z.coerce.number().int().catch(12) })
-  .strip();
+export type ProjectsQuery = z.infer<typeof projectsQuery>;
+
+/** GET /reports/ai?from&to — optional inclusive ISO date window. */
+export const aiQuery = dateRangeQuery.strip();
 
 export type AiQuery = z.infer<typeof aiQuery>;

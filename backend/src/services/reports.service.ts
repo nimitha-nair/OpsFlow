@@ -20,7 +20,6 @@ import {
   clampMonths,
   composeOverviewKpis,
   groupByCategory,
-  monthKeys,
   splitByScope,
   summarizeProjects,
   tallyByStatus,
@@ -28,8 +27,28 @@ import {
 } from "./reports.aggregate";
 import { hasCorrections } from "./ai/analysis-audit";
 import { listProjects } from "./project.service";
+import { filterByDateWindow } from "../utils/date-window";
 
 const ANALYSIS_COLLECTION = "expenseAnalysis";
+
+/**
+ * Derive the number of calendar months a monthly-trend chart should cover from
+ * an inclusive ISO date window. Pure helper (tested in reports.service.test.ts):
+ *   - unbounded (or a single bound, or unparseable input) ⇒ 12
+ *   - otherwise the inclusive count of distinct calendar months spanned
+ * Clamped to [1, 24] (mirrors `clampMonths`).
+ */
+export function monthsBetween(from?: string, to?: string): number {
+  if (!from || !to) return 12;
+  const f = new Date(from);
+  const t = new Date(to);
+  if (Number.isNaN(f.getTime()) || Number.isNaN(t.getTime())) return 12;
+  const span =
+    (t.getFullYear() - f.getFullYear()) * 12 +
+    (t.getMonth() - f.getMonth()) +
+    1; // inclusive of both endpoint months
+  return Math.min(24, Math.max(1, span));
+}
 
 function tsToIso(value: unknown): string {
   return value instanceof Timestamp
@@ -56,11 +75,21 @@ const REPORTED_STATUSES: ApprovalStatus[] = [
  * composite index (approvalStatus, amount) per status and threw
  * FAILED_PRECONDITION when those indexes were not deployed.
  */
-export async function getOverviewReport(): Promise<OverviewReport> {
+export async function getOverviewReport(
+  from?: string,
+  to?: string,
+): Promise<OverviewReport> {
   const snap = await db.collection(EXPENSES_COLLECTION).get();
-  const rows = snap.docs.map(
-    (d) => d.data() as { approvalStatus?: string; amount?: number },
+  const allRows = snap.docs.map(
+    (d) =>
+      d.data() as {
+        approvalStatus?: string;
+        amount?: number;
+        expenseDate?: string;
+      },
   );
+  // Apply the optional date window in memory (no composite index needed).
+  const rows = filterByDateWindow(allRows, (r) => r.expenseDate, from, to);
   return {
     generatedAt: new Date().toISOString(),
     currency: "INR",
@@ -79,39 +108,40 @@ export async function getOverviewReport(): Promise<OverviewReport> {
  * three breakdowns are computed in memory from the result set.
  */
 export async function getExpensesReport(
-  monthsInput: number,
+  from?: string,
+  to?: string,
 ): Promise<ExpensesReport> {
-  const months = clampMonths(monthsInput);
   const now = new Date();
-  const keys = monthKeys(now, months);
-  const from = `${keys[0] ?? now.toISOString().slice(0, 7)}-01`; // first day of earliest month
-  const to = now.toISOString().slice(0, 10);
+  // The window drives both the filter and the monthly-trend bucket count.
+  const months = monthsBetween(from, to);
+  const fallbackDate = now.toISOString().slice(0, 10);
 
   const snap = await db
     .collection(EXPENSES_COLLECTION)
     .where("approvalStatus", "==", "APPROVED")
     .get();
 
-  const rows: ApprovedExpenseRow[] = snap.docs
-    .map((d) => {
-      const x = d.data() as {
-        category?: string;
-        amount?: number;
-        scope?: string;
-        expenseDate?: string;
-      };
-      return {
-        category: typeof x.category === "string" ? x.category : "MISCELLANEOUS",
-        amount: typeof x.amount === "number" ? x.amount : 0,
-        scope: x.scope === "GENERAL" ? "GENERAL" : "PROJECT",
-        expenseDate: typeof x.expenseDate === "string" ? x.expenseDate : from,
-      } as ApprovedExpenseRow;
-    })
-    // Trailing-window filter in memory (avoids the composite-index range query).
-    .filter((r) => r.expenseDate >= from);
+  const allRows: ApprovedExpenseRow[] = snap.docs.map((d) => {
+    const x = d.data() as {
+      category?: string;
+      amount?: number;
+      scope?: string;
+      expenseDate?: string;
+    };
+    return {
+      category: typeof x.category === "string" ? x.category : "MISCELLANEOUS",
+      amount: typeof x.amount === "number" ? x.amount : 0,
+      scope: x.scope === "GENERAL" ? "GENERAL" : "PROJECT",
+      expenseDate:
+        typeof x.expenseDate === "string" ? x.expenseDate : fallbackDate,
+    } as ApprovedExpenseRow;
+  });
+
+  // Apply the optional date window in memory (avoids a composite-index range query).
+  const rows = filterByDateWindow(allRows, (r) => r.expenseDate, from, to);
 
   return {
-    range: { from, to, months },
+    range: { from: from ?? null, to: to ?? null },
     spendByCategory: groupByCategory(rows),
     monthlyTrend: buildMonthlyTrend(rows, months, now),
     byScope: splitByScope(rows),
@@ -124,7 +154,10 @@ export async function getExpensesReport(
  * groups by projectId in memory; projects without a budget get null
  * remaining/utilization.
  */
-export async function getProjectsReport(): Promise<ProjectsReport> {
+export async function getProjectsReport(
+  from?: string,
+  to?: string,
+): Promise<ProjectsReport> {
   const [projectsPage, approvedSnap] = await Promise.all([
     listProjects({ page: 1, limit: 100000 }),
     db
@@ -134,8 +167,14 @@ export async function getProjectsReport(): Promise<ProjectsReport> {
   ]);
 
   const spentByProject = new Map<string, ProjectExpenseAgg>();
-  for (const d of approvedSnap.docs) {
-    const x = d.data() as { projectId?: string; amount?: number };
+  // Apply the optional date window in memory before aggregating.
+  const approvedDocs = filterByDateWindow(
+    approvedSnap.docs.map((d) => d.data() as Record<string, unknown>),
+    (x) => x.expenseDate,
+    from,
+    to,
+  );
+  for (const x of approvedDocs as { projectId?: string; amount?: number }[]) {
     if (!x.projectId) continue; // GENERAL expenses don't count toward a project
     const agg = spentByProject.get(x.projectId) ?? { amount: 0, count: 0 };
     agg.amount += typeof x.amount === "number" ? x.amount : 0;
@@ -169,16 +208,17 @@ export async function getProjectsReport(): Promise<ProjectsReport> {
  * newly-tracked fields are null until runs populate them.
  */
 export async function getAiAnalyticsReport(
-  monthsInput: number,
+  from?: string,
+  to?: string,
 ): Promise<AiAnalyticsReport> {
-  const months = clampMonths(monthsInput);
+  const months = clampMonths(monthsBetween(from, to));
   const now = new Date();
   const [snap, expensesSnap] = await Promise.all([
     db.collection(ANALYSIS_COLLECTION).get(),
     db.collection(EXPENSES_COLLECTION).get(),
   ]);
 
-  const rows: AiAnalysisRow[] = snap.docs.map((d) => {
+  const allRows: AiAnalysisRow[] = snap.docs.map((d) => {
     const x = d.data() as Partial<ExpenseAnalysisDocument>;
     const confirmed = Boolean(x.confirmedAt);
     const row: AiAnalysisRow = {
@@ -197,10 +237,20 @@ export async function getAiAnalyticsReport(
     return row;
   });
 
+  // Apply the optional date window to analyses by their createdAt (ISO).
+  const rows = filterByDateWindow(allRows, (r) => r.createdAt, from, to);
+
   // Creation-method split comes from the expenses side (analysis rows don't carry
-  // it). Forward-only: expenses without creationMethod count as "unknown".
-  const creationMethods = expensesSnap.docs.map((d) => {
-    const m = (d.data() as { creationMethod?: string }).creationMethod;
+  // it). Forward-only: expenses without creationMethod count as "unknown". The
+  // expenses are windowed by expenseDate so adoption matches the report range.
+  const windowedExpenses = filterByDateWindow(
+    expensesSnap.docs.map((d) => d.data() as Record<string, unknown>),
+    (x) => x.expenseDate,
+    from,
+    to,
+  );
+  const creationMethods = windowedExpenses.map((x) => {
+    const m = (x as { creationMethod?: string }).creationMethod;
     return m === "AI" || m === "MANUAL" ? m : undefined;
   });
 

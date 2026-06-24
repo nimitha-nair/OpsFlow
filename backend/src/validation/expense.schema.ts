@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  dateRangeQuery,
   dateString,
   firestoreId,
   limitQuery,
@@ -89,10 +90,12 @@ export const reimbursementBody = z
   .object({ reimbursementStatus: z.enum(REIMBURSEMENT_STATUSES) })
   .strict();
 
-/** GET /expenses/review (HR/ADMIN) — lifecycle list, filterable by status. */
-export const reviewExpensesQuery = z.object({
-  status: z.enum(["PENDING", "APPROVED", "REJECTED", "ALL"]).optional(),
-});
+/** GET /expenses/review (HR/ADMIN) — lifecycle list, filterable by status + date window. */
+export const reviewExpensesQuery = z
+  .object({
+    status: z.enum(["PENDING", "APPROVED", "REJECTED", "ALL"]).optional(),
+  })
+  .merge(dateRangeQuery);
 
 /** GET /expenses (ADMIN) — approved expenses, filterable. */
 export const listExpensesQuery = z.object({

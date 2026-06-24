@@ -7,7 +7,12 @@ import {
   getOverviewReport,
   getProjectsReport,
 } from "../services/reports.service";
-import type { AiQuery, ExpensesQuery } from "../validation/reports.schema";
+import type {
+  AiQuery,
+  ExpensesQuery,
+  OverviewQuery,
+  ProjectsQuery,
+} from "../validation/reports.schema";
 
 function handleError(res: Response, err: unknown): Response {
   if (err instanceof ApiError) {
@@ -26,7 +31,8 @@ export async function getOverview(
     return res.status(401).json({ error: "Authentication required" });
   }
   try {
-    const report = await getOverviewReport();
+    const { from, to } = (req.valid?.query ?? {}) as OverviewQuery;
+    const report = await getOverviewReport(from, to);
     return res.status(200).json(report);
   } catch (err) {
     return handleError(res, err);
@@ -42,8 +48,8 @@ export async function getExpenses(
     return res.status(401).json({ error: "Authentication required" });
   }
   try {
-    const { months } = req.valid?.query as ExpensesQuery;
-    const report = await getExpensesReport(months);
+    const { from, to } = (req.valid?.query ?? {}) as ExpensesQuery;
+    const report = await getExpensesReport(from, to);
     return res.status(200).json(report);
   } catch (err) {
     return handleError(res, err);
@@ -59,7 +65,8 @@ export async function getProjects(
     return res.status(401).json({ error: "Authentication required" });
   }
   try {
-    const report = await getProjectsReport();
+    const { from, to } = (req.valid?.query ?? {}) as ProjectsQuery;
+    const report = await getProjectsReport(from, to);
     return res.status(200).json(report);
   } catch (err) {
     return handleError(res, err);
@@ -75,8 +82,8 @@ export async function getAiAnalytics(
     return res.status(401).json({ error: "Authentication required" });
   }
   try {
-    const { months } = req.valid?.query as AiQuery;
-    const report = await getAiAnalyticsReport(months);
+    const { from, to } = (req.valid?.query ?? {}) as AiQuery;
+    const report = await getAiAnalyticsReport(from, to);
     return res.status(200).json(report);
   } catch (err) {
     return handleError(res, err);

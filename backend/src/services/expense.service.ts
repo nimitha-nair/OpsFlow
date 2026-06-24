@@ -23,6 +23,7 @@ import { isProjectMember } from "./projectMember.service";
 import { getUserById } from "./user.service";
 import { assertSubmittable } from "./expense.submit-gate";
 import { isValidReimbursementTransition } from "./reimbursement";
+import { filterByDateWindow } from "../utils/date-window";
 
 const EXPENSES_COLLECTION = "expenses";
 const APPROVALS_COLLECTION = "expenseApprovals";
@@ -527,16 +528,20 @@ export async function startReview(
  */
 export async function listExpensesByStatus(
   filter: ExpenseStatusFilter,
+  from?: string,
+  to?: string,
 ): Promise<Expense[]> {
   const all = (await getAllExpenseDocs()).filter(
     (e) => e.approvalStatus !== "DRAFT",
   );
-  const filtered =
+  const byStatus =
     filter === "ALL"
       ? all
       : filter === "PENDING"
         ? all.filter((e) => PENDING_STATUSES.includes(e.approvalStatus))
         : all.filter((e) => e.approvalStatus === filter);
+  // Apply the optional inclusive date window (by expenseDate) in memory.
+  const filtered = filterByDateWindow(byStatus, (e) => e.expenseDate, from, to);
   return filtered.map(toPublicExpense);
 }
 
