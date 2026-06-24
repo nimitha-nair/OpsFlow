@@ -23,6 +23,7 @@ import { EmptyState } from "../common/EmptyState";
 import { ErrorState } from "../common/ErrorState";
 import { LoadingState } from "../common/LoadingState";
 import { BarList, ColumnChart } from "./charts";
+import { monthsToParams } from "../../lib/date-range";
 import { getReportsAiAnalytics } from "../../lib/reports-api";
 import type { AiAnalyticsReport } from "../../types/reports";
 
@@ -57,7 +58,7 @@ export function AiAnalyticsTab() {
 
   const fetchAi = useCallback(async (m: number) => {
     try {
-      setData(await getReportsAiAnalytics(m));
+      setData(await getReportsAiAnalytics(monthsToParams(m)));
       setError(null);
     } catch {
       setError(ERROR_MSG);
@@ -68,7 +69,7 @@ export function AiAnalyticsTab() {
     let cancelled = false;
     async function loadInitial() {
       try {
-        const r = await getReportsAiAnalytics(12);
+        const r = await getReportsAiAnalytics(monthsToParams(12));
         if (!cancelled) {
           setData(r);
           setError(null);

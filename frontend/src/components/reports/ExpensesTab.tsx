@@ -16,6 +16,7 @@ import { LoadingState } from "../common/LoadingState";
 import { BarList, ColumnChart } from "./charts";
 import { paletteAt } from "./report-palette";
 import { formatDate, formatMoney } from "../../lib/format";
+import { monthsToParams } from "../../lib/date-range";
 import { getReportsExpenses } from "../../lib/reports-api";
 import { CATEGORY_LABELS, type ExpenseCategory } from "../../types/expense";
 import type {
@@ -53,7 +54,7 @@ export function ExpensesTab() {
   // only after the await.
   const fetchExpenses = useCallback(async (m: number) => {
     try {
-      setData(await getReportsExpenses(m));
+      setData(await getReportsExpenses(monthsToParams(m)));
       setError(null);
     } catch {
       setError(ERROR_MSG);
@@ -64,7 +65,7 @@ export function ExpensesTab() {
     let cancelled = false;
     async function loadInitial() {
       try {
-        const r = await getReportsExpenses(12);
+        const r = await getReportsExpenses(monthsToParams(12));
         if (!cancelled) {
           setData(r);
           setError(null);

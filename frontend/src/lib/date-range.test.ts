@@ -4,6 +4,7 @@ import {
   makeRange,
   inRange,
   filterByDate,
+  monthsToParams,
   rangeToMonths,
   rangeToParams,
   rangeLabel,
@@ -99,6 +100,28 @@ describe("rangeToMonths", () => {
     expect(rangeToMonths(makeRange("quarter"))).toBeLessThanOrEqual(4);
     expect(rangeToMonths(makeRange("year"))).toBeLessThanOrEqual(13);
     expect(rangeToMonths(makeRange("today"))).toBe(1);
+  });
+});
+
+describe("monthsToParams", () => {
+  it("returns both from and to", () => {
+    const p = monthsToParams(3);
+    expect(p.from).toBeDefined();
+    expect(p.to).toBeDefined();
+  });
+
+  it("from is earlier than to", () => {
+    const p = monthsToParams(3);
+    expect(new Date(p.from).getTime()).toBeLessThan(new Date(p.to).getTime());
+  });
+
+  it("for months=3 the span is roughly 3 months (80–100 days)", () => {
+    const p = monthsToParams(3);
+    const days =
+      (new Date(p.to).getTime() - new Date(p.from).getTime()) /
+      (24 * 60 * 60 * 1000);
+    expect(days).toBeGreaterThan(80);
+    expect(days).toBeLessThan(100);
   });
 });
 

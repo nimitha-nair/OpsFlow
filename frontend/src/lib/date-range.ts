@@ -132,6 +132,17 @@ export function rangeToMonths(range: DateRange): number {
   return Math.min(24, Math.max(1, months));
 }
 
+/**
+ * Convert a trailing month count to inclusive ISO query params for the backend.
+ * Returns a closed {from, to} window of `months` whole months ending today.
+ */
+export function monthsToParams(months: number): { from: string; to: string } {
+  return {
+    from: new Date(startOfTodayMinusMonths(months)).toISOString(),
+    to: new Date(endOfToday()).toISOString(),
+  };
+}
+
 /** Convert a resolved range to inclusive ISO query params for the backend.
  *  Unbounded sides are omitted so "all time" sends no params. */
 export function rangeToParams(range: DateRange): { from?: string; to?: string } {

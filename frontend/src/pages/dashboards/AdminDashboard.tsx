@@ -22,7 +22,7 @@ import { LoadingState } from "../../components/common/LoadingState";
 import { SectionCard } from "../../components/common/SectionCard";
 import { MetricCard } from "../../components/common/MetricCard";
 import { QuickCreateTaskDialog } from "../../components/tasks/QuickCreateTaskDialog";
-import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
+import { filterByDate, makeRange, monthsToParams, type DateRange } from "../../lib/date-range";
 import { DashboardHero } from "../../components/dashboard/DashboardHero";
 import { ActivityFeed } from "../../components/activity/ActivityFeed";
 import { TicketsWidget } from "../../components/dashboard/TicketsWidget";
@@ -86,9 +86,9 @@ export function AdminDashboard() {
         const [all, users, exp, proj, aiRep] = await Promise.all([
           listReviewExpenses("ALL"),
           listUsers({ limit: 100 }),
-          getReportsExpenses(6),
+          getReportsExpenses(monthsToParams(6)),
           getReportsProjects(),
-          getReportsAiAnalytics(6),
+          getReportsAiAnalytics(monthsToParams(6)),
         ]);
         if (cancelled) return;
         setExpenses(all);
