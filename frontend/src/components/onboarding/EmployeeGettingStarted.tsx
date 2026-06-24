@@ -1,15 +1,18 @@
 import { useEffect, useState } from "react";
 
+import { useAuth } from "../../context/auth-context";
 import { listMyExpenses } from "../../lib/expenses-api";
 import { listMyTasks } from "../../lib/tasks-api";
 import { listTickets } from "../../lib/tickets-api";
 import { GettingStarted, type OnboardingStep } from "./GettingStarted";
 
-const STORAGE_KEY = "opsflow.onboarding.employee";
+export function employeeOnboardingKey(userId: string): string {
+  return `opsflow.onboarding.employee.${userId}`;
+}
 
-function isDismissed(): boolean {
+function isDismissed(key: string): boolean {
   try {
-    return localStorage.getItem(STORAGE_KEY) === "1";
+    return localStorage.getItem(key) === "1";
   } catch {
     return false;
   }
@@ -21,11 +24,15 @@ function isDismissed(): boolean {
  * dashboard. GettingStarted hides itself once all steps are done or dismissed.
  */
 export function EmployeeGettingStarted() {
+  const { user } = useAuth();
   const [steps, setSteps] = useState<OnboardingStep[] | null>(null);
+  const storageKey = user
+    ? employeeOnboardingKey(user.id)
+    : "opsflow.onboarding.employee";
 
   useEffect(() => {
     // Already dismissed — don't spend API calls fetching onboarding signals.
-    if (isDismissed()) return;
+    if (isDismissed(storageKey)) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -63,12 +70,12 @@ export function EmployeeGettingStarted() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [storageKey]);
 
   if (!steps) return null;
   return (
     <GettingStarted
-      storageKey={STORAGE_KEY}
+      storageKey={storageKey}
       title="Welcome to OpsFlow"
       description="A few steps to get going"
       steps={steps}
