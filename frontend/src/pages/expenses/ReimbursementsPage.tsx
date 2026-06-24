@@ -12,13 +12,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ActiveRangeBadge } from "../../components/common/ActiveRangeBadge";
 import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { ReimbursementBadge } from "../../components/expenses/ExpenseBadges";
-import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
+import { makeRange, rangeToParams, type DateRange } from "../../lib/date-range";
 import {
   apiErrorMessage,
   listReviewExpenses,
@@ -71,7 +72,7 @@ export function ReimbursementsPage() {
       setError(null);
       try {
         const [approved, users, projects] = await Promise.all([
-          listReviewExpenses("APPROVED"),
+          listReviewExpenses("APPROVED", rangeToParams(range)),
           listUsers({ limit: 100 }),
           listProjects({ limit: 100 }),
         ]);
@@ -90,7 +91,7 @@ export function ReimbursementsPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [reloadKey, range]);
 
   const getEmployeeName = useMemo(
     () => (id: string) => userNames.get(id) ?? "Unknown",
@@ -99,11 +100,6 @@ export function ReimbursementsPage() {
   const getProjectName = useMemo(
     () => (id?: string) => (id ? (projectNames.get(id) ?? "—") : "General"),
     [projectNames],
-  );
-
-  const visible = useMemo(
-    () => filterByDate(expenses, (e) => e.expenseDate, range),
-    [expenses, range],
   );
 
   async function changeStatus(expense: Expense, status: ReimbursementStatus) {
@@ -131,7 +127,12 @@ export function ReimbursementsPage() {
           { label: "Expenses", to: "/admin/expenses" },
           { label: "Reimbursements" },
         ]}
-        actions={<DateRangeFilter value={range} onChange={setRange} />}
+        actions={
+          <div className="flex items-center gap-2">
+            <ActiveRangeBadge range={range} />
+            <DateRangeFilter value={range} onChange={setRange} />
+          </div>
+        }
       />
 
       {error ? (
@@ -154,14 +155,6 @@ export function ReimbursementsPage() {
             description="Approved expenses awaiting reimbursement will appear here."
           />
         </Card>
-      ) : visible.length === 0 ? (
-        <Card className="p-6">
-          <EmptyState
-            icon={Wallet}
-            title="No reimbursements in range"
-            description="No approved expenses fall in the selected date range."
-          />
-        </Card>
       ) : (
         <Card className="overflow-hidden p-0">
           <div className="overflow-x-auto">
@@ -178,7 +171,7 @@ export function ReimbursementsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visible.map((expense) => (
+                {expenses.map((expense) => (
                   <TableRow key={expense.id}>
                     <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
                       {expense.code ?? "—"}

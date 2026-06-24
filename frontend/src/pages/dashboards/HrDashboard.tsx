@@ -12,6 +12,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 
+import { ActiveRangeBadge } from "../../components/common/ActiveRangeBadge";
 import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
@@ -21,7 +22,7 @@ import { MetricCard } from "../../components/common/MetricCard";
 import { DashboardHero } from "../../components/dashboard/DashboardHero";
 import { ActivityFeed } from "../../components/activity/ActivityFeed";
 import { TicketsWidget } from "../../components/dashboard/TicketsWidget";
-import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
+import { makeRange, rangeToParams, type DateRange } from "../../lib/date-range";
 import {
   ApprovalStatusBadge,
   CreationMethodBadge,
@@ -50,7 +51,7 @@ export function HrDashboard() {
       setError(null);
       try {
         const [all, users] = await Promise.all([
-          listReviewExpenses("ALL"),
+          listReviewExpenses("ALL", rangeToParams(range)),
           listUsers({ limit: 100 }),
         ]);
         if (cancelled) return;
@@ -66,19 +67,14 @@ export function HrDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [reloadKey, range]);
 
   const employeeName = (id: string) => userNames.get(id) ?? "Unknown";
-
-  const dated = useMemo(
-    () => filterByDate(expenses, (e) => e.expenseDate, range),
-    [expenses, range],
-  );
 
   const stats = useMemo(() => {
     const d = today();
     const s = { pending: 0, approvedToday: 0, rejectedToday: 0, manual: 0 };
-    for (const e of dated) {
+    for (const e of expenses) {
       if (PENDING.includes(e.approvalStatus)) s.pending += 1;
       if (e.approvalStatus === "APPROVED" && e.reviewedAt?.slice(0, 10) === d)
         s.approvedToday += 1;
@@ -87,15 +83,15 @@ export function HrDashboard() {
       if (e.creationMethod === "MANUAL") s.manual += 1;
     }
     return s;
-  }, [dated]);
+  }, [expenses]);
 
   const queue = useMemo(
     () =>
-      [...dated]
+      [...expenses]
         .filter((e) => PENDING.includes(e.approvalStatus))
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
         .slice(0, 8),
-    [dated],
+    [expenses],
   );
 
   return (
@@ -151,6 +147,7 @@ export function HrDashboard() {
               <LifeBuoy className="size-4" />
               Help Desk
             </Button>
+            <ActiveRangeBadge range={range} />
             <DateRangeFilter value={range} onChange={setRange} />
           </div>
           <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">

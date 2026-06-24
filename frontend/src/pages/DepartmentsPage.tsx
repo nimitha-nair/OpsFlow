@@ -11,13 +11,14 @@ import {
 } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
+import { ActiveRangeBadge } from "../components/common/ActiveRangeBadge";
 import { DateRangeFilter } from "../components/common/DateRangeFilter";
 import { EmptyState } from "../components/common/EmptyState";
 import { ErrorState } from "../components/common/ErrorState";
 import { LoadingState } from "../components/common/LoadingState";
 import { MetricCard } from "../components/common/MetricCard";
 import { PageHeader } from "../components/layout/PageHeader";
-import { filterByDate, makeRange, type DateRange } from "../lib/date-range";
+import { makeRange, rangeToParams, type DateRange } from "../lib/date-range";
 import { Sparkline } from "../components/reports/bi";
 import { ACCENT_TEXT } from "../components/common/accent";
 import {
@@ -46,7 +47,7 @@ export function DepartmentsPage() {
       try {
         const [usersResp, recs] = await Promise.all([
           listUsers({ limit: 1000 }),
-          listReviewExpenses("ALL"),
+          listReviewExpenses("ALL", rangeToParams(range)),
         ]);
         if (!cancelled) {
           setUsers(usersResp.data);
@@ -62,16 +63,11 @@ export function DepartmentsPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [reloadKey, range]);
 
-  // Date range scopes the expense records that feed every department metric.
-  const datedRecords = useMemo(
-    () => filterByDate(records, (e) => e.expenseDate, range),
-    [records, range],
-  );
   const departments = useMemo(
-    () => deriveDepartments(datedRecords, users),
-    [datedRecords, users],
+    () => deriveDepartments(records, users),
+    [records, users],
   );
   const named = departments.filter((d) => d.name !== "Unassigned");
   const totalSpend = departments.reduce((s, d) => s + d.totalSpend, 0);
@@ -86,7 +82,12 @@ export function DepartmentsPage() {
         title="Departments"
         description="Operational performance across every department."
         breadcrumbs={[{ label: "Admin", to: "/admin" }, { label: "Departments" }]}
-        actions={<DateRangeFilter value={range} onChange={setRange} />}
+        actions={
+          <div className="flex items-center gap-2">
+            <ActiveRangeBadge range={range} />
+            <DateRangeFilter value={range} onChange={setRange} />
+          </div>
+        }
       />
 
       {loading ? (

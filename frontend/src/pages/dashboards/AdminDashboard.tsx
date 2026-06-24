@@ -15,6 +15,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 
+import { ActiveRangeBadge } from "../../components/common/ActiveRangeBadge";
 import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
@@ -22,7 +23,7 @@ import { LoadingState } from "../../components/common/LoadingState";
 import { SectionCard } from "../../components/common/SectionCard";
 import { MetricCard } from "../../components/common/MetricCard";
 import { QuickCreateTaskDialog } from "../../components/tasks/QuickCreateTaskDialog";
-import { filterByDate, makeRange, monthsToParams, type DateRange } from "../../lib/date-range";
+import { makeRange, monthsToParams, rangeToParams, type DateRange } from "../../lib/date-range";
 import { DashboardHero } from "../../components/dashboard/DashboardHero";
 import { ActivityFeed } from "../../components/activity/ActivityFeed";
 import { TicketsWidget } from "../../components/dashboard/TicketsWidget";
@@ -84,7 +85,7 @@ export function AdminDashboard() {
       setError(null);
       try {
         const [all, users, exp, proj, aiRep] = await Promise.all([
-          listReviewExpenses("ALL"),
+          listReviewExpenses("ALL", rangeToParams(range)),
           listUsers({ limit: 100 }),
           getReportsExpenses(monthsToParams(6)),
           getReportsProjects(),
@@ -106,22 +107,16 @@ export function AdminDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [reloadKey, range]);
 
   const employeeName = (id: string) => userNames.get(id) ?? "Unknown";
-
-  // Date range scopes every expense-derived metric on the dashboard.
-  const dated = useMemo(
-    () => filterByDate(expenses, (e) => e.expenseDate, range),
-    [expenses, range],
-  );
 
   const kpis = useMemo(() => {
     let spend = 0;
     let pending = 0;
     let approved = 0;
     let reimbursePending = 0;
-    for (const e of dated) {
+    for (const e of expenses) {
       if (e.approvalStatus === "APPROVED") {
         approved += 1;
         spend += e.amount;
@@ -131,26 +126,26 @@ export function AdminDashboard() {
       }
     }
     return { spend, pending, approved, reimbursePending };
-  }, [dated]);
+  }, [expenses]);
 
   const reimbursementQueue = useMemo(
     () =>
-      dated
+      expenses
         .filter(
           (e) =>
             e.approvalStatus === "APPROVED" && e.reimbursementStatus !== "PAID",
         )
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
         .slice(0, 6),
-    [dated],
+    [expenses],
   );
 
   const recent = useMemo(
     () =>
-      [...dated]
+      [...expenses]
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
         .slice(0, 6),
-    [dated],
+    [expenses],
   );
 
   return (
@@ -208,6 +203,7 @@ export function AdminDashboard() {
               <BarChart3 className="size-4" />
               Reports
             </Button>
+            <ActiveRangeBadge range={range} />
             <DateRangeFilter value={range} onChange={setRange} />
           </div>
           <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
