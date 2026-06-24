@@ -121,6 +121,10 @@ function App() {
         <Route path="projects/:id" element={<ProjectViewPage />} />
         <Route path="kanban" element={<KanbanPage />} />
         <Route path="expenses" element={<PendingReviewsPage />} />
+        <Route
+          path="expenses/reimbursements"
+          element={<ReimbursementsPage />}
+        />
         <Route path="expenses/:id/report" element={<ExpenseReportPage />} />
         <Route path="expenses/:id" element={<ExpenseDetailsPage />} />
         <Route path="employees" element={<EmployeesPage />} />

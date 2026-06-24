@@ -18,6 +18,7 @@ import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { PageHeader } from "../../components/layout/PageHeader";
+import { useAuth } from "../../context/auth-context";
 import { ReimbursementBadge } from "../../components/expenses/ExpenseBadges";
 import { makeRange, rangeToParams, type DateRange } from "../../lib/date-range";
 import {
@@ -54,6 +55,10 @@ function forwardStatuses(from: ReimbursementStatus): ReimbursementStatus[] {
  * and lets an admin advance each to PENDING / PROCESSING / PAID.
  */
 export function ReimbursementsPage() {
+  const { user } = useAuth();
+  // Only Admin can advance reimbursement status; HR gets a read-only view.
+  const canManage = user?.role === "ADMIN";
+  const base = user?.role === "HR" ? "/hr" : "/admin";
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [userNames, setUserNames] = useState<Map<string, string>>(new Map());
   const [projectNames, setProjectNames] = useState<Map<string, string>>(
@@ -124,7 +129,7 @@ export function ReimbursementsPage() {
         title="Reimbursements"
         description="Manage reimbursement status for approved expenses."
         breadcrumbs={[
-          { label: "Expenses", to: "/admin/expenses" },
+          { label: "Expenses", to: `${base}/expenses` },
           { label: "Reimbursements" },
         ]}
         actions={
@@ -170,7 +175,7 @@ export function ReimbursementsPage() {
                   <TableHead>Project</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Current</TableHead>
-                  <TableHead>Set status</TableHead>
+                  {canManage && <TableHead>Set status</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -195,30 +200,32 @@ export function ReimbursementsPage() {
                         status={expense.reimbursementStatus}
                       />
                     </TableCell>
-                    <TableCell>
-                      {expense.reimbursementStatus === "PAID" ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                          <Lock className="size-3" />
-                          Paid 
-                        </span>
-                      ) : (
-                        <div className="flex flex-wrap gap-2">
-                          {forwardStatuses(expense.reimbursementStatus).map(
-                            (s) => (
-                              <Button
-                                key={s}
-                                variant="outline"
-                                size="sm"
-                                disabled={savingId === expense.id}
-                                onClick={() => changeStatus(expense, s)}
-                              >
-                                Mark {REIMBURSEMENT_LABELS[s]}
-                              </Button>
-                            ),
-                          )}
-                        </div>
-                      )}
-                    </TableCell>
+                    {canManage && (
+                      <TableCell>
+                        {expense.reimbursementStatus === "PAID" ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                            <Lock className="size-3" />
+                            Paid
+                          </span>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {forwardStatuses(expense.reimbursementStatus).map(
+                              (s) => (
+                                <Button
+                                  key={s}
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={savingId === expense.id}
+                                  onClick={() => changeStatus(expense, s)}
+                                >
+                                  Mark {REIMBURSEMENT_LABELS[s]}
+                                </Button>
+                              ),
+                            )}
+                          </div>
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

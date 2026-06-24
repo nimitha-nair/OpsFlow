@@ -56,6 +56,11 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "Projects", icon: Briefcase, to: "/hr/projects" },
     { label: "Kanban", icon: SquareKanban, to: "/hr/kanban" },
     { label: "Expenses", icon: Wallet, to: "/hr/expenses" },
+    {
+      label: "Reimbursements",
+      icon: HandCoins,
+      to: "/hr/expenses/reimbursements",
+    },
     { label: "Reports", icon: BarChart3, to: "/hr/reports" },
     { label: "Activity", icon: Activity, to: "/hr/activity" },
   ],
