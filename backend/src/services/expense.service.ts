@@ -432,7 +432,27 @@ export async function listPendingExpenses(
   const pending = all.filter((e) =>
     PENDING_STATUSES.includes(e.approvalStatus),
   );
-  return filterByDateWindow(pending, (e) => e.expenseDate, from, to).map(
+  // Review QUEUE: window by submission date (createdAt), so "today" means
+  // "submitted today" (the work that arrived), not when the expense was incurred.
+  return filterByDateWindow(pending, (e) => e.createdAt, from, to).map(
+    toPublicExpense,
+  );
+}
+
+/**
+ * Approved expenses for the reimbursements view, newest first, windowed by the
+ * PAID date (`reimbursedAt`). Unbounded ⇒ all approved expenses; a bounded range
+ * shows only reimbursements paid in that window (unpaid ones have no paid date).
+ */
+export async function listReimbursements(
+  from?: string,
+  to?: string,
+): Promise<Expense[]> {
+  const approved = (await getAllExpenseDocs()).filter(
+    (e) => e.approvalStatus === "APPROVED",
+  );
+  approved.sort((a, b) => tsMillis(b.createdAt) - tsMillis(a.createdAt));
+  return filterByDateWindow(approved, (e) => e.reimbursedAt, from, to).map(
     toPublicExpense,
   );
 }
@@ -633,10 +653,16 @@ export async function setReimbursementStatus(
         "Only forward transitions are allowed (PENDING → PROCESSING → PAID).",
     );
   }
-  await db.collection(EXPENSES_COLLECTION).doc(id).update({
+  const update: Record<string, unknown> = {
     reimbursementStatus: status,
     updatedAt: FieldValue.serverTimestamp(),
-  });
+  };
+  // Stamp the payment date when it's marked PAID — this is what the
+  // reimbursements date filter windows on (not the original expenseDate).
+  if (status === "PAID") {
+    update.reimbursedAt = FieldValue.serverTimestamp();
+  }
+  await db.collection(EXPENSES_COLLECTION).doc(id).update(update);
   const updated = await getExpenseDocById(id);
   if (!updated) {
     throw new ApiError(500, "Failed to load the updated expense");

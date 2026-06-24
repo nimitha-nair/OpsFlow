@@ -25,6 +25,7 @@ import {
   getExpenses,
   getMyExpenses,
   getPendingExpenses,
+  getReimbursements,
   getProjectExpenses,
   getProjectsSpending,
   getReviewExpenses,
@@ -73,6 +74,13 @@ router.get(
   authorize(UserRole.HR),
   validate({ query: dateRangeQuery }),
   getPendingExpenses,
+);
+router.get(
+  "/reimbursements",
+  authenticate,
+  authorize(UserRole.HR, UserRole.ADMIN),
+  validate({ query: dateRangeQuery }),
+  getReimbursements,
 );
 
 // HR & ADMIN — lifecycle list filtered by status (Pending/Approved/Rejected/All).

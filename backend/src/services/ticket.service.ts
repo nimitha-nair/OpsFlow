@@ -106,7 +106,9 @@ function sortAndMap(
   if (status) rows = rows.filter((t) => t.status === status);
   // Legacy tickets without a team are treated as SYSTEM (Admin) for routing.
   if (team) rows = rows.filter((t) => (t.team ?? "SYSTEM") === team);
-  rows = filterByDateWindow(rows, (t) => t.createdAt, from, to);
+  // Active-queue semantics: window by last activity (updatedAt) so "today" shows
+  // tickets touched today, not only those opened today. Matches the sort below.
+  rows = filterByDateWindow(rows, (t) => t.updatedAt, from, to);
   rows.sort((a, b) => tsMillis(b.updatedAt) - tsMillis(a.updatedAt));
   return rows.map(toPublicTicket);
 }

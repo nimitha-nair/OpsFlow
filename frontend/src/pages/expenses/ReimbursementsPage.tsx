@@ -22,7 +22,7 @@ import { ReimbursementBadge } from "../../components/expenses/ExpenseBadges";
 import { makeRange, rangeToParams, type DateRange } from "../../lib/date-range";
 import {
   apiErrorMessage,
-  listReviewExpenses,
+  listReimbursements,
   updateReimbursementStatus,
 } from "../../lib/expenses-api";
 import { listProjects } from "../../lib/projects-api";
@@ -72,7 +72,7 @@ export function ReimbursementsPage() {
       setError(null);
       try {
         const [approved, users, projects] = await Promise.all([
-          listReviewExpenses("APPROVED", rangeToParams(range)),
+          listReimbursements(rangeToParams(range)),
           listUsers({ limit: 100 }),
           listProjects({ limit: 100 }),
         ]);

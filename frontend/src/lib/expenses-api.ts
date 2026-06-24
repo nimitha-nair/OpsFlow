@@ -69,6 +69,18 @@ export async function listReviewExpenses(
   return data.data;
 }
 
+/** GET /expenses/reimbursements (HR/ADMIN) — approved expenses windowed by the
+ *  date they were marked PAID, so a date range means "paid in this range." */
+export async function listReimbursements(
+  params: { from?: string; to?: string } = {},
+): Promise<Expense[]> {
+  const { data } = await api.get<{ data: Expense[] }>(
+    "/expenses/reimbursements",
+    { params },
+  );
+  return data.data;
+}
+
 /** PATCH /expenses/:id/review (HR) — SUBMITTED → PENDING_REVIEW. */
 export async function startExpenseReview(id: string): Promise<Expense> {
   const { data } = await api.patch<Expense>(`/expenses/${id}/review`, {});

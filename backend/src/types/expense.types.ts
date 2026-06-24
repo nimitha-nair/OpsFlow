@@ -58,6 +58,8 @@ export interface ExpenseDocument {
   reviewedById?: string;
   reviewedByName?: string;
   reviewedAt?: Timestamp;
+  /** When the reimbursement was marked PAID — drives the reimbursements date filter. */
+  reimbursedAt?: Timestamp;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

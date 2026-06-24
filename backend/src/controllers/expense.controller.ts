@@ -21,6 +21,7 @@ import {
   listExpensesByStatus,
   listMyExpenses,
   listPendingExpenses,
+  listReimbursements,
   listProjectsSpending,
   getProjectSpending,
   rejectExpense,
@@ -176,6 +177,25 @@ export async function getPendingExpenses(
       to?: string;
     };
     const data = await listPendingExpenses(from, to);
+    return res.status(200).json({ data });
+  } catch (err) {
+    return handleError(res, err);
+  }
+}
+
+/** GET /expenses/reimbursements — HR & ADMIN. Approved expenses windowed by
+ *  the date they were marked PAID (reimbursedAt), so the date filter means
+ *  "reimbursements paid in this range." */
+export async function getReimbursements(
+  req: Request,
+  res: Response,
+): Promise<Response> {
+  try {
+    const { from, to } = (req.valid?.query ?? {}) as {
+      from?: string;
+      to?: string;
+    };
+    const data = await listReimbursements(from, to);
     return res.status(200).json({ data });
   } catch (err) {
     return handleError(res, err);
