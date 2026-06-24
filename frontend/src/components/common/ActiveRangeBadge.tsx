@@ -16,14 +16,14 @@ export function ActiveRangeBadge({
   basisLabel?: string;
   className?: string;
 }) {
-  // The basis (expense vs submission date) only matters when a date window is
-  // actually applied. With "All time" there's no window, so drop the prefix —
-  // "Submitted · All time" is meaningless.
+  // "All time" means no active date window — there's nothing to indicate, and a
+  // non-interactive "All time" pill reads as a dead button. Render nothing until
+  // a real range is picked; then the badge confirms it (with the basis prefix).
   const bounded = range.fromMs != null || range.toMs != null;
-  const label =
-    basisLabel && bounded
-      ? `${basisLabel} · ${rangeLabel(range)}`
-      : rangeLabel(range);
+  if (!bounded) return null;
+  const label = basisLabel
+    ? `${basisLabel} · ${rangeLabel(range)}`
+    : rangeLabel(range);
   return (
     <span
       data-testid="active-range-badge"
