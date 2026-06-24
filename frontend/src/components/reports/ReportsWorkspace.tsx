@@ -59,7 +59,7 @@ import { paletteAt } from "../common/accent";
 import { formatDateTime, formatMoney } from "../../lib/format";
 import { downloadCsv, printElement } from "../../lib/export";
 import { getReportsOverview, getReportsProjects } from "../../lib/reports-api";
-import { listReviewExpenses } from "../../lib/expenses-api";
+import { listReviewExpenses, listReimbursements } from "../../lib/expenses-api";
 import { listUsers } from "../../lib/users-api";
 import type { OverviewReport, ProjectsReport } from "../../types/reports";
 import type { Expense } from "../../types/expense";
@@ -113,6 +113,7 @@ interface LoadedData {
   overview: OverviewReport;
   projects: ProjectsReport | null;
   records: Expense[];
+  reimbursementRecords: Expense[];
   users: User[];
 }
 
@@ -138,14 +139,15 @@ export function ReportsWorkspace() {
 
   const load = useCallback(async (signal?: { cancelled: boolean }) => {
     const params = { ...rangeToParams(range), basis };
-    const [overview, records, usersResp, projects] = await Promise.all([
+    const [overview, records, usersResp, projects, reimbursementRecords] = await Promise.all([
       getReportsOverview(params),
       listReviewExpenses("ALL", params),
       listUsers({ limit: 1000 }),
       getReportsProjects(params).catch(() => null),
+      listReimbursements(rangeToParams(range)),
     ]);
     if (signal?.cancelled) return;
-    setData({ overview, projects, records, users: usersResp.data });
+    setData({ overview, projects, records, reimbursementRecords, users: usersResp.data });
     setError(null);
   }, [range, basis]);
 
@@ -724,9 +726,9 @@ function EmployeeAnalytics({ data, slug }: { data: LoadedData; slug: string }) {
 /* -------------------------- Reimbursement ------------------------------ */
 
 function ReimbursementAnalytics({ data, slug }: { data: LoadedData; slug: string }) {
-  const { records, users, overview } = data;
+  const { reimbursementRecords, users, overview } = data;
   const currency = overview.currency;
-  const model = useMemo(() => deriveReimbursements(records, users), [records, users]);
+  const model = useMemo(() => deriveReimbursements(reimbursementRecords, users), [reimbursementRecords, users]);
 
   return (
     <SectionFrame

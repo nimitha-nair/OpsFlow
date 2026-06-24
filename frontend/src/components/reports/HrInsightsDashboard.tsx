@@ -56,7 +56,7 @@ import { makeRange, rangeToParams, rangeSlug, type DateRange } from "../../lib/d
 import { ActiveRangeBadge } from "../common/ActiveRangeBadge";
 import { downloadCsv, printElement } from "../../lib/export";
 import { getReportsOverview, getReportsAiAnalytics } from "../../lib/reports-api";
-import { listReviewExpenses } from "../../lib/expenses-api";
+import { listReviewExpenses, listReimbursements } from "../../lib/expenses-api";
 import { listUsers } from "../../lib/users-api";
 import type { AiAnalyticsReport, OverviewReport } from "../../types/reports";
 import type { Expense } from "../../types/expense";
@@ -87,6 +87,7 @@ function withinDays(iso: string, days: number): boolean {
 interface LoadedData {
   overview: OverviewReport;
   records: Expense[];
+  reimbursementRecords: Expense[];
   users: User[];
   ai: AiAnalyticsReport | null;
 }
@@ -112,14 +113,15 @@ export function HrInsightsDashboard() {
 
   const load = useCallback(async (signal?: { cancelled: boolean }) => {
     const params = { ...rangeToParams(range), basis };
-    const [overview, records, usersResp, ai] = await Promise.all([
+    const [overview, records, usersResp, ai, reimbursementRecords] = await Promise.all([
       getReportsOverview(params),
       listReviewExpenses("ALL", params),
       listUsers({ limit: 1000 }),
       getReportsAiAnalytics(rangeToParams(range)).catch(() => null),
+      listReimbursements(rangeToParams(range)),
     ]);
     if (signal?.cancelled) return;
-    setData({ overview, records, users: usersResp.data, ai });
+    setData({ overview, records, reimbursementRecords, users: usersResp.data, ai });
     setError(null);
   }, [range, basis]);
 
@@ -419,9 +421,9 @@ function Governance({ data }: { data: LoadedData }) {
 /* --------------------------- Reimbursement ----------------------------- */
 
 function Reimbursement({ data, slug }: { data: LoadedData; slug: string }) {
-  const { records, users, overview } = data;
+  const { reimbursementRecords, users, overview } = data;
   const currency = overview.currency;
-  const model = useMemo(() => deriveReimbursements(records, users), [records, users]);
+  const model = useMemo(() => deriveReimbursements(reimbursementRecords, users), [reimbursementRecords, users]);
 
   return (
     <SectionFrame
