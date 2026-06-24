@@ -8,10 +8,7 @@ import { EmptyState } from "../components/common/EmptyState";
 import { ErrorState } from "../components/common/ErrorState";
 import { LoadingState } from "../components/common/LoadingState";
 import { PageHeader } from "../components/layout/PageHeader";
-import { CalendarClock, CalendarPlus } from "lucide-react";
-
 import { ActiveRangeBadge } from "../components/common/ActiveRangeBadge";
-import { DateBasisToggle } from "../components/common/DateBasisToggle";
 import { CalendarView } from "../components/kanban/CalendarView";
 import { KanbanBoard } from "../components/kanban/KanbanBoard";
 import { KanbanMobileList } from "../components/kanban/KanbanMobileList";
@@ -325,20 +322,6 @@ export function KanbanPage() {
                     : "Due"
               }
             />
-            {!isEmployee && (
-              <DateBasisToggle
-                value={taskBasis}
-                onChange={setTaskBasis}
-                options={[
-                  { value: "dueDate", label: "Due date", Icon: CalendarClock },
-                  {
-                    value: "createdAt",
-                    label: "Created date",
-                    Icon: CalendarPlus,
-                  },
-                ]}
-              />
-            )}
             {isAdmin && (
               <Button size="sm" onClick={() => setQuickOpen(true)}>
                 <Plus className="size-4" />
@@ -381,6 +364,9 @@ export function KanbanPage() {
             onDepartment={setDepartmentFilter}
             dateRange={range}
             onDateRange={setRange}
+            dateBasis={
+              isEmployee ? undefined : { value: taskBasis, onChange: setTaskBasis }
+            }
             boardView={boardView}
             onBoardView={setBoardView}
             counts={viewCounts}

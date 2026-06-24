@@ -21,7 +21,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CalendarClock, CalendarPlus } from "lucide-react";
+
 import { DateRangeFilter } from "../common/DateRangeFilter";
+import { DateBasisToggle } from "../common/DateBasisToggle";
 import type { DateRange } from "../../lib/date-range";
 import {
   TASK_PRIORITIES,
@@ -77,6 +80,12 @@ interface KanbanToolbarProps {
 
   dateRange: DateRange;
   onDateRange: (r: DateRange) => void;
+
+  /** Optional Due/Created basis control, rendered beside the date range. */
+  dateBasis?: {
+    value: "dueDate" | "createdAt";
+    onChange: (v: "dueDate" | "createdAt") => void;
+  };
 
   boardView: BoardView;
   onBoardView: (v: BoardView) => void;
@@ -262,6 +271,20 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
           </Select>
         )}
 
+        {props.dateBasis && (
+          <DateBasisToggle
+            value={props.dateBasis.value}
+            onChange={props.dateBasis.onChange}
+            options={[
+              { value: "dueDate", label: "Due date", Icon: CalendarClock },
+              {
+                value: "createdAt",
+                label: "Created date",
+                Icon: CalendarPlus,
+              },
+            ]}
+          />
+        )}
         <DateRangeFilter
           value={props.dateRange}
           onChange={props.onDateRange}
