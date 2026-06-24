@@ -422,6 +422,7 @@ export async function listMyExpenses(
   employeeId: string,
   from?: string,
   to?: string,
+  dateField: "expenseDate" | "submittedAt" = "expenseDate",
 ): Promise<Expense[]> {
   const snapshot = await db
     .collection(EXPENSES_COLLECTION)
@@ -432,7 +433,7 @@ export async function listMyExpenses(
     ...(doc.data() as Omit<ExpenseDocument, "id">),
   }));
   docs.sort((a, b) => tsMillis(b.createdAt) - tsMillis(a.createdAt));
-  return filterByDateWindow(docs, (d) => d.expenseDate, from, to).map(
+  return filterByDateWindow(docs, (d) => d[dateField], from, to).map(
     toPublicExpense,
   );
 }

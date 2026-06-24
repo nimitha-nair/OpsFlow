@@ -44,7 +44,11 @@ export async function deleteExpense(id: string): Promise<void> {
 
 /** GET /expenses/my-expenses (EMPLOYEE) */
 export async function listMyExpenses(
-  params: { from?: string; to?: string } = {},
+  params: {
+    from?: string;
+    to?: string;
+    basis?: "expenseDate" | "submittedAt";
+  } = {},
 ): Promise<Expense[]> {
   const { data } = await api.get<{ data: Expense[] }>("/expenses/my-expenses", { params });
   return data.data;

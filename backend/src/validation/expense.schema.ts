@@ -99,6 +99,14 @@ export const reviewExpensesQuery = z
   })
   .merge(dateRangeQuery);
 
+/** GET /expenses/my-expenses (EMPLOYEE) — date window + optional basis. */
+export const myExpensesQuery = z
+  .object({
+    /** Which date the range filters on — expense (incurred) or submission date. */
+    basis: z.enum(["expenseDate", "submittedAt"]).optional(),
+  })
+  .merge(dateRangeQuery);
+
 /** GET /expenses (ADMIN) — approved expenses, filterable. */
 export const listExpensesQuery = z.object({
   page: pageQuery,

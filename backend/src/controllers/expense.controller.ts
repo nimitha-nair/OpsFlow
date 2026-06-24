@@ -155,11 +155,17 @@ export async function getMyExpenses(
     return res.status(401).json({ error: "Authentication required" });
   }
   try {
-    const { from, to } = (req.valid?.query ?? {}) as {
+    const { from, to, basis } = (req.valid?.query ?? {}) as {
       from?: string;
       to?: string;
+      basis?: "expenseDate" | "submittedAt";
     };
-    const data = await listMyExpenses(req.user.userId, from, to);
+    const data = await listMyExpenses(
+      req.user.userId,
+      from,
+      to,
+      basis ?? "expenseDate",
+    );
     return res.status(200).json({ data });
   } catch (err) {
     return handleError(res, err);

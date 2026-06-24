@@ -15,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ActiveRangeBadge } from "../../components/common/ActiveRangeBadge";
+import { DateBasisToggle } from "../../components/common/DateBasisToggle";
 import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { EmptyState } from "../../components/common/EmptyState";
@@ -72,6 +73,10 @@ export function MyExpensesPage() {
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
+  // Default to submission date so "Today" shows what you submitted today.
+  const [basis, setBasis] = useState<"expenseDate" | "submittedAt">(
+    "submittedAt",
+  );
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
 
@@ -82,7 +87,7 @@ export function MyExpensesPage() {
       setError(null);
       try {
         const [mine, projects] = await Promise.all([
-          listMyExpenses(rangeToParams(range)),
+          listMyExpenses({ ...rangeToParams(range), basis }),
           listMyProjects(),
         ]);
         if (cancelled) return;
@@ -100,7 +105,7 @@ export function MyExpensesPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey, range]);
+  }, [reloadKey, range, basis]);
 
   const projectLabel = useMemo(
     () => (expense: Expense) =>
@@ -177,7 +182,11 @@ export function MyExpensesPage() {
         breadcrumbs={[{ label: "Expenses" }]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <ActiveRangeBadge range={range} />
+            <ActiveRangeBadge
+              range={range}
+              basisLabel={basis === "submittedAt" ? "Submitted" : "Expense date"}
+            />
+            <DateBasisToggle value={basis} onChange={setBasis} />
             <DateRangeFilter value={range} onChange={setRange} />
             <Link
               to="/employee/expenses/new"

@@ -11,6 +11,7 @@ import {
   expenseDocParams,
   expenseProjectParams,
   listExpensesQuery,
+  myExpensesQuery,
   reimbursementBody,
   rejectExpenseBody,
   reviewExpensesQuery,
@@ -65,7 +66,7 @@ router.get(
   "/my-expenses",
   authenticate,
   authorize(UserRole.EMPLOYEE),
-  validate({ query: dateRangeQuery }),
+  validate({ query: myExpensesQuery }),
   getMyExpenses,
 );
 router.get(
