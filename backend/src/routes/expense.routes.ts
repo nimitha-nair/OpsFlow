@@ -4,7 +4,7 @@ import { authenticate } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/rbac.middleware";
 import { uploadReceipts } from "../middleware/upload";
 import { validate } from "../middleware/validate";
-import { idParams } from "../validation/common";
+import { dateRangeQuery, idParams } from "../validation/common";
 import {
   approveExpenseBody,
   createExpenseBody,
@@ -64,12 +64,14 @@ router.get(
   "/my-expenses",
   authenticate,
   authorize(UserRole.EMPLOYEE),
+  validate({ query: dateRangeQuery }),
   getMyExpenses,
 );
 router.get(
   "/pending",
   authenticate,
   authorize(UserRole.HR),
+  validate({ query: dateRangeQuery }),
   getPendingExpenses,
 );
 

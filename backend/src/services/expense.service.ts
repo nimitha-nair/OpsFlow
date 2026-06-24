@@ -404,7 +404,11 @@ export async function removeExpenseDocumentId(
 }
 
 /** Expenses submitted by an employee, newest first (includes drafts). */
-export async function listMyExpenses(employeeId: string): Promise<Expense[]> {
+export async function listMyExpenses(
+  employeeId: string,
+  from?: string,
+  to?: string,
+): Promise<Expense[]> {
   const snapshot = await db
     .collection(EXPENSES_COLLECTION)
     .where("employeeId", "==", employeeId)
@@ -414,15 +418,23 @@ export async function listMyExpenses(employeeId: string): Promise<Expense[]> {
     ...(doc.data() as Omit<ExpenseDocument, "id">),
   }));
   docs.sort((a, b) => tsMillis(b.createdAt) - tsMillis(a.createdAt));
-  return docs.map(toPublicExpense);
+  return filterByDateWindow(docs, (d) => d.expenseDate, from, to).map(
+    toPublicExpense,
+  );
 }
 
 /** Expenses awaiting review (HR). Drafts are excluded. */
-export async function listPendingExpenses(): Promise<Expense[]> {
+export async function listPendingExpenses(
+  from?: string,
+  to?: string,
+): Promise<Expense[]> {
   const all = await getAllExpenseDocs();
-  return all
-    .filter((e) => PENDING_STATUSES.includes(e.approvalStatus))
-    .map(toPublicExpense);
+  const pending = all.filter((e) =>
+    PENDING_STATUSES.includes(e.approvalStatus),
+  );
+  return filterByDateWindow(pending, (e) => e.expenseDate, from, to).map(
+    toPublicExpense,
+  );
 }
 
 /** Approved expenses (ADMIN), filterable + paginated. */

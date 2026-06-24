@@ -154,7 +154,11 @@ export async function getMyExpenses(
     return res.status(401).json({ error: "Authentication required" });
   }
   try {
-    const data = await listMyExpenses(req.user.userId);
+    const { from, to } = (req.valid?.query ?? {}) as {
+      from?: string;
+      to?: string;
+    };
+    const data = await listMyExpenses(req.user.userId, from, to);
     return res.status(200).json({ data });
   } catch (err) {
     return handleError(res, err);
@@ -163,11 +167,15 @@ export async function getMyExpenses(
 
 /** GET /expenses/pending — HR review queue. */
 export async function getPendingExpenses(
-  _req: Request,
+  req: Request,
   res: Response,
 ): Promise<Response> {
   try {
-    const data = await listPendingExpenses();
+    const { from, to } = (req.valid?.query ?? {}) as {
+      from?: string;
+      to?: string;
+    };
+    const data = await listPendingExpenses(from, to);
     return res.status(200).json({ data });
   } catch (err) {
     return handleError(res, err);
