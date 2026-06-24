@@ -208,12 +208,18 @@ export async function getReviewExpenses(
   res: Response,
 ): Promise<Response> {
   try {
-    const { status, from, to } = (req.valid?.query ?? {}) as {
+    const { status, from, to, basis } = (req.valid?.query ?? {}) as {
       status?: ExpenseStatusFilter;
       from?: string;
       to?: string;
+      basis?: "expenseDate" | "submittedAt";
     };
-    const data = await listExpensesByStatus(status ?? "ALL", from, to);
+    const data = await listExpensesByStatus(
+      status ?? "ALL",
+      from,
+      to,
+      basis ?? "expenseDate",
+    );
     return res.status(200).json({ data });
   } catch (err) {
     return handleError(res, err);

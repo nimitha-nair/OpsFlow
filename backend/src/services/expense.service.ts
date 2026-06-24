@@ -139,6 +139,9 @@ function toPublicExpense(expense: ExpenseDocument): Expense {
   if (expense.reviewedAt !== undefined) {
     result.reviewedAt = tsIso(expense.reviewedAt);
   }
+  if (expense.submittedAt !== undefined) {
+    result.submittedAt = tsIso(expense.submittedAt);
+  }
   return result;
 }
 
@@ -214,6 +217,12 @@ export async function createExpense(
     createdAt: now,
     updatedAt: now,
   };
+
+  // Stamp submission time when created directly as submitted (AI-first / manual
+  // non-draft path); drafts get submittedAt later, in submitExpense.
+  if (!input.isDraft) {
+    data.submittedAt = now;
+  }
 
   // Project allocation is optional at creation (deferred to the verify step). When
   // a project IS supplied, validate it; the submit gate enforces presence later.
@@ -323,6 +332,11 @@ export async function submitExpense(
 
   await db.collection(EXPENSES_COLLECTION).doc(id).update({
     approvalStatus: nextStatus,
+    // First submission (DRAFT → SUBMITTED) stamps the submission time, which the
+    // admin queues filter on. Resubmissions (REJECTED → PENDING_REVIEW) keep it.
+    ...(nextStatus === "SUBMITTED"
+      ? { submittedAt: FieldValue.serverTimestamp() }
+      : {}),
     // Clear the prior review outcome from the expense (audit log is preserved).
     reviewRemarks: FieldValue.delete(),
     reviewedById: FieldValue.delete(),
@@ -562,6 +576,7 @@ export async function listExpensesByStatus(
   filter: ExpenseStatusFilter,
   from?: string,
   to?: string,
+  dateField: "expenseDate" | "submittedAt" = "expenseDate",
 ): Promise<Expense[]> {
   const all = (await getAllExpenseDocs()).filter(
     (e) => e.approvalStatus !== "DRAFT",
@@ -572,8 +587,9 @@ export async function listExpensesByStatus(
       : filter === "PENDING"
         ? all.filter((e) => PENDING_STATUSES.includes(e.approvalStatus))
         : all.filter((e) => e.approvalStatus === filter);
-  // Apply the optional inclusive date window (by expenseDate) in memory.
-  const filtered = filterByDateWindow(byStatus, (e) => e.expenseDate, from, to);
+  // Apply the optional inclusive date window over the chosen field in memory:
+  // submittedAt for admin queues, expenseDate for financial views.
+  const filtered = filterByDateWindow(byStatus, (e) => e[dateField], from, to);
   return filtered.map(toPublicExpense);
 }
 

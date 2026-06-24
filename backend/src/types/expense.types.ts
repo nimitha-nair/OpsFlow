@@ -60,6 +60,9 @@ export interface ExpenseDocument {
   reviewedAt?: Timestamp;
   /** When the reimbursement was marked PAID — drives the reimbursements date filter. */
   reimbursedAt?: Timestamp;
+  /** When the expense was first submitted for review; absent for drafts.
+   *  Admin/operational queues window on this; financial reports use expenseDate. */
+  submittedAt?: Timestamp;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -84,6 +87,8 @@ export interface Expense {
   documentIds?: string[];
   /** How the expense was created — drives AI adoption analytics (forward-only). */
   creationMethod?: "AI" | "MANUAL";
+  /** When the expense was first submitted for review (ISO); absent for drafts. */
+  submittedAt?: string;
   reviewRemarks?: string;
   reviewedById?: string;
   reviewedByName?: string;

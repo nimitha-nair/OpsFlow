@@ -94,6 +94,8 @@ export const reimbursementBody = z
 export const reviewExpensesQuery = z
   .object({
     status: z.enum(["PENDING", "APPROVED", "REJECTED", "ALL"]).optional(),
+    /** Which date the range filters on — submitted (admin queues) or incurred. */
+    basis: z.enum(["expenseDate", "submittedAt"]).optional(),
   })
   .merge(dateRangeQuery);
 
