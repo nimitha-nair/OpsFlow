@@ -19,6 +19,10 @@ const ADMIN_USER = {
 function seedAuth() {
   localStorage.setItem("opsflow_token", "test.jwt.token");
   localStorage.setItem("opsflow_user", JSON.stringify(ADMIN_USER));
+  localStorage.setItem(
+    "opsflow.search.recent.u1",
+    JSON.stringify([{ entity: "task", id: "t1", title: "Secret task" }]),
+  );
 }
 
 function renderAppAt(path: string) {
@@ -69,6 +73,8 @@ describe("logout flow", () => {
     // localStorage keys removed.
     expect(localStorage.getItem("opsflow_token")).toBeNull();
     expect(localStorage.getItem("opsflow_user")).toBeNull();
+    // Recent-search history must be purged on logout (privacy).
+    expect(localStorage.getItem("opsflow.search.recent.u1")).toBeNull();
   });
 
   it("after logout, directly visiting /admin redirects to /login", () => {

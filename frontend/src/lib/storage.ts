@@ -1,4 +1,5 @@
 import type { AuthUser } from "../types/auth";
+import { clearRecentSearches } from "./recent-search";
 
 // Keys under which the JWT and user are persisted in localStorage.
 const TOKEN_KEY = "opsflow_token";
@@ -29,4 +30,5 @@ export function persistAuth(token: string, user: AuthUser): void {
 export function clearAuth(): void {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  clearRecentSearches();
 }
