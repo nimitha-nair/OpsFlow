@@ -74,5 +74,6 @@ export const listTasksQuery = z
     status: statusSchema.optional(),
     priority: prioritySchema.optional(),
     assigneeId: firestoreId.optional(),
+    version: z.string().trim().max(40).optional(),
   })
   .merge(dateRangeQuery);

@@ -34,6 +34,7 @@ import { MyProjectsPage } from "./pages/projects/MyProjectsPage";
 import { ProjectDetailsPage } from "./pages/projects/ProjectDetailsPage";
 import { ProjectListPage } from "./pages/projects/ProjectListPage";
 import { ProjectViewPage } from "./pages/projects/ProjectViewPage";
+import { AdminTasksPage } from "./pages/tasks/AdminTasksPage";
 import { MyTasksPage } from "./pages/tasks/MyTasksPage";
 import { CreateUserPage } from "./pages/users/CreateUserPage";
 import { EditUserPage } from "./pages/users/EditUserPage";
@@ -85,6 +86,7 @@ function App() {
         <Route path="projects/:id" element={<ProjectDetailsPage />} />
         <Route path="projects/:id/edit" element={<EditProjectPage />} />
         <Route path="kanban" element={<KanbanPage />} />
+        <Route path="tasks" element={<AdminTasksPage />} />
         <Route path="expenses" element={<ExpensesOverviewPage />} />
         <Route path="expenses/projects" element={<ProjectExpensesPage />} />
         <Route

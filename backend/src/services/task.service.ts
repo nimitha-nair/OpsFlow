@@ -46,6 +46,7 @@ export interface ListTasksParams {
   assigneeId?: string;
   from?: string;
   to?: string;
+  version?: string;
 }
 
 export interface PaginatedTasks {
@@ -190,6 +191,9 @@ export async function listTasks(
     tasks = tasks.filter((t) => t.assigneeId === params.assigneeId);
   }
   tasks = filterByDateWindow(tasks, (t) => t.dueDate, params.from, params.to);
+  if (params.version !== undefined) {
+    tasks = tasks.filter((t) => t.version === params.version);
+  }
 
   const total = tasks.length;
   const totalPages = total === 0 ? 0 : Math.ceil(total / params.limit);

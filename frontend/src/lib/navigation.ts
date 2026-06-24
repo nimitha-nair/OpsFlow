@@ -39,6 +39,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "User Management", icon: Users, to: "/admin/users" },
     { label: "Projects", icon: Briefcase, to: "/admin/projects" },
     { label: "Kanban", icon: SquareKanban, to: "/admin/kanban" },
+    { label: "Tasks", icon: ClipboardList, to: "/admin/tasks" },
     { label: "Expenses", icon: Wallet, to: "/admin/expenses" },
     {
       label: "Reimbursements",

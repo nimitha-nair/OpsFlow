@@ -49,6 +49,7 @@ export interface ListTasksParams {
   limit?: number;
   from?: string;
   to?: string;
+  version?: string;
 }
 
 export interface CreateTaskPayload {
