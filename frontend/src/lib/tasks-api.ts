@@ -18,8 +18,10 @@ export async function listTasks(
 }
 
 /** GET /tasks/my-tasks — tasks assigned to the authenticated user. */
-export async function listMyTasks(): Promise<Task[]> {
-  const { data } = await api.get<{ data: Task[] }>("/tasks/my-tasks");
+export async function listMyTasks(
+  params?: { from?: string; to?: string },
+): Promise<Task[]> {
+  const { data } = await api.get<{ data: Task[] }>("/tasks/my-tasks", { params });
   return data.data;
 }
 

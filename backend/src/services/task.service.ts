@@ -2,6 +2,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { db } from "../config/firebase";
 import { ApiError } from "../utils/errors";
+import { filterByDateWindow } from "../utils/date-window";
 import type {
   Task,
   TaskDocument,
@@ -43,6 +44,8 @@ export interface ListTasksParams {
   status?: TaskStatus;
   priority?: TaskPriority;
   assigneeId?: string;
+  from?: string;
+  to?: string;
 }
 
 export interface PaginatedTasks {
@@ -186,6 +189,7 @@ export async function listTasks(
   if (params.assigneeId !== undefined) {
     tasks = tasks.filter((t) => t.assigneeId === params.assigneeId);
   }
+  tasks = filterByDateWindow(tasks, (t) => t.dueDate, params.from, params.to);
 
   const total = tasks.length;
   const totalPages = total === 0 ? 0 : Math.ceil(total / params.limit);
@@ -203,20 +207,25 @@ export async function listTasks(
   };
 }
 
-/** All tasks assigned to a user (newest first). */
-export async function listTasksForAssignee(userId: string): Promise<Task[]> {
+/** All tasks assigned to a user (newest first), optionally filtered by dueDate window. */
+export async function listTasksForAssignee(
+  userId: string,
+  from?: string,
+  to?: string,
+): Promise<Task[]> {
   const snapshot = await db
     .collection(TASKS_COLLECTION)
     .where("assigneeId", "==", userId)
     .get();
 
-  const tasks: TaskDocument[] = snapshot.docs.map((doc) => ({
+  let tasks: TaskDocument[] = snapshot.docs.map((doc) => ({
     id: doc.id,
     ...(doc.data() as Omit<TaskDocument, "id">),
   }));
   tasks.sort(
     (a, b) => timestampToMillis(b.createdAt) - timestampToMillis(a.createdAt),
   );
+  tasks = filterByDateWindow(tasks, (t) => t.dueDate, from, to);
   return tasks.map(toPublicTask);
 }
 

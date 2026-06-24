@@ -72,7 +72,8 @@ export async function getMyTasks(
     return res.status(401).json({ error: "Authentication required" });
   }
   try {
-    const tasks = await listTasksForAssignee(req.user.userId);
+    const { from, to } = (req.valid?.query ?? {}) as { from?: string; to?: string };
+    const tasks = await listTasksForAssignee(req.user.userId, from, to);
     return res.status(200).json({ data: tasks });
   } catch (err) {
     return handleError(res, err);

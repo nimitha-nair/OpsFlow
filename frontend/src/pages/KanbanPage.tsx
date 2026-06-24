@@ -8,6 +8,7 @@ import { EmptyState } from "../components/common/EmptyState";
 import { ErrorState } from "../components/common/ErrorState";
 import { LoadingState } from "../components/common/LoadingState";
 import { PageHeader } from "../components/layout/PageHeader";
+import { ActiveRangeBadge } from "../components/common/ActiveRangeBadge";
 import { CalendarView } from "../components/kanban/CalendarView";
 import { KanbanBoard } from "../components/kanban/KanbanBoard";
 import { KanbanMobileList } from "../components/kanban/KanbanMobileList";
@@ -24,7 +25,7 @@ import {
   type AssigneeOption,
 } from "../components/tasks/TaskFormDialog";
 import { listProjectMembers } from "../lib/project-members-api";
-import { filterByDate, makeRange, type DateRange } from "../lib/date-range";
+import { makeRange, rangeToParams, type DateRange } from "../lib/date-range";
 import { fuzzyMatchAny } from "../lib/fuzzy";
 import { useAuth } from "../context/auth-context";
 import { listMyProjects, listProjects } from "../lib/projects-api";
@@ -92,8 +93,11 @@ export function KanbanPage() {
       setLoading(true);
       setError(null);
       try {
+        const dateParams = rangeToParams(range);
         const [taskList, projectList] = await Promise.all([
-          self.role === "EMPLOYEE" ? listMyTasks() : listTasks({ limit: 100 }),
+          self.role === "EMPLOYEE"
+            ? listMyTasks(dateParams)
+            : listTasks({ limit: 100, ...dateParams }),
           self.role === "EMPLOYEE"
             ? listMyProjects()
             : listProjects({ limit: 100 }).then((r) => r.data),
@@ -127,7 +131,7 @@ export function KanbanPage() {
     return () => {
       cancelled = true;
     };
-  }, [user, reloadKey]);
+  }, [user, reloadKey, range]);
 
   const projectNames = useMemo(
     () => new Map(projects.map((p) => [p.id, p.name])),
@@ -187,7 +191,6 @@ export function KanbanPage() {
     if (priority !== "all") list = list.filter((t) => t.priority === priority);
     if (statusFilter !== "all") list = list.filter((t) => t.status === statusFilter);
     if (versionFilter !== "all") list = list.filter((t) => t.version === versionFilter);
-    list = filterByDate(list, (t) => t.dueDate, range);
     const q = search.trim();
     if (q) {
       // Fuzzy search across title, assignee, project, status, and version.
@@ -211,7 +214,6 @@ export function KanbanPage() {
     statusFilter,
     versionFilter,
     search,
-    range,
     getAssigneeName,
     getProjectName,
   ]);
@@ -304,12 +306,15 @@ export function KanbanPage() {
         }
         breadcrumbs={[{ label: "Kanban" }]}
         actions={
-          isAdmin ? (
-            <Button size="sm" onClick={() => setQuickOpen(true)}>
-              <Plus className="size-4" />
-              New Task
-            </Button>
-          ) : undefined
+          <div className="flex items-center gap-2">
+            <ActiveRangeBadge range={range} />
+            {isAdmin && (
+              <Button size="sm" onClick={() => setQuickOpen(true)}>
+                <Plus className="size-4" />
+                New Task
+              </Button>
+            )}
+          </div>
         }
       />
 

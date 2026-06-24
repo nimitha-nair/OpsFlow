@@ -18,13 +18,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ActiveRangeBadge } from "../../components/common/ActiveRangeBadge";
 import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { DueDate } from "../../components/tasks/DueDate";
-import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
+import { makeRange, rangeToParams, type DateRange } from "../../lib/date-range";
 import { TaskPriorityBadge } from "../../components/tasks/TaskBadges";
 import { TaskStatusControl } from "../../components/tasks/TaskStatusControl";
 import { listMyProjects } from "../../lib/projects-api";
@@ -62,7 +63,7 @@ export function MyTasksPage() {
       setError(null);
       try {
         const [myTasks, myProjects] = await Promise.all([
-          listMyTasks(),
+          listMyTasks(rangeToParams(range)),
           listMyProjects(),
         ]);
         if (cancelled) return;
@@ -79,7 +80,7 @@ export function MyTasksPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [reloadKey, range]);
 
   async function handleStatusChange(
     taskId: string,
@@ -114,7 +115,6 @@ export function MyTasksPage() {
     let list = [...tasks];
     if (statusFilter !== "all") list = list.filter((t) => t.status === statusFilter);
     if (versionFilter !== "all") list = list.filter((t) => t.version === versionFilter);
-    list = filterByDate(list, (t) => t.dueDate, range);
     const priorityRank: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
     list.sort((a, b) => {
       if (sortBy === "version")
@@ -124,7 +124,7 @@ export function MyTasksPage() {
       return a.dueDate.localeCompare(b.dueDate);
     });
     return list;
-  }, [tasks, range, statusFilter, versionFilter, sortBy]);
+  }, [tasks, statusFilter, versionFilter, sortBy]);
 
   return (
     <>
@@ -137,6 +137,7 @@ export function MyTasksPage() {
         ]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <ActiveRangeBadge range={range} />
             <Select
               value={statusFilter}
               onValueChange={(v) => setStatusFilter((v ?? "all") as TaskStatus | "all")}

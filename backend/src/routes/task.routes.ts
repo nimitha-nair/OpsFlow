@@ -3,7 +3,7 @@ import { Router } from "express";
 import { authenticate } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/rbac.middleware";
 import { validate } from "../middleware/validate";
-import { idParams } from "../validation/common";
+import { dateRangeQuery, idParams } from "../validation/common";
 import {
   createTaskBody,
   listTasksQuery,
@@ -65,6 +65,7 @@ router.get(
   "/my-tasks",
   authenticate,
   authorize(UserRole.ADMIN, UserRole.HR, UserRole.EMPLOYEE),
+  validate({ query: dateRangeQuery }),
   getMyTasks,
 );
 

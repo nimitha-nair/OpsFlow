@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  dateRangeQuery,
   dateString,
   firestoreId,
   limitQuery,
@@ -65,11 +66,13 @@ export const taskStatusBody = z
   });
 
 /** GET /tasks */
-export const listTasksQuery = z.object({
-  page: pageQuery,
-  limit: limitQuery,
-  projectId: firestoreId.optional(),
-  status: statusSchema.optional(),
-  priority: prioritySchema.optional(),
-  assigneeId: firestoreId.optional(),
-});
+export const listTasksQuery = z
+  .object({
+    page: pageQuery,
+    limit: limitQuery,
+    projectId: firestoreId.optional(),
+    status: statusSchema.optional(),
+    priority: prioritySchema.optional(),
+    assigneeId: firestoreId.optional(),
+  })
+  .merge(dateRangeQuery);

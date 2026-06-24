@@ -47,6 +47,8 @@ export interface ListTasksParams {
   assigneeId?: string;
   page?: number;
   limit?: number;
+  from?: string;
+  to?: string;
 }
 
 export interface CreateTaskPayload {
