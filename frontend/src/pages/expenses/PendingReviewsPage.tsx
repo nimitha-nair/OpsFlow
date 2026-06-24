@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ActiveRangeBadge } from "../../components/common/ActiveRangeBadge";
+import { DateBasisToggle } from "../../components/common/DateBasisToggle";
 import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
@@ -58,6 +59,7 @@ export function PendingReviewsPage() {
   const [category, setCategory] = useState<ExpenseCategory | "ALL">("ALL");
   const [method, setMethod] = useState<"ALL" | "AI" | "MANUAL">("ALL");
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
+  const [basis, setBasis] = useState<"expenseDate" | "submittedAt">("submittedAt");
 
   useEffect(() => {
     let cancelled = false;
@@ -66,7 +68,7 @@ export function PendingReviewsPage() {
       setError(null);
       try {
         const [all, users, projects] = await Promise.all([
-          listReviewExpenses("ALL", rangeToParams(range)),
+          listReviewExpenses("ALL", { ...rangeToParams(range), basis }),
           listUsers({ limit: 100 }),
           listProjects({ limit: 100 }),
         ]);
@@ -84,7 +86,7 @@ export function PendingReviewsPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey, range]);
+  }, [reloadKey, range, basis]);
 
   const getEmployeeName = useMemo(
     () => (id: string) => userNames.get(id) ?? "Unknown",
@@ -134,7 +136,11 @@ export function PendingReviewsPage() {
         breadcrumbs={[{ label: "Expenses" }]}
         actions={
           <div className="flex items-center gap-2">
-            <ActiveRangeBadge range={range} />
+            <ActiveRangeBadge
+              range={range}
+              basisLabel={basis === "submittedAt" ? "Submitted" : "Expense date"}
+            />
+            <DateBasisToggle value={basis} onChange={setBasis} />
             <DateRangeFilter value={range} onChange={setRange} />
           </div>
         }

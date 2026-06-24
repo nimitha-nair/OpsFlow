@@ -77,6 +77,7 @@ const REPORTED_STATUSES: ApprovalStatus[] = [
 export async function getOverviewReport(
   from?: string,
   to?: string,
+  dateField: "expenseDate" | "submittedAt" = "expenseDate",
 ): Promise<OverviewReport> {
   const snap = await db.collection(EXPENSES_COLLECTION).get();
   const allRows = snap.docs.map(
@@ -85,10 +86,16 @@ export async function getOverviewReport(
         approvalStatus?: string;
         amount?: number;
         expenseDate?: string;
+        submittedAt?: unknown;
       },
   );
   // Apply the optional date window in memory (no composite index needed).
-  const rows = filterByDateWindow(allRows, (r) => r.expenseDate, from, to);
+  const rows = filterByDateWindow(
+    allRows,
+    (r) => (dateField === "submittedAt" ? r.submittedAt : r.expenseDate),
+    from,
+    to,
+  );
   return {
     generatedAt: new Date().toISOString(),
     currency: "INR",
@@ -101,14 +108,15 @@ export async function getOverviewReport(
  * category, monthly trend, and project-vs-general split — APPROVED expenses only.
  *
  * Uses a single-field query (`approvalStatus == APPROVED`, auto-indexed) and
- * filters the trailing-window by `expenseDate` in memory. This deliberately
- * avoids the composite index (approvalStatus, expenseDate), so the report works
- * regardless of index deployment (it threw FAILED_PRECONDITION otherwise). The
- * three breakdowns are computed in memory from the result set.
+ * filters the trailing-window by `expenseDate` (or `submittedAt`) in memory.
+ * This deliberately avoids the composite index (approvalStatus, expenseDate), so
+ * the report works regardless of index deployment. The three breakdowns are
+ * computed in memory from the result set.
  */
 export async function getExpensesReport(
   from?: string,
   to?: string,
+  dateField: "expenseDate" | "submittedAt" = "expenseDate",
 ): Promise<ExpensesReport> {
   const now = new Date();
   // The window drives both the filter and the monthly-trend bucket count.
@@ -120,12 +128,13 @@ export async function getExpensesReport(
     .where("approvalStatus", "==", "APPROVED")
     .get();
 
-  const allRows: ApprovedExpenseRow[] = snap.docs.map((d) => {
+  const allRows: (ApprovedExpenseRow & { submittedAt?: unknown })[] = snap.docs.map((d) => {
     const x = d.data() as {
       category?: string;
       amount?: number;
       scope?: string;
       expenseDate?: string;
+      submittedAt?: unknown;
     };
     return {
       category: typeof x.category === "string" ? x.category : "MISCELLANEOUS",
@@ -133,11 +142,19 @@ export async function getExpensesReport(
       scope: x.scope === "GENERAL" ? "GENERAL" : "PROJECT",
       expenseDate:
         typeof x.expenseDate === "string" ? x.expenseDate : fallbackDate,
-    } as ApprovedExpenseRow;
+      submittedAt: x.submittedAt,
+    };
   });
 
   // Apply the optional date window in memory (avoids a composite-index range query).
-  const rows = filterByDateWindow(allRows, (r) => r.expenseDate, from, to);
+  // When basis is submittedAt, window by that field; the monthly-trend still keys
+  // by expenseDate (only the inclusion window changes).
+  const rows = filterByDateWindow(
+    allRows,
+    (r) => (dateField === "submittedAt" ? r.submittedAt : r.expenseDate),
+    from,
+    to,
+  );
 
   return {
     range: { from: from ?? null, to: to ?? null },
@@ -156,6 +173,7 @@ export async function getExpensesReport(
 export async function getProjectsReport(
   from?: string,
   to?: string,
+  dateField: "expenseDate" | "submittedAt" = "expenseDate",
 ): Promise<ProjectsReport> {
   const [projectsPage, approvedSnap] = await Promise.all([
     listProjects({ page: 1, limit: 100000 }),
@@ -169,7 +187,7 @@ export async function getProjectsReport(
   // Apply the optional date window in memory before aggregating.
   const approvedDocs = filterByDateWindow(
     approvedSnap.docs.map((d) => d.data() as Record<string, unknown>),
-    (x) => x.expenseDate,
+    (x) => (dateField === "submittedAt" ? x.submittedAt : x.expenseDate),
     from,
     to,
   );

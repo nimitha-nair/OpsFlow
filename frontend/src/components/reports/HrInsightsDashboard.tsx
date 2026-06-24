@@ -50,6 +50,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { ExpensesTab } from "./ExpensesTab";
 import { formatCompactMoney, formatMoney } from "../../lib/format";
+import { DateBasisToggle } from "../common/DateBasisToggle";
 import { DateRangeFilter } from "../common/DateRangeFilter";
 import { makeRange, rangeToParams, rangeSlug, type DateRange } from "../../lib/date-range";
 import { ActiveRangeBadge } from "../common/ActiveRangeBadge";
@@ -97,6 +98,7 @@ export function HrInsightsDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState("workforce");
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
+  const [basis, setBasis] = useState<"expenseDate" | "submittedAt">("expenseDate");
   const panelsRef = useRef<HTMLDivElement>(null);
 
   const panelNode = (id: string) =>
@@ -109,17 +111,17 @@ export function HrInsightsDashboard() {
   const exportAll = () => printElement(panelsRef.current, "opsflow-hr-report", revealAll);
 
   const load = useCallback(async (signal?: { cancelled: boolean }) => {
-    const params = rangeToParams(range);
+    const params = { ...rangeToParams(range), basis };
     const [overview, records, usersResp, ai] = await Promise.all([
       getReportsOverview(params),
       listReviewExpenses("ALL", params),
       listUsers({ limit: 1000 }),
-      getReportsAiAnalytics(params).catch(() => null),
+      getReportsAiAnalytics(rangeToParams(range)).catch(() => null),
     ]);
     if (signal?.cancelled) return;
     setData({ overview, records, users: usersResp.data, ai });
     setError(null);
-  }, [range]);
+  }, [range, basis]);
 
   useEffect(() => {
     const signal = { cancelled: false };
@@ -153,7 +155,11 @@ export function HrInsightsDashboard() {
         actions={
           !loading && !error && data ? (
             <div className="no-print flex flex-wrap items-center gap-2">
-              <ActiveRangeBadge range={range} />
+              <ActiveRangeBadge
+                range={range}
+                basisLabel={basis === "submittedAt" ? "Submitted" : "Expense date"}
+              />
+              <DateBasisToggle value={basis} onChange={setBasis} />
               <DateRangeFilter value={range} onChange={setRange} />
               <Button variant="outline" size="sm" onClick={onRefresh} disabled={refreshing}>
                 <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />

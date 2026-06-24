@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ActiveRangeBadge } from "../../components/common/ActiveRangeBadge";
+import { DateBasisToggle } from "../../components/common/DateBasisToggle";
 import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
@@ -63,6 +64,7 @@ export function ExpensesOverviewPage() {
   const [projectId, setProjectId] = useState<string>("ALL");
   const [search, setSearch] = useState("");
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
+  const [basis, setBasis] = useState<"expenseDate" | "submittedAt">("submittedAt");
 
   useEffect(() => {
     let cancelled = false;
@@ -71,7 +73,7 @@ export function ExpensesOverviewPage() {
       setError(null);
       try {
         const [all, users, projs] = await Promise.all([
-          listReviewExpenses("ALL", rangeToParams(range)),
+          listReviewExpenses("ALL", { ...rangeToParams(range), basis }),
           listUsers({ limit: 100 }),
           listProjects({ limit: 100 }),
         ]);
@@ -89,7 +91,7 @@ export function ExpensesOverviewPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey, range]);
+  }, [reloadKey, range, basis]);
 
   const getEmployeeName = useMemo(
     () => (id: string) => userNames.get(id) ?? "Unknown",
@@ -240,7 +242,11 @@ export function ExpensesOverviewPage() {
                 ))}
               </SelectContent>
             </Select>
-            <ActiveRangeBadge range={range} />
+            <ActiveRangeBadge
+              range={range}
+              basisLabel={basis === "submittedAt" ? "Submitted" : "Expense date"}
+            />
+            <DateBasisToggle value={basis} onChange={setBasis} />
             <DateRangeFilter value={range} onChange={setRange} />
           </div>
 

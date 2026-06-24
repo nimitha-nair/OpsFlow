@@ -4,14 +4,19 @@ import { cn } from "@/lib/utils";
 import { rangeLabel, type DateRange } from "@/lib/date-range";
 
 /** Always-visible label of the active date range, shown near a page title and
- *  in export headers so users always know the scope of what they're viewing. */
+ *  in export headers so users always know the scope of what they're viewing.
+ *  Optional `basisLabel` prefixes the range text, e.g. "Submitted · Last 30 days". */
 export function ActiveRangeBadge({
   range,
+  basisLabel,
   className,
 }: {
   range: DateRange;
+  /** When present, prefixes the rendered text with "<basisLabel> · ". */
+  basisLabel?: string;
   className?: string;
 }) {
+  const label = basisLabel ? `${basisLabel} · ${rangeLabel(range)}` : rangeLabel(range);
   return (
     <span
       data-testid="active-range-badge"
@@ -21,7 +26,7 @@ export function ActiveRangeBadge({
       )}
     >
       <CalendarRange className="size-3.5" />
-      {rangeLabel(range)}
+      {label}
     </span>
   );
 }

@@ -43,6 +43,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { DateBasisToggle } from "../common/DateBasisToggle";
 import { DateRangeFilter } from "../common/DateRangeFilter";
 import { makeRange, rangeToParams, rangeSlug, type DateRange } from "../../lib/date-range";
 import { ActiveRangeBadge } from "../common/ActiveRangeBadge";
@@ -117,6 +118,7 @@ interface LoadedData {
 
 export function ReportsWorkspace() {
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
+  const [basis, setBasis] = useState<"expenseDate" | "submittedAt">("expenseDate");
   const [data, setData] = useState<LoadedData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -135,7 +137,7 @@ export function ReportsWorkspace() {
   const exportAll = () => printElement(panelsRef.current, "opsflow-full-report", revealAll);
 
   const load = useCallback(async (signal?: { cancelled: boolean }) => {
-    const params = rangeToParams(range);
+    const params = { ...rangeToParams(range), basis };
     const [overview, records, usersResp, projects] = await Promise.all([
       getReportsOverview(params),
       listReviewExpenses("ALL", params),
@@ -145,7 +147,7 @@ export function ReportsWorkspace() {
     if (signal?.cancelled) return;
     setData({ overview, projects, records, users: usersResp.data });
     setError(null);
-  }, [range]);
+  }, [range, basis]);
 
   useEffect(() => {
     const signal = { cancelled: false };
@@ -178,7 +180,11 @@ export function ReportsWorkspace() {
         breadcrumbs={[{ label: "Reports" }]}
         actions={
           <div className="no-print flex flex-wrap items-center gap-2">
-            <ActiveRangeBadge range={range} />
+            <ActiveRangeBadge
+              range={range}
+              basisLabel={basis === "submittedAt" ? "Submitted" : "Expense date"}
+            />
+            <DateBasisToggle value={basis} onChange={setBasis} />
             <DateRangeFilter value={range} onChange={setRange} />
             <Button variant="outline" size="sm" onClick={onRefresh} disabled={refreshing}>
               <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />

@@ -61,7 +61,7 @@ export async function listPendingExpenses(
 /** GET /expenses/review?status= (HR/ADMIN) — lifecycle list by status group. */
 export async function listReviewExpenses(
   status: ExpenseStatusFilter = "ALL",
-  params: { from?: string; to?: string } = {},
+  params: { from?: string; to?: string; basis?: "expenseDate" | "submittedAt" } = {},
 ): Promise<Expense[]> {
   const { data } = await api.get<{ data: Expense[] }>("/expenses/review", {
     params: { status, ...params },
