@@ -110,7 +110,7 @@ export function AdminTasksPage() {
           />
         )}
         {tab === "list" && (
-          <ListTab reloadKey={reloadKey} onCreated={() => setReloadKey((k) => k + 1)} />
+          <ListTab reloadKey={reloadKey} />
         )}
         {tab === "analytics" && <AnalyticsTab />}
       </div>
@@ -435,7 +435,6 @@ function AnalyticsTab() {
 
 interface ListTabProps {
   reloadKey: number;
-  onCreated: () => void;
 }
 
 function ListTab({ reloadKey }: ListTabProps) {

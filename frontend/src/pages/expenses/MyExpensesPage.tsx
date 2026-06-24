@@ -205,8 +205,12 @@ export function MyExpensesPage() {
           <div className="p-6">
             <EmptyState
               icon={Wallet}
-              title="No expenses yet"
-              description="Submit your first expense to get started."
+              title={range.preset !== "all" ? "No expenses in range" : "No expenses yet"}
+              description={
+                range.preset !== "all"
+                  ? "No expenses match the selected date range. Try widening the range or switching to All time."
+                  : "Submit your first expense to get started."
+              }
             />
           </div>
         ) : (

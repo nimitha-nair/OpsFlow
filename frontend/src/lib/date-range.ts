@@ -135,20 +135,36 @@ export function rangeToMonths(range: DateRange): number {
 /**
  * Convert a trailing month count to inclusive ISO query params for the backend.
  * Returns a closed {from, to} window of `months` whole months ending today.
+ * Bounds are snapped to UTC day-edges so YYYY-MM-DD backend fields compare
+ * whole-day-inclusively regardless of client timezone offset.
  */
 export function monthsToParams(months: number): { from: string; to: string } {
+  const f = new Date(startOfTodayMinusMonths(months));
+  const t = new Date(endOfToday());
   return {
-    from: new Date(startOfTodayMinusMonths(months)).toISOString(),
-    to: new Date(endOfToday()).toISOString(),
+    from: new Date(Date.UTC(f.getFullYear(), f.getMonth(), f.getDate(), 0, 0, 0, 0)).toISOString(),
+    to: new Date(Date.UTC(t.getFullYear(), t.getMonth(), t.getDate(), 23, 59, 59, 999)).toISOString(),
   };
 }
 
 /** Convert a resolved range to inclusive ISO query params for the backend.
- *  Unbounded sides are omitted so "all time" sends no params. */
+ *  Unbounded sides are omitted so "all time" sends no params.
+ *  Bounds are snapped to UTC day-edges so YYYY-MM-DD backend fields compare
+ *  whole-day-inclusively regardless of client timezone offset. */
 export function rangeToParams(range: DateRange): { from?: string; to?: string } {
   const out: { from?: string; to?: string } = {};
-  if (range.fromMs != null) out.from = new Date(range.fromMs).toISOString();
-  if (range.toMs != null) out.to = new Date(range.toMs).toISOString();
+  if (range.fromMs != null) {
+    const d = new Date(range.fromMs);
+    out.from = new Date(
+      Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0),
+    ).toISOString();
+  }
+  if (range.toMs != null) {
+    const d = new Date(range.toMs);
+    out.to = new Date(
+      Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999),
+    ).toISOString();
+  }
   return out;
 }
 

@@ -130,11 +130,18 @@ describe("rangeToParams", () => {
     expect(rangeToParams(makeRange("all"))).toEqual({});
   });
 
-  it("emits ISO from/to for a bounded custom range", () => {
+  it("emits UTC day-edge ISO from/to for a bounded custom range", () => {
     const r = makeRange("custom", "2026-01-01", "2026-03-31");
     const p = rangeToParams(r);
-    expect(p.from).toBe(new Date(r.fromMs as number).toISOString());
-    expect(p.to).toBe(new Date(r.toMs as number).toISOString());
+    expect(p.from).toBe("2026-01-01T00:00:00.000Z");
+    expect(p.to).toBe("2026-03-31T23:59:59.999Z");
+  });
+
+  it("output always ends in Z (UTC) for a bounded range", () => {
+    const r = makeRange("custom", "2026-01-01", "2026-03-31");
+    const p = rangeToParams(r);
+    expect(p.from).toMatch(/Z$/);
+    expect(p.to).toMatch(/Z$/);
   });
 
   it("omits the missing bound of a half-open custom range", () => {

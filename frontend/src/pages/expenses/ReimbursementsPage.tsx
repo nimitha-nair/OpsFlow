@@ -151,8 +151,12 @@ export function ReimbursementsPage() {
         <Card className="p-6">
           <EmptyState
             icon={Wallet}
-            title="No approved expenses"
-            description="Approved expenses awaiting reimbursement will appear here."
+            title={range.preset !== "all" ? "No reimbursements in range" : "No approved expenses"}
+            description={
+              range.preset !== "all"
+                ? "No approved expenses match the selected date range. Try widening the range or switching to All time."
+                : "Approved expenses awaiting reimbursement will appear here."
+            }
           />
         </Card>
       ) : (
