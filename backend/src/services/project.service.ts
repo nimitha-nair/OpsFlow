@@ -2,6 +2,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { db } from "../config/firebase";
 import { ApiError } from "../utils/errors";
+import { filterByDateWindow } from "../utils/date-window";
 import { generateCode } from "./code-generator";
 import type {
   Project,
@@ -37,6 +38,8 @@ export interface ListProjectsParams {
   limit: number;
   search?: string;
   status?: ProjectStatus;
+  from?: string;
+  to?: string;
 }
 
 export interface PaginatedProjects {
@@ -163,6 +166,13 @@ export async function listProjects(
         p.clientName.toLowerCase().includes(needle),
     );
   }
+
+  projects = filterByDateWindow(
+    projects,
+    (p) => p.createdAt,
+    params.from,
+    params.to,
+  );
 
   const total = projects.length;
   const totalPages = total === 0 ? 0 : Math.ceil(total / params.limit);

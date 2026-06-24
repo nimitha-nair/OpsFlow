@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  dateRangeQuery,
   dateString,
   limitQuery,
   optionalSearch,
@@ -48,12 +49,14 @@ export const updateProjectBody = z
   );
 
 /** GET /projects */
-export const listProjectsQuery = z.object({
-  page: pageQuery,
-  limit: limitQuery,
-  search: optionalSearch,
-  status: projectStatusSchema.optional(),
-});
+export const listProjectsQuery = z
+  .object({
+    page: pageQuery,
+    limit: limitQuery,
+    search: optionalSearch,
+    status: projectStatusSchema.optional(),
+  })
+  .merge(dateRangeQuery);
 
 export type CreateProjectInput = z.infer<typeof createProjectBody>;
 export type UpdateProjectInput = z.infer<typeof updateProjectBody>;

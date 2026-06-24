@@ -44,6 +44,8 @@ export interface ListProjectsParams {
   limit?: number;
   search?: string;
   status?: ProjectStatus;
+  from?: string;
+  to?: string;
 }
 
 export interface CreateProjectPayload {

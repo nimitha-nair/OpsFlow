@@ -14,13 +14,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { ActiveRangeBadge } from "../../components/common/ActiveRangeBadge";
 import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { ProjectStatusBadge } from "../../components/projects/ProjectStatusBadge";
-import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
+import { makeRange, rangeToParams, type DateRange } from "../../lib/date-range";
 import { formatCurrency, formatDate } from "../../lib/format";
 import { apiErrorMessage, listProjects } from "../../lib/projects-api";
 import type { Project } from "../../types/project";
@@ -40,7 +41,7 @@ export function ProjectListPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await listProjects({ limit: 100 });
+        const res = await listProjects({ limit: 100, ...rangeToParams(range) });
         if (!cancelled) setProjects(res.data);
       } catch (err) {
         if (!cancelled) {
@@ -55,18 +56,17 @@ export function ProjectListPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [reloadKey, range]);
 
   const filtered = useMemo(() => {
-    const dated = filterByDate(projects, (p) => p.startDate, range);
     const q = search.trim().toLowerCase();
-    if (!q) return dated;
-    return dated.filter(
+    if (!q) return projects;
+    return projects.filter(
       (p) =>
         p.name.toLowerCase().includes(q) ||
         p.clientName.toLowerCase().includes(q),
     );
-  }, [projects, search, range]);
+  }, [projects, search]);
 
   const reload = () => setReloadKey((k) => k + 1);
 
@@ -95,6 +95,7 @@ export function ProjectListPage() {
           className="max-w-xs"
         />
         <DateRangeFilter value={range} onChange={setRange} />
+        <ActiveRangeBadge range={range} />
         <Button
           variant="outline"
           size="icon"
