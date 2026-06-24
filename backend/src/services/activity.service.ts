@@ -1,6 +1,7 @@
 import { Timestamp } from "firebase-admin/firestore";
 
 import { db } from "../config/firebase";
+import { filterByDateWindow } from "../utils/date-window";
 import type { ActivityEntity, ActivityEvent } from "../types/activity.types";
 
 /** ISO string for a Firestore Timestamp; epoch for anything unexpected. */
@@ -72,6 +73,10 @@ export interface ListActivityParams {
   hrOnly?: boolean;
   /** Max events to return after merging/sorting. Default 40. */
   limit?: number;
+  /** Inclusive ISO lower bound for event `timestamp`. */
+  from?: string;
+  /** Inclusive ISO upper bound for event `timestamp`. */
+  to?: string;
 }
 
 /**
@@ -82,7 +87,7 @@ export interface ListActivityParams {
 export async function listActivity(
   params: ListActivityParams = {},
 ): Promise<ActivityEvent[]> {
-  const { scopeUserId, hrOnly = false, limit = 40 } = params;
+  const { scopeUserId, hrOnly = false, limit = 40, from, to } = params;
   const events: ActivityEvent[] = [];
 
   // Resolve display names once (tasks/expenses store ids, not names).
@@ -248,6 +253,7 @@ export async function listActivity(
     }
   }
 
-  events.sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
-  return events.slice(0, limit);
+  const filtered = filterByDateWindow(events, (e) => e.timestamp, from, to);
+  filtered.sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
+  return filtered.slice(0, limit);
 }

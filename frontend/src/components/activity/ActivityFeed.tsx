@@ -71,9 +71,11 @@ interface ActivityFeedProps {
   /** Denser styling for dashboard widgets. */
   compact?: boolean;
   className?: string;
+  /** Optional date-range params forwarded to the backend (ISO from/to). */
+  dateParams?: { from?: string; to?: string };
 }
 
-export function ActivityFeed({ limit = 40, compact, className }: ActivityFeedProps) {
+export function ActivityFeed({ limit = 40, compact, className, dateParams }: ActivityFeedProps) {
   const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +86,7 @@ export function ActivityFeed({ limit = 40, compact, className }: ActivityFeedPro
     void (async () => {
       setLoading(true);
       try {
-        const data = await listActivity(limit);
+        const data = await listActivity(limit, dateParams);
         if (!cancelled) {
           setEvents(data);
           setError(null);
@@ -98,7 +100,7 @@ export function ActivityFeed({ limit = 40, compact, className }: ActivityFeedPro
     return () => {
       cancelled = true;
     };
-  }, [limit, reloadKey]);
+  }, [limit, reloadKey, dateParams?.from, dateParams?.to]);
 
   if (loading) return <LoadingState label="Loading activity…" />;
   if (error)
