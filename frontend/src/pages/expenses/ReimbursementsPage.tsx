@@ -27,7 +27,7 @@ import {
 } from "../../lib/expenses-api";
 import { listProjects } from "../../lib/projects-api";
 import { listUsers } from "../../lib/users-api";
-import { formatDate, formatMoney } from "../../lib/format";
+import { formatMoney } from "../../lib/format";
 import { Lock } from "lucide-react";
 
 import {
@@ -166,7 +166,6 @@ export function ReimbursementsPage() {
               <TableHeader className="bg-muted/40">
                 <TableRow>
                   <TableHead>Ref</TableHead>
-                  <TableHead>Date</TableHead>
                   <TableHead>Employee</TableHead>
                   <TableHead>Project</TableHead>
                   <TableHead>Amount</TableHead>
@@ -179,9 +178,6 @@ export function ReimbursementsPage() {
                   <TableRow key={expense.id}>
                     <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
                       {expense.code ?? "—"}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {formatDate(expense.expenseDate)}
                     </TableCell>
                     <TableCell className="text-foreground">
                       {getEmployeeName(expense.employeeId)}
