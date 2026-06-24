@@ -14,10 +14,10 @@ export function ActivityPage() {
 
   const description =
     user?.role === "ADMIN"
-      ? "Recent activity across the organization."
+      ? "Recent activity across the organization — filter by category or group by type."
       : user?.role === "HR"
-        ? "Expense, approval and ticket activity."
-        : "Your recent tickets, tasks and expenses.";
+        ? "Expense, reimbursement, approval and ticket activity."
+        : "Your recent tasks, expenses, reimbursements and tickets.";
 
   return (
     <>

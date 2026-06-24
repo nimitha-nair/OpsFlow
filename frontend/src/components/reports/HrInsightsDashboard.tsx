@@ -2,10 +2,10 @@
  * HR Insights Dashboard — the HR-facing counterpart to the Admin Reports
  * workspace. Same shell (section rail + per-section export) but HR-relevant
  * sections: Workforce, Expense Governance, Reimbursement Operations, AI
- * Processing, and Audit & Risk. All metrics are derived from data HR can
- * actually read (overview + expense lifecycle list + user directory; the
- * admin-only AI report is requested best-effort and the section degrades
- * gracefully when it is unavailable).
+ * Adoption, and Audit & Risk. All metrics are derived from data HR can
+ * actually read (overview + expense lifecycle list + user directory). The
+ * detailed AI extraction-quality analytics are an Admin-only audit concern and
+ * are intentionally excluded here — HR sees only the AI-adoption signal.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -55,10 +55,10 @@ import { DateRangeFilter } from "../common/DateRangeFilter";
 import { makeRange, rangeToParams, rangeSlug, type DateRange } from "../../lib/date-range";
 import { ActiveRangeBadge } from "../common/ActiveRangeBadge";
 import { downloadCsv, printElement } from "../../lib/export";
-import { getReportsOverview, getReportsAiAnalytics } from "../../lib/reports-api";
+import { getReportsOverview } from "../../lib/reports-api";
 import { listReviewExpenses, listReimbursements } from "../../lib/expenses-api";
 import { listUsers } from "../../lib/users-api";
-import type { AiAnalyticsReport, OverviewReport } from "../../types/reports";
+import type { OverviewReport } from "../../types/reports";
 import type { Expense } from "../../types/expense";
 import type { User } from "../../types/user";
 import {
@@ -72,7 +72,7 @@ const TABS: SectionDef[] = [
   { id: "expense", label: "Expenses", icon: Wallet },
   { id: "approvals", label: "Approvals", icon: ShieldCheck },
   { id: "reimbursement", label: "Reimbursements", icon: Banknote },
-  { id: "ai", label: "AI Metrics", icon: Sparkles },
+  { id: "ai", label: "AI Adoption", icon: Sparkles },
   { id: "compliance", label: "Compliance", icon: AlertTriangle },
 ];
 
@@ -89,7 +89,6 @@ interface LoadedData {
   records: Expense[];
   reimbursementRecords: Expense[];
   users: User[];
-  ai: AiAnalyticsReport | null;
 }
 
 export function HrInsightsDashboard() {
@@ -113,15 +112,14 @@ export function HrInsightsDashboard() {
 
   const load = useCallback(async (signal?: { cancelled: boolean }) => {
     const params = { ...rangeToParams(range), basis };
-    const [overview, records, usersResp, ai, reimbursementRecords] = await Promise.all([
+    const [overview, records, usersResp, reimbursementRecords] = await Promise.all([
       getReportsOverview(params),
       listReviewExpenses("ALL", params),
       listUsers({ limit: 1000 }),
-      getReportsAiAnalytics(rangeToParams(range)).catch(() => null),
       listReimbursements(rangeToParams(range)),
     ]);
     if (signal?.cancelled) return;
-    setData({ overview, records, reimbursementRecords, users: usersResp.data, ai });
+    setData({ overview, records, reimbursementRecords, users: usersResp.data });
     setError(null);
   }, [range, basis]);
 
@@ -490,7 +488,7 @@ function Reimbursement({ data, slug }: { data: LoadedData; slug: string }) {
 /* ---------------------------- AI Processing ---------------------------- */
 
 function AiProcessing({ data }: { data: LoadedData }) {
-  const { ai, records } = data;
+  const { records } = data;
   const aiCreated = records.filter((e) => e.creationMethod === "AI").length;
   const manualCreated = records.filter((e) => e.creationMethod === "MANUAL").length;
   const known = aiCreated + manualCreated;
@@ -500,12 +498,13 @@ function AiProcessing({ data }: { data: LoadedData }) {
   return (
     <SectionFrame
       id="ai"
-      title="AI Processing"
-      description="Extraction adoption, accuracy, and correction workload."
+      title="AI Adoption"
+      description="How much of the expense workload is processed with AI assistance."
     >
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           index={0}
+          emphasize
           accent="violet"
           icon={Sparkles}
           label="AI-created expenses"
@@ -514,42 +513,29 @@ function AiProcessing({ data }: { data: LoadedData }) {
         />
         <KpiCard
           index={1}
-          accent="sky"
-          icon={CheckCircle2}
-          label="Extraction accuracy"
-          value={ai?.totals.averageConfidence != null ? pct(ai.totals.averageConfidence) : "—"}
-          hint={ai ? "avg confidence" : "needs admin AI analytics"}
+          accent="slate"
+          icon={Receipt}
+          label="Manually entered"
+          value={manualCreated}
+          hint="no AI extraction used"
+          invertTrend
         />
         <KpiCard
           index={2}
-          accent="amber"
-          icon={Receipt}
-          label="Manual correction rate"
-          value={ai?.totals.manualCorrectionRate != null ? pct(ai.totals.manualCorrectionRate) : "—"}
-          hint={ai ? `${ai.totals.corrected} corrected` : "needs admin AI analytics"}
-          invertTrend
+          accent="indigo"
+          icon={Sparkles}
+          label="Multi-document"
+          value={multiDoc}
+          hint="expenses with 2+ files"
         />
-        <KpiCard index={3} accent="indigo" icon={Sparkles} label="Multi-document" value={multiDoc} hint="expenses with 2+ files" />
       </div>
 
-      {ai ? (
-        <SectionCard title="Confidence distribution" description="Extraction confidence buckets">
-          <BarList
-            items={ai.confidenceDistribution.map((b, i) => ({
-              label: b.label,
-              valueText: String(b.count),
-              ratio: b.count / Math.max(1, ...ai.confidenceDistribution.map((x) => x.count)),
-              tone: paletteAt(i),
-            }))}
-          />
-        </SectionCard>
-      ) : (
-        <div className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-          Detailed extraction-accuracy analytics (confidence trends, provider
-          performance) are sourced from the admin AI report and aren't available
-          to the HR role. Adoption metrics above are derived from expense records.
-        </div>
-      )}
+      <div className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+        Detailed extraction-quality analytics (confidence scores, provider
+        performance, correction trends) are part of the platform AI audit and
+        live in the Admin reports. This view shows the AI-adoption signal that's
+        relevant to HR operations.
+      </div>
     </SectionFrame>
   );
 }

@@ -12,14 +12,17 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
+  ArrowRight,
   Banknote,
   Building2,
   CheckCircle2,
   Clock,
   Download,
   FileText,
+  FolderKanban,
   Gauge,
   LayoutDashboard,
   Receipt,
@@ -52,6 +55,7 @@ import { SectionCard } from "../common/SectionCard";
 import { LoadingState } from "../common/LoadingState";
 import { ErrorState } from "../common/ErrorState";
 import { ExpensesTab } from "./ExpensesTab";
+import { ProjectsTab } from "./ProjectsTab";
 import { AiAnalyticsTab } from "./AiAnalyticsTab";
 import { BarList } from "./charts";
 import { AreaTrend, DonutGauge, Heatmap, KpiCard, RankingList } from "./bi";
@@ -100,6 +104,7 @@ const pct = (n: number) => `${Math.round(n)}%`;
 const TABS: SectionDef[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "expense", label: "Expenses", icon: Wallet },
+  { id: "projects", label: "Project Spending", icon: FolderKanban },
   { id: "department", label: "Departments", icon: Building2 },
   { id: "employee", label: "Employees", icon: Users },
   { id: "reimbursement", label: "Reimbursements", icon: Banknote },
@@ -124,7 +129,19 @@ export function ReportsWorkspace() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState("overview");
+  const [searchParams, setSearchParams] = useSearchParams();
+  // The active tab is driven by ?tab= so it can be deep-linked (e.g. the
+  // Projects page links straight to Project Spending).
+  const tabParam = searchParams.get("tab");
+  const tab = TABS.some((t) => t.id === tabParam) ? tabParam! : "overview";
+  const changeTab = (next: string) =>
+    setSearchParams(
+      (prev) => {
+        prev.set("tab", next);
+        return prev;
+      },
+      { replace: true },
+    );
   const panelsRef = useRef<HTMLDivElement>(null);
 
   const panelNode = (id: string) =>
@@ -220,7 +237,7 @@ export function ReportsWorkspace() {
         />
       ) : (
         <div className="flex min-w-0 flex-col gap-6">
-          <Tabs value={tab} onValueChange={(v) => setTab(v as string)}>
+          <Tabs value={tab} onValueChange={(v) => changeTab(v as string)}>
             <TabsList variant="line" className="no-print w-full justify-start overflow-x-auto">
               {TABS.map((t) => {
                 const Icon = t.icon;
@@ -241,7 +258,11 @@ export function ReportsWorkspace() {
               OpsFlow — generated {formatDateTime(data.overview.generatedAt)}
             </p>
             <Panel id="overview" active={tab}>
-              <ExecutiveOverview data={data} slug={rangeSlug(range)} />
+              <ExecutiveOverview
+                data={data}
+                slug={rangeSlug(range)}
+                onOpenProjects={() => changeTab("projects")}
+              />
             </Panel>
             <Panel id="expense" active={tab}>
               <SectionFrame
@@ -250,6 +271,15 @@ export function ReportsWorkspace() {
                 description="Category mix, scope split, and monthly spend trend."
               >
                 <ExpensesTab />
+              </SectionFrame>
+            </Panel>
+            <Panel id="projects" active={tab}>
+              <SectionFrame
+                id="projects"
+                title="Project Spending"
+                description="Approved spend against each project's budget and utilization."
+              >
+                <ProjectsTab />
               </SectionFrame>
             </Panel>
             <Panel id="department" active={tab}>
@@ -299,7 +329,15 @@ function Panel({
 
 /* ----------------------------- Executive ------------------------------- */
 
-function ExecutiveOverview({ data, slug }: { data: LoadedData; slug: string }) {
+function ExecutiveOverview({
+  data,
+  slug,
+  onOpenProjects,
+}: {
+  data: LoadedData;
+  slug: string;
+  onOpenProjects: () => void;
+}) {
   const { overview, projects, records, users } = data;
   const currency = overview.currency;
   // KPIs derive from the (date-filtered) records so they honor the range.
@@ -444,6 +482,50 @@ function ExecutiveOverview({ data, slug }: { data: LoadedData; slug: string }) {
           />
         )}
       </SectionCard>
+
+      {projects && (
+        <SectionCard
+          title="Project spending"
+          description="Approved spend against project budgets"
+          actions={
+            <button
+              type="button"
+              onClick={onOpenProjects}
+              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
+              View details <ArrowRight className="size-3" />
+            </button>
+          }
+        >
+          <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
+            <KpiCard index={0} accent="indigo" icon={FolderKanban} label="Projects" value={projects.totals.projectCount} />
+            <KpiCard
+              index={1}
+              accent="sky"
+              icon={Wallet}
+              label="Total budget"
+              value={compactMoney(projects.totals.budget, currency)}
+            />
+            <KpiCard
+              index={2}
+              accent="violet"
+              icon={TrendingUp}
+              label="Approved spend"
+              value={compactMoney(projects.totals.spent, currency)}
+              hint={`${compactMoney(projects.totals.remaining, currency)} remaining`}
+            />
+            <KpiCard
+              index={3}
+              accent="amber"
+              icon={AlertTriangle}
+              label="Over / near budget"
+              value={`${projects.totals.overBudgetCount} / ${projects.totals.nearLimitCount}`}
+              hint=">100% / ≥80% utilization"
+              invertTrend
+            />
+          </div>
+        </SectionCard>
+      )}
     </SectionFrame>
   );
 }

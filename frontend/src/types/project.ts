@@ -23,6 +23,8 @@ export interface Project {
   archived: boolean;
   archivedAt?: string;
   createdBy: string;
+  /** Display name of the creator (resolved server-side); may be absent. */
+  createdByName?: string;
   createdAt: string;
   updatedAt: string;
 }

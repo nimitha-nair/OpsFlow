@@ -158,14 +158,14 @@ export function GlobalSearch() {
       r,
       ...recent.filter((x) => !(x.entity === r.entity && x.id === r.id)),
     ].slice(0, RECENT_MAX);
-    saveRecent(user.id, next);
+    saveRecent(user!.id, next);
     setRecent(next);
     setOpen(false);
     navigate(hrefFor(r, user!.role));
   }
 
   function clearRecent() {
-    saveRecent([]);
+    saveRecent(user!.id, []);
     setRecent([]);
   }
 

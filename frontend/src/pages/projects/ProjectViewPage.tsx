@@ -113,7 +113,10 @@ export function ProjectViewPage() {
                   label="Status"
                   value={PROJECT_STATUS_LABELS[project.status]}
                 />
-                <Field label="Created by" value={project.createdBy} />
+                <Field
+                  label="Created by"
+                  value={project.createdByName || "Unknown"}
+                />
                 <Field
                   label="Start date"
                   value={formatDate(project.startDate)}

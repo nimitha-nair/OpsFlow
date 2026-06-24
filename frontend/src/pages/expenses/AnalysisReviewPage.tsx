@@ -17,16 +17,18 @@ import { MultiReceiptViewer } from "../../components/expenses/MultiReceiptViewer
 import { AnalysisBreakdown } from "../../components/expenses/AnalysisBreakdown";
 import { analyzeExpense, getExpenseAnalysis } from "../../lib/expense-analysis-api";
 import { getExpense } from "../../lib/expenses-api";
+import { confirmAndSubmitExpense } from "../../lib/expense-submit";
 import { getProject } from "../../lib/projects-api";
 import {
   combinedVendorLabel,
   deriveLowConfidenceReason,
   isTerminalStatus,
+  mapToExpenseCategory,
   type ExpenseAnalysis,
 } from "../../types/expenseAnalysis";
+import type { ExpenseScope } from "../../types/expense";
 
 const POLL_MS = 2000;
-const HIGH_CONFIDENCE = 85;
 
 export function AnalysisReviewPage() {
   const { id = "" } = useParams();
@@ -35,8 +37,11 @@ export function AnalysisReviewPage() {
   const autoStart = params.get("analyze") === "1";
   const [hasDocument, setHasDocument] = useState<boolean | null>(null);
   const [projectName, setProjectName] = useState<string | null>(null);
+  const [scope, setScope] = useState<ExpenseScope | null>(null);
+  const [projectId, setProjectId] = useState<string>("");
   const [analysis, setAnalysis] = useState<ExpenseAnalysis | null>(null);
   const [busy, setBusy] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const timer = useRef<number | null>(null);
 
   const stopPolling = useCallback(() => {
@@ -57,6 +62,8 @@ export function AnalysisReviewPage() {
       try {
         const expense = await getExpense(id);
         setHasDocument(Boolean(expense.documentId));
+        setScope(expense.scope);
+        setProjectId(expense.projectId ?? "");
         if (expense.scope === "PROJECT" && expense.projectId) {
           getProject(expense.projectId)
             .then((p) => setProjectName(p.name))
@@ -99,8 +106,39 @@ export function AnalysisReviewPage() {
 
   const canVerify =
     analysis?.status === "COMPLETED" || analysis?.status === "LOW_CONFIDENCE";
-  const isHighConfidence = (analysis?.confidenceScore ?? 0) >= HIGH_CONFIDENCE;
-  const goVerify = () => navigate(`/employee/expenses/${id}/verify`);
+  const goEdit = () => navigate(`/employee/expenses/${id}/verify`);
+
+  // The fast-path "Submit" sends AI-extracted values straight to approval. It is
+  // only offered when the required fields are already valid; otherwise the user
+  // is steered to "Edit" to complete them.
+  const needsProject = scope === "PROJECT" && !projectId;
+  const hasAmount = (analysis?.amount ?? 0) > 0;
+  const hasVendor = (analysis?.vendorName ?? "").trim() !== "";
+  const canFastSubmit = Boolean(canVerify && !needsProject && hasAmount && hasVendor);
+
+  const submitNow = async () => {
+    setSubmitting(true);
+    try {
+      await confirmAndSubmitExpense(id, {
+        vendorName: analysis?.vendorName || undefined,
+        amount: analysis?.amount ?? undefined,
+        transactionDate: analysis?.transactionDate || undefined,
+        currency: analysis?.currency || undefined,
+        paymentMethod: analysis?.paymentMethod || undefined,
+        category: mapToExpenseCategory(analysis?.category) || undefined,
+        taxInformation: analysis?.taxInformation || undefined,
+        // AI-first drafts have no description; default to the vendor.
+        description: analysis?.vendorName || undefined,
+        projectId: projectId || undefined,
+      });
+      toast.success("Expense submitted for approval.");
+      navigate(`/employee/expenses/${id}`);
+    } catch {
+      toast.error("Could not submit — open Edit to review the details.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-7xl p-4">
@@ -231,13 +269,25 @@ export function AnalysisReviewPage() {
           )}
 
           {canVerify && (
-            <div className="flex flex-wrap gap-2">
-              {isHighConfidence && (
-                <Button onClick={goVerify}>Looks Good →</Button>
-              )}
-              <Button variant={isHighConfidence ? "outline" : "default"} onClick={goVerify}>
-                Verify &amp; edit →
-              </Button>
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={submitNow} disabled={submitting || !canFastSubmit}>
+                  {submitting ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : null}
+                  Submit
+                </Button>
+                <Button variant="outline" onClick={goEdit} disabled={submitting}>
+                  Edit
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {!canFastSubmit
+                  ? needsProject
+                    ? "Choose a project allocation in Edit before submitting."
+                    : "Some details need review — open Edit to complete them."
+                  : "Submit sends these values for approval, or Edit to adjust them first."}
+              </p>
             </div>
           )}
         </CardContent>

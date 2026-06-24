@@ -20,8 +20,9 @@ import { ConfidenceMeter } from "../../components/expenses/ConfidenceMeter";
 import { LowConfidenceBanner } from "../../components/expenses/LowConfidenceBanner";
 import { MultiReceiptViewer } from "../../components/expenses/MultiReceiptViewer";
 import { AnalysisBreakdown } from "../../components/expenses/AnalysisBreakdown";
-import { getExpenseAnalysis, updateExpenseAnalysis } from "../../lib/expense-analysis-api";
-import { getExpense, submitExpense } from "../../lib/expenses-api";
+import { getExpenseAnalysis } from "../../lib/expense-analysis-api";
+import { getExpense } from "../../lib/expenses-api";
+import { confirmAndSubmitExpense } from "../../lib/expense-submit";
 import { listMyProjects } from "../../lib/projects-api";
 import {
   deriveLowConfidenceReason,
@@ -150,7 +151,7 @@ export function ExpenseVerificationPage() {
     }
     setSaving(true);
     try {
-      await updateExpenseAnalysis(id, {
+      await confirmAndSubmitExpense(id, {
         vendorName: form.vendorName || undefined,
         amount: form.amount ? Number(form.amount) : undefined,
         transactionDate: form.transactionDate || undefined,
@@ -160,9 +161,7 @@ export function ExpenseVerificationPage() {
         taxInformation: form.taxInformation || undefined,
         description: form.description || undefined,
         projectId: form.projectId || undefined,
-        confirm: true,
       });
-      await submitExpense(id);
       sessionStorage.removeItem(draftKey(id));
       toast.success("Expense submitted for approval.");
       navigate(`/employee/expenses/${id}`);

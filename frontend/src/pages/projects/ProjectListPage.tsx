@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Eye, FolderOpen, Pencil, Plus, RefreshCw } from "lucide-react";
+import { Eye, FolderOpen, Pencil, Plus, RefreshCw, TrendingUp } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -77,13 +77,22 @@ export function ProjectListPage() {
         description="Manage client projects across the organization."
         breadcrumbs={[{ label: "Admin", to: "/admin" }, { label: "Projects" }]}
         actions={
-          <Link
-            to="/admin/projects/new"
-            className={buttonVariants({ size: "sm" })}
-          >
-            <Plus className="size-4" />
-            New Project
-          </Link>
+          <div className="flex gap-2">
+            <Link
+              to="/admin/reports?tab=projects"
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              <TrendingUp className="size-4" />
+              Spending
+            </Link>
+            <Link
+              to="/admin/projects/new"
+              className={buttonVariants({ size: "sm" })}
+            >
+              <Plus className="size-4" />
+              New Project
+            </Link>
+          </div>
         }
       />
 

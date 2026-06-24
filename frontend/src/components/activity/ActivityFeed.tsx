@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import {
   Activity as ActivityIcon,
+  Banknote,
   Briefcase,
   ClipboardList,
+  LayoutGrid,
   LifeBuoy,
+  ListOrdered,
   Users,
   Wallet,
 } from "lucide-react";
@@ -21,6 +24,7 @@ const ENTITY_ICON: Record<ActivityEntity, LucideIcon> = {
   ticket: LifeBuoy,
   task: ClipboardList,
   expense: Wallet,
+  reimbursement: Banknote,
   user: Users,
   project: Briefcase,
 };
@@ -30,9 +34,30 @@ const ENTITY_STYLE: Record<ActivityEntity, string> = {
   ticket: "bg-sky-500/12 text-sky-600 dark:text-sky-400",
   task: "bg-indigo-500/12 text-indigo-600 dark:text-indigo-400",
   expense: "bg-emerald-500/12 text-emerald-600 dark:text-emerald-400",
+  reimbursement: "bg-teal-500/12 text-teal-600 dark:text-teal-400",
   user: "bg-violet-500/12 text-violet-600 dark:text-violet-400",
   project: "bg-amber-500/12 text-amber-600 dark:text-amber-400",
 };
+
+/** Plural category labels, in the order chips/groups should appear. */
+const ENTITY_LABEL: Record<ActivityEntity, string> = {
+  task: "Tasks",
+  expense: "Expenses",
+  reimbursement: "Reimbursements",
+  ticket: "Tickets",
+  project: "Projects",
+  user: "Users",
+};
+const ENTITY_ORDER: ActivityEntity[] = [
+  "task",
+  "expense",
+  "reimbursement",
+  "ticket",
+  "project",
+  "user",
+];
+
+type Filter = ActivityEntity | "all";
 
 /** Local day bucket label: Today / Yesterday / <Mon D, YYYY>. */
 function dayLabel(iso: string): string {
@@ -65,6 +90,20 @@ function groupByDay(events: ActivityEvent[]): DayGroup[] {
   return groups;
 }
 
+/** Group by entity category, ordered per ENTITY_ORDER; events stay newest-first. */
+function groupByType(events: ActivityEvent[]): DayGroup[] {
+  const byEntity = new Map<ActivityEntity, ActivityEvent[]>();
+  for (const ev of events) {
+    const list = byEntity.get(ev.entity);
+    if (list) list.push(ev);
+    else byEntity.set(ev.entity, [ev]);
+  }
+  return ENTITY_ORDER.filter((e) => byEntity.has(e)).map((e) => ({
+    label: ENTITY_LABEL[e],
+    events: byEntity.get(e)!,
+  }));
+}
+
 interface ActivityFeedProps {
   /** Max events to request. Default 40. */
   limit?: number;
@@ -80,6 +119,10 @@ export function ActivityFeed({ limit = 40, compact, className, dateParams }: Act
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [filter, setFilter] = useState<Filter>("all");
+  const [grouping, setGrouping] = useState<"day" | "type">("day");
+  // Filter controls are for the full Activity page, not dense dashboard widgets.
+  const showControls = !compact;
 
   useEffect(() => {
     let cancelled = false;
@@ -121,11 +164,57 @@ export function ActivityFeed({ limit = 40, compact, className, dateParams }: Act
       />
     );
 
-  const groups = groupByDay(events);
+  const availableEntities = ENTITY_ORDER.filter((e) =>
+    events.some((ev) => ev.entity === e),
+  );
+  const visible =
+    filter === "all" ? events : events.filter((ev) => ev.entity === filter);
+  const groups =
+    grouping === "type" ? groupByType(visible) : groupByDay(visible);
 
   return (
     <div className={cn("flex flex-col gap-5", className)}>
-      {groups.map((group) => (
+      {showControls && (
+        <div className="flex flex-col gap-3 border-b border-border/40 pb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterChip
+              label="All"
+              active={filter === "all"}
+              onClick={() => setFilter("all")}
+            />
+            {availableEntities.map((e) => (
+              <FilterChip
+                key={e}
+                label={ENTITY_LABEL[e]}
+                active={filter === e}
+                onClick={() => setFilter(e)}
+              />
+            ))}
+          </div>
+          <div className="flex items-center gap-1 self-start rounded-lg border border-border/60 p-0.5">
+            <GroupToggle
+              icon={ListOrdered}
+              label="By date"
+              active={grouping === "day"}
+              onClick={() => setGrouping("day")}
+            />
+            <GroupToggle
+              icon={LayoutGrid}
+              label="By type"
+              active={grouping === "type"}
+              onClick={() => setGrouping("type")}
+            />
+          </div>
+        </div>
+      )}
+
+      {visible.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          No {filter === "all" ? "" : `${ENTITY_LABEL[filter].toLowerCase()} `}
+          activity in this range.
+        </p>
+      ) : (
+        groups.map((group) => (
         <div key={group.label} className="flex flex-col gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {group.label}
@@ -169,7 +258,61 @@ export function ActivityFeed({ limit = 40, compact, className, dateParams }: Act
             })}
           </ul>
         </div>
-      ))}
+        ))
+      )}
     </div>
+  );
+}
+
+function FilterChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+        active
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border/70 text-muted-foreground hover:border-primary/40 hover:text-foreground",
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
+function GroupToggle({
+  icon: Icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+        active
+          ? "bg-muted text-foreground"
+          : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      <Icon className="size-3.5" />
+      {label}
+    </button>
   );
 }

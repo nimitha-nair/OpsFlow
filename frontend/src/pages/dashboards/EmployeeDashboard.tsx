@@ -21,7 +21,6 @@ import { LoadingState } from "../../components/common/LoadingState";
 import { SectionCard } from "../../components/common/SectionCard";
 import { MetricCard } from "../../components/common/MetricCard";
 import { DashboardHero } from "../../components/dashboard/DashboardHero";
-import { EmployeeGettingStarted } from "../../components/onboarding/EmployeeGettingStarted";
 import { MyTasksWidget } from "../../components/dashboard/MyTasksWidget";
 import { TicketsWidget } from "../../components/dashboard/TicketsWidget";
 import { makeRange, rangeToParams, type DateRange } from "../../lib/date-range";
@@ -129,8 +128,6 @@ export function EmployeeDashboard() {
         secondary={{ label: "My Expenses", to: "/employee/expenses" }}
       />
 
-      <EmployeeGettingStarted />
-
       {loading ? (
         <LoadingState label="Loading dashboard…" />
       ) : error ? (
@@ -141,6 +138,38 @@ export function EmployeeDashboard() {
         />
       ) : (
         <div className="flex flex-col gap-6">
+          <SectionCard
+            title="Quick actions"
+            description="Jump straight to what you need."
+          >
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <QuickAction
+                to="/employee/expenses/new"
+                icon={<FilePlus2 className="size-4" />}
+                label="Submit Expense"
+                hint="Upload a receipt or enter manually"
+              />
+              <QuickAction
+                to="/employee/expenses"
+                icon={<FileText className="size-4" />}
+                label="View Drafts"
+                hint={`${counts.draft} unfinished`}
+              />
+              <QuickAction
+                to="/employee/tasks"
+                icon={<ClipboardList className="size-4" />}
+                label="My Tasks"
+                hint="Work assigned to you"
+              />
+              <QuickAction
+                to="/employee/helpdesk"
+                icon={<LifeBuoy className="size-4" />}
+                label="New Ticket"
+                hint="Raise a support request"
+              />
+            </div>
+          </SectionCard>
+
           <div className="no-print flex items-center justify-end gap-2">
             <ActiveRangeBadge range={range} />
             <DateRangeFilter value={range} onChange={setRange} />
@@ -180,11 +209,10 @@ export function EmployeeDashboard() {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-5">
             <SectionCard
               title="Recent activity"
               description="Your latest expenses and their status."
-              className="lg:col-span-2"
               actions={
                 <Link
                   to="/employee/expenses"
@@ -235,38 +263,6 @@ export function EmployeeDashboard() {
                   ))}
                 </ul>
               )}
-            </SectionCard>
-
-            <SectionCard
-              title="Quick actions"
-              description="Jump straight to what you need."
-            >
-              <div className="flex flex-col gap-2">
-                <QuickAction
-                  to="/employee/expenses/new"
-                  icon={<FilePlus2 className="size-4" />}
-                  label="Submit Expense"
-                  hint="Upload a receipt or enter manually"
-                />
-                <QuickAction
-                  to="/employee/expenses"
-                  icon={<FileText className="size-4" />}
-                  label="View Drafts"
-                  hint={`${counts.draft} unfinished`}
-                />
-                <QuickAction
-                  to="/employee/tasks"
-                  icon={<ClipboardList className="size-4" />}
-                  label="My Tasks"
-                  hint="Work assigned to you"
-                />
-                <QuickAction
-                  to="/employee/helpdesk"
-                  icon={<LifeBuoy className="size-4" />}
-                  label="New Ticket"
-                  hint="Raise a support request"
-                />
-              </div>
             </SectionCard>
           </div>
 

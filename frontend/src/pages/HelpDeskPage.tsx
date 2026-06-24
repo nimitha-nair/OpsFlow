@@ -280,10 +280,14 @@ function CreateTicketBody({
   onOpenChange: (o: boolean) => void;
   onCreated: () => void;
 }) {
+  const { user } = useAuth();
+  // HR can only file into their own queue; they can't route to the platform
+  // (SYSTEM) team. The picker is locked to HR for them.
+  const isHr = user?.role === "HR";
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<TicketCategory>("QUESTION");
-  const [team, setTeam] = useState<TicketTeam>("SYSTEM");
+  const [team, setTeam] = useState<TicketTeam>(isHr ? "HR" : "SYSTEM");
   const [priority, setPriority] = useState<TicketPriority>("MEDIUM");
   const [submitting, setSubmitting] = useState(false);
 
@@ -322,18 +326,27 @@ function CreateTicketBody({
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="t-team">Who can help?</Label>
-          <Select value={team} onValueChange={(v) => setTeam((v ?? "SYSTEM") as TicketTeam)}>
-            <SelectTrigger id="t-team" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TICKET_TEAMS.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {TICKET_TEAM_LABELS[t]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {isHr ? (
+            <p
+              id="t-team"
+              className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground"
+            >
+              {TICKET_TEAM_LABELS.HR} — HR tickets stay in your queue.
+            </p>
+          ) : (
+            <Select value={team} onValueChange={(v) => setTeam((v ?? "SYSTEM") as TicketTeam)}>
+              <SelectTrigger id="t-team" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TICKET_TEAMS.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {TICKET_TEAM_LABELS[t]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">

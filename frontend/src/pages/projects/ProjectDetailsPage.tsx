@@ -176,7 +176,10 @@ export function ProjectDetailsPage() {
                   value={formatDate(project.startDate)}
                 />
                 <Field label="End date" value={formatDate(project.endDate)} />
-                <Field label="Created by" value={project.createdBy} />
+                <Field
+                  label="Created by"
+                  value={project.createdByName || "Unknown"}
+                />
               </dl>
             </CardContent>
           </Card>
