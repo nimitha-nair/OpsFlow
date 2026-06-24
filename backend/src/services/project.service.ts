@@ -167,9 +167,11 @@ export async function listProjects(
     );
   }
 
+  // Filter by the project's own start date (matches the pre-rollout UX), not
+  // the record's creation time.
   projects = filterByDateWindow(
     projects,
-    (p) => p.createdAt,
+    (p) => p.startDate,
     params.from,
     params.to,
   );
