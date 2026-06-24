@@ -2,11 +2,12 @@ import type { Request, Response } from "express";
 
 import { ApiError } from "../utils/errors";
 import {
+  countUnread,
   listForUser,
   markAllRead,
   markRead,
 } from "../services/notification.service";
-import type { IdParams } from "../validation/common";
+import type { DateRangeParams, IdParams } from "../validation/common";
 
 function handleError(res: Response, err: unknown): Response {
   if (err instanceof ApiError) {
@@ -23,11 +24,12 @@ export async function getNotifications(
 ): Promise<Response> {
   if (!req.user) return res.status(401).json({ error: "Authentication required" });
   try {
-    const data = await listForUser(req.user.userId);
-    return res.status(200).json({
-      data,
-      unread: data.filter((n) => !n.read).length,
-    });
+    const { from, to } = (req.valid?.query ?? {}) as DateRangeParams;
+    const [data, unread] = await Promise.all([
+      listForUser(req.user.userId, 40, from, to),
+      countUnread(req.user.userId),
+    ]);
+    return res.status(200).json({ data, unread });
   } catch (err) {
     return handleError(res, err);
   }

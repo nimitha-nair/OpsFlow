@@ -5,6 +5,8 @@ import { Bell, CheckCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { ActiveRangeBadge } from "../components/common/ActiveRangeBadge";
+import { DateRangeFilter } from "../components/common/DateRangeFilter";
 import { EmptyState } from "../components/common/EmptyState";
 import { ErrorState } from "../components/common/ErrorState";
 import { LoadingState } from "../components/common/LoadingState";
@@ -12,6 +14,7 @@ import { PageHeader } from "../components/layout/PageHeader";
 import { useAuth } from "../context/auth-context";
 import { roleBasePath } from "../lib/navigation";
 import { formatDateTime } from "../lib/format";
+import { makeRange, rangeToParams, type DateRange } from "@/lib/date-range";
 import {
   listNotifications,
   markAllNotificationsRead,
@@ -48,13 +51,14 @@ export function NotificationsPage() {
   const [reloadKey, setReloadKey] = useState(0);
   const [category, setCategory] = useState<Category>("all");
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [range, setRange] = useState<DateRange>(() => makeRange("all"));
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       setLoading(true);
       try {
-        const r = await listNotifications();
+        const r = await listNotifications(rangeToParams(range));
         if (!cancelled) {
           setItems(r.data);
           setError(null);
@@ -68,7 +72,7 @@ export function NotificationsPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [reloadKey, range]);
 
   const filtered = useMemo(
     () =>
@@ -136,7 +140,7 @@ export function NotificationsPage() {
           type="button"
           onClick={() => setUnreadOnly((v) => !v)}
           className={cn(
-            "ml-auto rounded-full border px-3 py-1 text-sm transition-colors",
+            "rounded-full border px-3 py-1 text-sm transition-colors",
             unreadOnly
               ? "border-primary bg-primary/10 text-primary"
               : "border-border text-muted-foreground hover:text-foreground",
@@ -144,6 +148,10 @@ export function NotificationsPage() {
         >
           Unread only
         </button>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <ActiveRangeBadge range={range} />
+          <DateRangeFilter value={range} onChange={setRange} hideIcon />
+        </div>
       </div>
 
       <Card className="overflow-hidden p-0">

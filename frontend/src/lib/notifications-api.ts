@@ -2,12 +2,16 @@ import { api } from "./api";
 import type { Notification } from "../types/notification";
 
 /** GET /notifications */
-export async function listNotifications(): Promise<{
+export async function listNotifications(params?: {
+  from?: string;
+  to?: string;
+}): Promise<{
   data: Notification[];
   unread: number;
 }> {
   const { data } = await api.get<{ data: Notification[]; unread: number }>(
     "/notifications",
+    { params },
   );
   return data;
 }

@@ -2,6 +2,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { db } from "../config/firebase";
 import { ApiError } from "../utils/errors";
+import { filterByDateWindow } from "../utils/date-window";
 import type {
   Notification,
   NotificationDocument,
@@ -80,21 +81,36 @@ export async function notify(
   );
 }
 
-/** List a user's notifications, newest first (sorted in memory). */
+/** List a user's notifications, newest first (sorted in memory).
+ *  Optional `from`/`to` (ISO strings) filter by `createdAt` before sorting and
+ *  applying the limit, so the limit applies to the date-scoped set. */
 export async function listForUser(
   userId: string,
   limit = 40,
+  from?: string,
+  to?: string,
 ): Promise<Notification[]> {
   const snap = await db
     .collection(NOTIFICATIONS_COLLECTION)
     .where("userId", "==", userId)
     .get();
-  const rows: NotificationDocument[] = snap.docs.map((d) => ({
+  let rows: NotificationDocument[] = snap.docs.map((d) => ({
     id: d.id,
     ...(d.data() as Omit<NotificationDocument, "id">),
   }));
+  rows = filterByDateWindow(rows, (r) => r.createdAt, from, to);
   rows.sort((a, b) => tsMillis(b.createdAt) - tsMillis(a.createdAt));
   return rows.slice(0, limit).map(toPublic);
+}
+
+/** Count of unread notifications for a user (global — not date-filtered). */
+export async function countUnread(userId: string): Promise<number> {
+  const snap = await db
+    .collection(NOTIFICATIONS_COLLECTION)
+    .where("userId", "==", userId)
+    .where("read", "==", false)
+    .get();
+  return snap.size;
 }
 
 /** Mark a single notification read (must belong to the user). */

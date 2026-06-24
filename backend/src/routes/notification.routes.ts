@@ -3,7 +3,7 @@ import { Router } from "express";
 import { authenticate } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/rbac.middleware";
 import { validate } from "../middleware/validate";
-import { idParams } from "../validation/common";
+import { dateRangeQuery, idParams } from "../validation/common";
 import UserRole from "../types/roles";
 import {
   getNotifications,
@@ -16,7 +16,13 @@ const router = Router();
 const anyRole = authorize(UserRole.ADMIN, UserRole.HR, UserRole.EMPLOYEE);
 
 // List the authenticated user's notifications.
-router.get("/", authenticate, anyRole, getNotifications);
+router.get(
+  "/",
+  authenticate,
+  anyRole,
+  validate({ query: dateRangeQuery }),
+  getNotifications,
+);
 
 // Mark all read — registered before "/:id/read" (distinct segment count anyway).
 router.patch("/read-all", authenticate, anyRole, patchAllRead);
