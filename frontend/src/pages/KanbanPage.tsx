@@ -8,7 +8,10 @@ import { EmptyState } from "../components/common/EmptyState";
 import { ErrorState } from "../components/common/ErrorState";
 import { LoadingState } from "../components/common/LoadingState";
 import { PageHeader } from "../components/layout/PageHeader";
+import { CalendarClock, CalendarPlus } from "lucide-react";
+
 import { ActiveRangeBadge } from "../components/common/ActiveRangeBadge";
+import { DateBasisToggle } from "../components/common/DateBasisToggle";
 import { CalendarView } from "../components/kanban/CalendarView";
 import { KanbanBoard } from "../components/kanban/KanbanBoard";
 import { KanbanMobileList } from "../components/kanban/KanbanMobileList";
@@ -78,6 +81,11 @@ export function KanbanPage() {
   const [projectFilter, setProjectFilter] = useState("all");
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
+  // Board is an activity view: default the range to the task's CREATED date so
+  // "Today" shows recently-added work, not only tasks that happen to be due today.
+  const [taskBasis, setTaskBasis] = useState<"dueDate" | "createdAt">(
+    "createdAt",
+  );
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [quickOpen, setQuickOpen] = useState(false);
@@ -97,7 +105,7 @@ export function KanbanPage() {
         const [taskList, projectList] = await Promise.all([
           self.role === "EMPLOYEE"
             ? listMyTasks(dateParams)
-            : listTasks({ limit: 100, ...dateParams }),
+            : listTasks({ limit: 100, ...dateParams, basis: taskBasis }),
           self.role === "EMPLOYEE"
             ? listMyProjects()
             : listProjects({ limit: 100 }).then((r) => r.data),
@@ -131,7 +139,7 @@ export function KanbanPage() {
     return () => {
       cancelled = true;
     };
-  }, [user, reloadKey, range]);
+  }, [user, reloadKey, range, taskBasis]);
 
   const projectNames = useMemo(
     () => new Map(projects.map((p) => [p.id, p.name])),
@@ -306,8 +314,31 @@ export function KanbanPage() {
         }
         breadcrumbs={[{ label: "Kanban" }]}
         actions={
-          <div className="flex items-center gap-2">
-            <ActiveRangeBadge range={range} />
+          <div className="flex flex-wrap items-center gap-2">
+            <ActiveRangeBadge
+              range={range}
+              basisLabel={
+                isEmployee
+                  ? undefined
+                  : taskBasis === "createdAt"
+                    ? "Created"
+                    : "Due"
+              }
+            />
+            {!isEmployee && (
+              <DateBasisToggle
+                value={taskBasis}
+                onChange={setTaskBasis}
+                options={[
+                  { value: "dueDate", label: "Due date", Icon: CalendarClock },
+                  {
+                    value: "createdAt",
+                    label: "Created date",
+                    Icon: CalendarPlus,
+                  },
+                ]}
+              />
+            )}
             {isAdmin && (
               <Button size="sm" onClick={() => setQuickOpen(true)}>
                 <Plus className="size-4" />

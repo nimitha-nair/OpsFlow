@@ -47,6 +47,8 @@ export interface ListTasksParams {
   from?: string;
   to?: string;
   version?: string;
+  /** Which date the from/to window applies to. Defaults to dueDate. */
+  basis?: "dueDate" | "createdAt";
 }
 
 export interface PaginatedTasks {
@@ -190,7 +192,12 @@ export async function listTasks(
   if (params.assigneeId !== undefined) {
     tasks = tasks.filter((t) => t.assigneeId === params.assigneeId);
   }
-  tasks = filterByDateWindow(tasks, (t) => t.dueDate, params.from, params.to);
+  tasks = filterByDateWindow(
+    tasks,
+    (t) => (params.basis === "createdAt" ? t.createdAt : t.dueDate),
+    params.from,
+    params.to,
+  );
   if (params.version !== undefined) {
     tasks = tasks.filter((t) => t.version === params.version);
   }

@@ -75,5 +75,7 @@ export const listTasksQuery = z
     priority: prioritySchema.optional(),
     assigneeId: firestoreId.optional(),
     version: z.string().trim().max(40).optional(),
+    /** Which date the range filters on — the task's due date or its created date. */
+    basis: z.enum(["dueDate", "createdAt"]).optional(),
   })
   .merge(dateRangeQuery);

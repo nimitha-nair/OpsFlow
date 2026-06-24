@@ -1,30 +1,39 @@
+import type { LucideIcon } from "lucide-react";
 import { Receipt, Send } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-type DateBasis = "expenseDate" | "submittedAt";
+export interface BasisOption<T extends string> {
+  value: T;
+  label: string;
+  Icon: LucideIcon;
+}
 
-interface DateBasisToggleProps {
-  value: DateBasis;
-  onChange: (v: DateBasis) => void;
+/** Default options for expense surfaces (expense vs submission date). */
+const EXPENSE_OPTIONS: BasisOption<"expenseDate" | "submittedAt">[] = [
+  { value: "expenseDate", label: "Expense date", Icon: Receipt },
+  { value: "submittedAt", label: "Submission date", Icon: Send },
+];
+
+interface DateBasisToggleProps<T extends string> {
+  value: T;
+  onChange: (v: T) => void;
+  /** Override the choices (e.g. Due date / Created date for tasks). Defaults to
+   *  the expense-date / submission-date pair. */
+  options?: BasisOption<T>[];
   className?: string;
 }
 
-const OPTIONS: { v: DateBasis; label: string; Icon: typeof Receipt }[] = [
-  { v: "expenseDate", label: "Expense date", Icon: Receipt },
-  { v: "submittedAt", label: "Submission date", Icon: Send },
-];
-
 /**
- * Compact segmented control for choosing which date a range filter applies to —
- * the expense (receipt) date or the submission date. Sits inline beside
- * <DateRangeFilter>; icons + an explicit active state make the choice obvious.
+ * Compact segmented control for choosing which date a range filter applies to.
+ * Icons + an explicit active state make the choice obvious; sits inline beside
+ * <DateRangeFilter>. Generic over the basis values so non-expense surfaces
+ * (e.g. tasks) can supply their own options.
  */
-export function DateBasisToggle({
-  value,
-  onChange,
-  className,
-}: DateBasisToggleProps) {
+export function DateBasisToggle<
+  T extends string = "expenseDate" | "submittedAt",
+>({ value, onChange, options, className }: DateBasisToggleProps<T>) {
+  const opts = options ?? (EXPENSE_OPTIONS as unknown as BasisOption<T>[]);
   return (
     <div
       role="group"
@@ -34,7 +43,7 @@ export function DateBasisToggle({
         className,
       )}
     >
-      {OPTIONS.map(({ v, label, Icon }) => {
+      {opts.map(({ value: v, label, Icon }) => {
         const active = value === v;
         return (
           <button

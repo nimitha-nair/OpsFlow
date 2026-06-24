@@ -50,6 +50,8 @@ export interface ListTasksParams {
   from?: string;
   to?: string;
   version?: string;
+  /** Which date the from/to window applies to. Defaults to dueDate. */
+  basis?: "dueDate" | "createdAt";
 }
 
 export interface CreateTaskPayload {
