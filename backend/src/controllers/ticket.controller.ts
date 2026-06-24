@@ -58,12 +58,17 @@ async function assertTicketAccess(req: Request, id: string) {
 export async function getTickets(req: Request, res: Response): Promise<Response> {
   if (!req.user) return res.status(401).json({ error: "Authentication required" });
   try {
-    const status = (req.valid?.query as { status?: TicketStatus } | undefined)?.status;
+    const query = req.valid?.query as
+      | { status?: TicketStatus; from?: string; to?: string }
+      | undefined;
+    const status = query?.status;
+    const from = query?.from;
+    const to = query?.to;
     const data = isAdmin(req)
-      ? await listAllTickets(status)
+      ? await listAllTickets(status, undefined, from, to)
       : isHr(req)
-        ? await listAllTickets(status, "HR")
-        : await listTicketsForUser(req.user.userId, status);
+        ? await listAllTickets(status, "HR", from, to)
+        : await listTicketsForUser(req.user.userId, status, from, to);
     return res.status(200).json({ data });
   } catch (err) {
     return handleError(res, err);

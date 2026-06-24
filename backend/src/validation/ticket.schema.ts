@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { firestoreId } from "./common";
+import { dateRangeQuery, firestoreId } from "./common";
 import {
   TICKET_CATEGORIES,
   TICKET_PRIORITIES,
@@ -37,9 +37,11 @@ export const createTicketMessageBody = z
   .object({ body: z.string().trim().min(1).max(4000) })
   .strict();
 
-/** GET /tickets?status= */
-export const listTicketsQuery = z.object({
-  status: z.enum(TICKET_STATUSES).optional(),
-});
+/** GET /tickets?status=&from=&to= */
+export const listTicketsQuery = z
+  .object({
+    status: z.enum(TICKET_STATUSES).optional(),
+  })
+  .merge(dateRangeQuery);
 
 export const ticketIdParams = z.object({ id: firestoreId });

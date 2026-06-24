@@ -32,12 +32,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { ActiveRangeBadge } from "../components/common/ActiveRangeBadge";
+import { DateRangeFilter } from "../components/common/DateRangeFilter";
 import { EmptyState } from "../components/common/EmptyState";
 import { ErrorState } from "../components/common/ErrorState";
 import { LoadingState } from "../components/common/LoadingState";
 import { PageHeader } from "../components/layout/PageHeader";
 import { useAuth } from "../context/auth-context";
 import { formatDateTime } from "../lib/format";
+import { makeRange, rangeToParams, type DateRange } from "../lib/date-range";
 import {
   addTicketMessage,
   apiErrorMessage,
@@ -90,6 +93,7 @@ export function HelpDeskPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<TicketStatus | "all">("all");
+  const [range, setRange] = useState<DateRange>(() => makeRange("all"));
   const [createOpen, setCreateOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -99,7 +103,10 @@ export function HelpDeskPage() {
     void (async () => {
       setLoading(true);
       try {
-        const data = await listTickets(statusFilter === "all" ? undefined : statusFilter);
+        const data = await listTickets(
+          statusFilter === "all" ? undefined : statusFilter,
+          rangeToParams(range),
+        );
         if (!cancelled) setError(null);
         if (!cancelled) setTickets(data);
       } catch (err) {
@@ -111,7 +118,7 @@ export function HelpDeskPage() {
     return () => {
       cancelled = true;
     };
-  }, [statusFilter, reloadKey]);
+  }, [statusFilter, range, reloadKey]);
 
   const reload = () => setReloadKey((k) => k + 1);
 
@@ -127,6 +134,8 @@ export function HelpDeskPage() {
         breadcrumbs={[{ label: "Help Desk" }]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <ActiveRangeBadge range={range} />
+            <DateRangeFilter value={range} onChange={setRange} hideIcon />
             <Select
               value={statusFilter}
               onValueChange={(v) => setStatusFilter((v ?? "all") as TicketStatus | "all")}

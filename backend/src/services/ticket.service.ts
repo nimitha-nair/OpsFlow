@@ -2,6 +2,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { db } from "../config/firebase";
 import { ApiError } from "../utils/errors";
+import { filterByDateWindow } from "../utils/date-window";
 import { generateCode } from "./code-generator";
 import type {
   Ticket,
@@ -98,11 +99,14 @@ function sortAndMap(
   docs: TicketDocument[],
   status?: TicketStatus,
   team?: TicketTeam,
+  from?: string,
+  to?: string,
 ): Ticket[] {
   let rows = docs;
   if (status) rows = rows.filter((t) => t.status === status);
   // Legacy tickets without a team are treated as SYSTEM (Admin) for routing.
   if (team) rows = rows.filter((t) => (t.team ?? "SYSTEM") === team);
+  rows = filterByDateWindow(rows, (t) => t.createdAt, from, to);
   rows.sort((a, b) => tsMillis(b.updatedAt) - tsMillis(a.updatedAt));
   return rows.map(toPublicTicket);
 }
@@ -114,12 +118,16 @@ function sortAndMap(
 export async function listAllTickets(
   status?: TicketStatus,
   team?: TicketTeam,
+  from?: string,
+  to?: string,
 ): Promise<Ticket[]> {
   const snap = await db.collection(TICKETS_COLLECTION).get();
   return sortAndMap(
     snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<TicketDocument, "id">) })),
     status,
     team,
+    from,
+    to,
   );
 }
 
@@ -127,6 +135,8 @@ export async function listAllTickets(
 export async function listTicketsForUser(
   userId: string,
   status?: TicketStatus,
+  from?: string,
+  to?: string,
 ): Promise<Ticket[]> {
   const snap = await db
     .collection(TICKETS_COLLECTION)
@@ -135,6 +145,9 @@ export async function listTicketsForUser(
   return sortAndMap(
     snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<TicketDocument, "id">) })),
     status,
+    undefined,
+    from,
+    to,
   );
 }
 

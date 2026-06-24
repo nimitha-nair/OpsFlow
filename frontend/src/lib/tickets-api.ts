@@ -9,10 +9,17 @@ import type {
   TicketTeam,
 } from "../types/ticket";
 
-/** GET /tickets?status= */
-export async function listTickets(status?: TicketStatus): Promise<Ticket[]> {
+/** GET /tickets?status=&from=&to= */
+export async function listTickets(
+  status?: TicketStatus,
+  params?: { from?: string; to?: string },
+): Promise<Ticket[]> {
   const { data } = await api.get<{ data: Ticket[] }>("/tickets", {
-    params: status ? { status } : undefined,
+    params: {
+      ...(status ? { status } : {}),
+      ...(params?.from ? { from: params.from } : {}),
+      ...(params?.to ? { to: params.to } : {}),
+    },
   });
   return data.data;
 }
