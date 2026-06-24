@@ -72,6 +72,8 @@ in important ways. This spec is grounded in those findings.
   frontend renders/exports that single filtered dataset, across dashboards, reports,
   tasks, expenses, reimbursements, projects, departments, activity, notifications,
   help-desk tickets, and exports.
+- **Always show the active range** near the page title and in exports, so users
+  never view a date-scoped screen without knowing the scope.
 - Optional `version` filtering on the Tasks module (frontend + backend).
 
 ## Non-Goals
@@ -218,6 +220,24 @@ filtered array.
 - **Exports:** no dedicated work beyond ensuring each export reads the same
   `visible`/filtered array the tables/charts use. Because exports already emit
   in-memory filtered rows, this falls out of the single-dataset rule above.
+
+### Active range always visible (cross-cutting requirement)
+
+Every date-filtered screen must **visibly display the active range** near the page
+title so users always know whether they're viewing Today, Last 30 Days, Last Quarter,
+a Custom Range, etc. Hidden filters erode trust in reports.
+
+- Add a small, reusable range-label component (e.g. `ActiveRangeBadge`) that renders
+  the current preset's human label, and for custom/explicit ranges the resolved
+  dates (e.g. "Custom: 1 Jan – 31 Mar 2026"). `"All time"` renders as "All time".
+- Place it adjacent to the page/section title (and within the Reports workspace
+  header), driven by the same `DateRange` state that feeds the query.
+- **Exports must carry the range too:** include the active range in the export
+  filename and/or a header row (e.g. `expenses_last-30-days_2026-06-24.csv`, and a
+  leading "Range: Last 30 days (26 May – 24 Jun 2026)" line in CSVs / print header in
+  PDFs) so an exported artifact is self-describing.
+- Derive the label from a single formatter shared with `rangeToParams` so the badge,
+  the query, and the export never disagree.
 
 ### Single filtered dataset (cross-cutting requirement)
 
