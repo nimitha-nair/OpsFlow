@@ -131,3 +131,57 @@ export function rangeToMonths(range: DateRange): number {
   const months = Math.ceil((Date.now() - range.fromMs) / (1000 * 60 * 60 * 24 * 30));
   return Math.min(24, Math.max(1, months));
 }
+
+/** Convert a resolved range to inclusive ISO query params for the backend.
+ *  Unbounded sides are omitted so "all time" sends no params. */
+export function rangeToParams(range: DateRange): { from?: string; to?: string } {
+  const out: { from?: string; to?: string } = {};
+  if (range.fromMs != null) out.from = new Date(range.fromMs).toISOString();
+  if (range.toMs != null) out.to = new Date(range.toMs).toISOString();
+  return out;
+}
+
+const MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/** Format a yyyy-mm-dd string as "D Mon YYYY" without timezone surprises. */
+function fmtYmd(ymd: string): string {
+  const [y, m, d] = ymd.split("-");
+  const mi = Number(m) - 1;
+  if (!y || mi < 0 || mi > 11 || !d) return ymd;
+  return `${Number(d)} ${MONTHS[mi]} ${y}`;
+}
+
+const PRESET_SLUGS: Record<DateRangePreset, string> = {
+  all: "all-time",
+  today: "today",
+  "7d": "last-7-days",
+  "30d": "last-30-days",
+  quarter: "last-quarter",
+  "6mo": "last-6-months",
+  year: "last-year",
+  custom: "custom",
+};
+
+/** Human label for the active range (for the always-visible range badge). */
+export function rangeLabel(range: DateRange): string {
+  if (range.preset === "custom") {
+    if (range.customStart && range.customEnd) {
+      return `${fmtYmd(range.customStart)} – ${fmtYmd(range.customEnd)}`;
+    }
+    if (range.customStart) return `From ${fmtYmd(range.customStart)}`;
+    if (range.customEnd) return `Until ${fmtYmd(range.customEnd)}`;
+    return "Custom range";
+  }
+  return DATE_PRESETS.find((p) => p.value === range.preset)?.label ?? "All time";
+}
+
+/** Filename-safe token describing the range, for export filenames. */
+export function rangeSlug(range: DateRange): string {
+  if (range.preset === "custom") {
+    return `${range.customStart ?? "start"}_${range.customEnd ?? "end"}`;
+  }
+  return PRESET_SLUGS[range.preset];
+}

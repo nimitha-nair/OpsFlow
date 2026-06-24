@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { makeRange, inRange, filterByDate, rangeToMonths } from "./date-range";
+import {
+  makeRange,
+  inRange,
+  filterByDate,
+  rangeToMonths,
+  rangeToParams,
+  rangeLabel,
+  rangeSlug,
+} from "./date-range";
 
 const NOW = new Date("2026-06-22T12:00:00.000Z").getTime();
 
@@ -91,5 +99,55 @@ describe("rangeToMonths", () => {
     expect(rangeToMonths(makeRange("quarter"))).toBeLessThanOrEqual(4);
     expect(rangeToMonths(makeRange("year"))).toBeLessThanOrEqual(13);
     expect(rangeToMonths(makeRange("today"))).toBe(1);
+  });
+});
+
+describe("rangeToParams", () => {
+  it("omits both bounds for all-time", () => {
+    expect(rangeToParams(makeRange("all"))).toEqual({});
+  });
+
+  it("emits ISO from/to for a bounded custom range", () => {
+    const r = makeRange("custom", "2026-01-01", "2026-03-31");
+    const p = rangeToParams(r);
+    expect(p.from).toBe(new Date(r.fromMs as number).toISOString());
+    expect(p.to).toBe(new Date(r.toMs as number).toISOString());
+  });
+
+  it("omits the missing bound of a half-open custom range", () => {
+    const r = makeRange("custom", "2026-01-01", undefined);
+    const p = rangeToParams(r);
+    expect(p.from).toBeDefined();
+    expect(p.to).toBeUndefined();
+  });
+});
+
+describe("rangeLabel", () => {
+  it("uses the preset label for non-custom ranges", () => {
+    expect(rangeLabel(makeRange("30d"))).toBe("Last 30 days");
+    expect(rangeLabel(makeRange("all"))).toBe("All time");
+  });
+
+  it("formats a custom range with both bounds", () => {
+    expect(rangeLabel(makeRange("custom", "2026-01-01", "2026-03-31"))).toBe(
+      "1 Jan 2026 – 31 Mar 2026",
+    );
+  });
+
+  it("falls back to 'Custom range' when bounds are missing", () => {
+    expect(rangeLabel(makeRange("custom"))).toBe("Custom range");
+  });
+});
+
+describe("rangeSlug", () => {
+  it("slugs presets", () => {
+    expect(rangeSlug(makeRange("30d"))).toBe("last-30-days");
+    expect(rangeSlug(makeRange("all"))).toBe("all-time");
+  });
+
+  it("slugs a custom range by its dates", () => {
+    expect(rangeSlug(makeRange("custom", "2026-01-01", "2026-03-31"))).toBe(
+      "2026-01-01_2026-03-31",
+    );
   });
 });
