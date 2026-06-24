@@ -13,6 +13,7 @@ import {
   XCircle,
 } from "lucide-react";
 
+import { ActiveRangeBadge } from "../../components/common/ActiveRangeBadge";
 import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
@@ -23,7 +24,7 @@ import { DashboardHero } from "../../components/dashboard/DashboardHero";
 import { EmployeeGettingStarted } from "../../components/onboarding/EmployeeGettingStarted";
 import { MyTasksWidget } from "../../components/dashboard/MyTasksWidget";
 import { TicketsWidget } from "../../components/dashboard/TicketsWidget";
-import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
+import { makeRange, rangeToParams, type DateRange } from "../../lib/date-range";
 import {
   ApprovalStatusBadge,
   CreationMethodBadge,
@@ -47,7 +48,7 @@ export function EmployeeDashboard() {
       setLoading(true);
       setError(null);
       try {
-        const mine = await listMyExpenses();
+        const mine = await listMyExpenses(rangeToParams(range));
         if (!cancelled) setExpenses(mine);
       } catch (err) {
         if (!cancelled) setError(apiErrorMessage(err, "Failed to load dashboard."));
@@ -59,30 +60,25 @@ export function EmployeeDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
-
-  const dated = useMemo(
-    () => filterByDate(expenses, (e) => e.expenseDate, range),
-    [expenses, range],
-  );
+  }, [reloadKey, range]);
 
   const counts = useMemo(() => {
     const c = { draft: 0, pending: 0, approved: 0, rejected: 0 };
-    for (const e of dated) {
+    for (const e of expenses) {
       if (e.approvalStatus === "DRAFT") c.draft += 1;
       else if (PENDING.includes(e.approvalStatus)) c.pending += 1;
       else if (e.approvalStatus === "APPROVED") c.approved += 1;
       else if (e.approvalStatus === "REJECTED") c.rejected += 1;
     }
     return c;
-  }, [dated]);
+  }, [expenses]);
 
   const recent = useMemo(
     () =>
-      [...dated]
+      [...expenses]
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
         .slice(0, 6),
-    [dated],
+    [expenses],
   );
 
   const latestDraft = useMemo(
@@ -145,7 +141,8 @@ export function EmployeeDashboard() {
         />
       ) : (
         <div className="flex flex-col gap-6">
-          <div className="no-print flex items-center justify-end">
+          <div className="no-print flex items-center justify-end gap-2">
+            <ActiveRangeBadge range={range} />
             <DateRangeFilter value={range} onChange={setRange} />
           </div>
           <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">

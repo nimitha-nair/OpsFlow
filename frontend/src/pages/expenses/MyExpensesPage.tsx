@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ActiveRangeBadge } from "../../components/common/ActiveRangeBadge";
 import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { EmptyState } from "../../components/common/EmptyState";
@@ -24,7 +25,7 @@ import {
   ApprovalStatusBadge,
   ReimbursementBadge,
 } from "../../components/expenses/ExpenseBadges";
-import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
+import { makeRange, rangeToParams, type DateRange } from "../../lib/date-range";
 import { formatDate, formatMoney } from "../../lib/format";
 import {
   apiErrorMessage,
@@ -81,7 +82,7 @@ export function MyExpensesPage() {
       setError(null);
       try {
         const [mine, projects] = await Promise.all([
-          listMyExpenses(),
+          listMyExpenses(rangeToParams(range)),
           listMyProjects(),
         ]);
         if (cancelled) return;
@@ -99,7 +100,7 @@ export function MyExpensesPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [reloadKey, range]);
 
   const projectLabel = useMemo(
     () => (expense: Expense) =>
@@ -109,16 +110,11 @@ export function MyExpensesPage() {
     [projectNames],
   );
 
-  const visible = useMemo(
-    () => filterByDate(expenses, (e) => e.expenseDate, range),
-    [expenses, range],
-  );
-
   // Selection only applies to drafts (the only deletable status).
   const visibleDraftIds = useMemo(
     () =>
-      visible.filter((e) => e.approvalStatus === "DRAFT").map((e) => e.id),
-    [visible],
+      expenses.filter((e) => e.approvalStatus === "DRAFT").map((e) => e.id),
+    [expenses],
   );
   const selectedDraftIds = visibleDraftIds.filter((id) => selectedIds.has(id));
   const allDraftsSelected =
@@ -181,6 +177,7 @@ export function MyExpensesPage() {
         breadcrumbs={[{ label: "Expenses" }]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <ActiveRangeBadge range={range} />
             <DateRangeFilter value={range} onChange={setRange} />
             <Link
               to="/employee/expenses/new"
@@ -212,14 +209,6 @@ export function MyExpensesPage() {
               description="Submit your first expense to get started."
             />
           </div>
-        ) : visible.length === 0 ? (
-          <div className="p-6">
-            <EmptyState
-              icon={Wallet}
-              title="No expenses in range"
-              description="None of your expenses fall in the selected date range."
-            />
-          </div>
         ) : (
           <>
             <div className="hidden overflow-x-auto md:block">
@@ -246,7 +235,7 @@ export function MyExpensesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visible.map((expense) => {
+                {expenses.map((expense) => {
                   const isDraft = expense.approvalStatus === "DRAFT";
                   return (
                     <TableRow
@@ -331,7 +320,7 @@ export function MyExpensesPage() {
 
             {/* Mobile: expense cards */}
             <ul className="flex flex-col divide-y md:hidden">
-              {visible.map((expense) => {
+              {expenses.map((expense) => {
                 const isDraft = expense.approvalStatus === "DRAFT";
                 return (
                   <li key={expense.id} className="flex gap-3 p-4">

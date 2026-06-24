@@ -43,14 +43,18 @@ export async function deleteExpense(id: string): Promise<void> {
 }
 
 /** GET /expenses/my-expenses (EMPLOYEE) */
-export async function listMyExpenses(): Promise<Expense[]> {
-  const { data } = await api.get<{ data: Expense[] }>("/expenses/my-expenses");
+export async function listMyExpenses(
+  params: { from?: string; to?: string } = {},
+): Promise<Expense[]> {
+  const { data } = await api.get<{ data: Expense[] }>("/expenses/my-expenses", { params });
   return data.data;
 }
 
 /** GET /expenses/pending (HR) */
-export async function listPendingExpenses(): Promise<Expense[]> {
-  const { data } = await api.get<{ data: Expense[] }>("/expenses/pending");
+export async function listPendingExpenses(
+  params: { from?: string; to?: string } = {},
+): Promise<Expense[]> {
+  const { data } = await api.get<{ data: Expense[] }>("/expenses/pending", { params });
   return data.data;
 }
 

@@ -11,13 +11,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ActiveRangeBadge } from "../../components/common/ActiveRangeBadge";
 import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { ExpensesTable } from "../../components/expenses/ExpensesTable";
-import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
+import { makeRange, rangeToParams, type DateRange } from "../../lib/date-range";
 import { apiErrorMessage, listReviewExpenses } from "../../lib/expenses-api";
 import { listProjects } from "../../lib/projects-api";
 import { listUsers } from "../../lib/users-api";
@@ -65,7 +66,7 @@ export function PendingReviewsPage() {
       setError(null);
       try {
         const [all, users, projects] = await Promise.all([
-          listReviewExpenses("ALL"),
+          listReviewExpenses("ALL", rangeToParams(range)),
           listUsers({ limit: 100 }),
           listProjects({ limit: 100 }),
         ]);
@@ -83,7 +84,7 @@ export function PendingReviewsPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [reloadKey, range]);
 
   const getEmployeeName = useMemo(
     () => (id: string) => userNames.get(id) ?? "Unknown",
@@ -94,25 +95,19 @@ export function PendingReviewsPage() {
     [projectNames],
   );
 
-  // Date range scopes tab counts and the table together.
-  const dated = useMemo(
-    () => filterByDate(expenses, (e) => e.expenseDate, range),
-    [expenses, range],
-  );
-
   const counts = useMemo(
     () => ({
-      PENDING: dated.filter((e) => inTab(e, "PENDING")).length,
-      APPROVED: dated.filter((e) => inTab(e, "APPROVED")).length,
-      REJECTED: dated.filter((e) => inTab(e, "REJECTED")).length,
-      ALL: dated.length,
+      PENDING: expenses.filter((e) => inTab(e, "PENDING")).length,
+      APPROVED: expenses.filter((e) => inTab(e, "APPROVED")).length,
+      REJECTED: expenses.filter((e) => inTab(e, "REJECTED")).length,
+      ALL: expenses.length,
     }),
-    [dated],
+    [expenses],
   );
 
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    const rows = dated.filter((e) => {
+    const rows = expenses.filter((e) => {
       if (!inTab(e, tab)) return false;
       if (category !== "ALL" && e.category !== category) return false;
       if (method !== "ALL" && (e.creationMethod ?? "AI") !== method) return false;
@@ -129,7 +124,7 @@ export function PendingReviewsPage() {
     });
     // High-risk receipts first (stable within the same risk band).
     return rows.sort((a, b) => riskRank(a) - riskRank(b));
-  }, [dated, tab, category, method, search, getEmployeeName, getProjectName]);
+  }, [expenses, tab, category, method, search, getEmployeeName, getProjectName]);
 
   return (
     <>
@@ -137,7 +132,12 @@ export function PendingReviewsPage() {
         title="Expenses"
         description="Review submitted expenses and browse approval history."
         breadcrumbs={[{ label: "Expenses" }]}
-        actions={<DateRangeFilter value={range} onChange={setRange} />}
+        actions={
+          <div className="flex items-center gap-2">
+            <ActiveRangeBadge range={range} />
+            <DateRangeFilter value={range} onChange={setRange} />
+          </div>
+        }
       />
 
       {error ? (
