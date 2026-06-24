@@ -17,7 +17,6 @@ import {
   buildAiAnalytics,
   buildMonthlyTrend,
   buildProjectRows,
-  clampMonths,
   composeOverviewKpis,
   groupByCategory,
   splitByScope,
@@ -211,7 +210,7 @@ export async function getAiAnalyticsReport(
   from?: string,
   to?: string,
 ): Promise<AiAnalyticsReport> {
-  const months = clampMonths(monthsBetween(from, to));
+  const months = monthsBetween(from, to);
   const now = new Date();
   const [snap, expensesSnap] = await Promise.all([
     db.collection(ANALYSIS_COLLECTION).get(),

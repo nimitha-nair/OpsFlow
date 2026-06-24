@@ -39,7 +39,7 @@ export async function getOverview(
   }
 }
 
-/** GET /reports/expenses?months=N — ADMIN/HR: spend by category / month / scope. */
+/** GET /reports/expenses?from&to — ADMIN/HR: spend by category / month / scope. */
 export async function getExpenses(
   req: Request,
   res: Response,
