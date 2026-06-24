@@ -19,12 +19,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ActiveRangeBadge } from "../../components/common/ActiveRangeBadge";
 import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { PageHeader } from "../../components/layout/PageHeader";
-import { filterByDate, makeRange, type DateRange } from "../../lib/date-range";
+import { makeRange, rangeSlug, rangeToParams, type DateRange } from "../../lib/date-range";
 import { StatCard } from "../../components/dashboard/StatCard";
 import { ExpensesTable } from "../../components/expenses/ExpensesTable";
 import { apiErrorMessage, listReviewExpenses } from "../../lib/expenses-api";
@@ -70,7 +71,7 @@ export function ExpensesOverviewPage() {
       setError(null);
       try {
         const [all, users, projs] = await Promise.all([
-          listReviewExpenses("ALL"),
+          listReviewExpenses("ALL", rangeToParams(range)),
           listUsers({ limit: 100 }),
           listProjects({ limit: 100 }),
         ]);
@@ -88,7 +89,7 @@ export function ExpensesOverviewPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [reloadKey, range]);
 
   const getEmployeeName = useMemo(
     () => (id: string) => userNames.get(id) ?? "Unknown",
@@ -103,25 +104,19 @@ export function ExpensesOverviewPage() {
     [projectNames],
   );
 
-  // Date range scopes every metric and the table consistently.
-  const dated = useMemo(
-    () => filterByDate(expenses, (e) => e.expenseDate, range),
-    [expenses, range],
-  );
-
   const summary = useMemo(
     () => ({
-      total: dated.length,
-      pending: dated.filter((e) => matchesStatus(e, "PENDING")).length,
-      approved: dated.filter((e) => e.approvalStatus === "APPROVED").length,
-      rejected: dated.filter((e) => e.approvalStatus === "REJECTED").length,
+      total: expenses.length,
+      pending: expenses.filter((e) => matchesStatus(e, "PENDING")).length,
+      approved: expenses.filter((e) => e.approvalStatus === "APPROVED").length,
+      rejected: expenses.filter((e) => e.approvalStatus === "REJECTED").length,
     }),
-    [dated],
+    [expenses],
   );
 
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    return dated.filter((e) => {
+    return expenses.filter((e) => {
       if (!matchesStatus(e, status)) return false;
       if (category !== "ALL" && e.category !== category) return false;
       if (projectId !== "ALL" && e.projectId !== projectId) return false;
@@ -136,7 +131,7 @@ export function ExpensesOverviewPage() {
         .toLowerCase();
       return haystack.includes(needle);
     });
-  }, [dated, status, category, projectId, search, getEmployeeName, getProjectName]);
+  }, [expenses, status, category, projectId, search, getEmployeeName, getProjectName]);
 
   function handleExport() {
     const csv = toExpensesCsv(visible, {
@@ -144,7 +139,7 @@ export function ExpensesOverviewPage() {
       project: (pid) => (pid ? getProjectName(pid) : "General"),
     });
     const stamp = new Date().toISOString().slice(0, 10);
-    downloadCsv(`expenses-${stamp}.csv`, csv);
+    downloadCsv(`expenses_${rangeSlug(range)}_${stamp}.csv`, csv);
   }
 
   return (
@@ -245,6 +240,7 @@ export function ExpensesOverviewPage() {
                 ))}
               </SelectContent>
             </Select>
+            <ActiveRangeBadge range={range} />
             <DateRangeFilter value={range} onChange={setRange} />
           </div>
 
