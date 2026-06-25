@@ -156,7 +156,7 @@ export function TaskAttachments({ taskId }: { taskId: string }) {
                 type="button"
                 onClick={() => open(att, true)}
                 aria-label="Download"
-                className="text-muted-foreground hover:text-foreground"
+                className="-m-1 shrink-0 p-1 text-muted-foreground hover:text-foreground"
               >
                 <Download className="size-3.5" />
               </button>
@@ -165,7 +165,7 @@ export function TaskAttachments({ taskId }: { taskId: string }) {
                   type="button"
                   onClick={() => remove(att)}
                   aria-label="Delete"
-                  className="text-muted-foreground hover:text-destructive"
+                  className="-m-1 shrink-0 p-1 text-muted-foreground hover:text-destructive"
                 >
                   <Trash2 className="size-3.5" />
                 </button>

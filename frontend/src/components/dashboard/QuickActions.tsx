@@ -43,7 +43,7 @@ function QuickAction({ to, onClick, icon, label, hint }: QuickActionItem) {
         {icon}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium text-foreground">{label}</span>
+        <span className="block truncate text-sm font-medium text-foreground">{label}</span>
         <span className="block truncate text-xs text-muted-foreground">
           {hint}
         </span>

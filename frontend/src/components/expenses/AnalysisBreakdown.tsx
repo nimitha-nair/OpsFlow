@@ -34,7 +34,7 @@ export function AnalysisBreakdown({
             className="flex items-start justify-between gap-3 px-3 py-2.5"
           >
             <div className="flex min-w-0 flex-col">
-              <span className="text-sm font-medium text-foreground">
+              <span className="truncate text-sm font-medium text-foreground">
                 Document {i + 1}
                 {d.vendorName ? ` · ${d.vendorName}` : ""}
               </span>

@@ -50,11 +50,11 @@ router.post(
   postTask,
 );
 
-// ADMIN + HR — view (filterable).
+// ADMIN only — view all tasks (filterable). HR no longer has all-task oversight.
 router.get(
   "/",
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.HR),
+  authorize(UserRole.ADMIN),
   validate({ query: listTasksQuery }),
   getTasks,
 );
@@ -87,11 +87,11 @@ router.patch(
   patchTask,
 );
 
-// ADMIN (any) and EMPLOYEE (own tasks) — status only. HR cannot modify.
+// ADMIN (any). EMPLOYEE and HR may update only their own assigned tasks.
 router.patch(
   "/:id/status",
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.EMPLOYEE),
+  authorize(UserRole.ADMIN, UserRole.EMPLOYEE, UserRole.HR),
   validate({ params: idParams, body: taskStatusBody }),
   patchTaskStatus,
 );

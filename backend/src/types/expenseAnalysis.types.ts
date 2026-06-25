@@ -10,6 +10,27 @@ export const ANALYSIS_STATUSES = [
 export type AnalysisStatus = (typeof ANALYSIS_STATUSES)[number];
 
 /**
+ * Authenticity-risk indicators for a receipt. The model reports the visual ones;
+ * DUPLICATE is added deterministically by the backend (matching prior expenses).
+ */
+export const RISK_REASONS = [
+  "SCREENSHOT",
+  "SCREEN_PHOTO",
+  "BLURRY",
+  "CROPPED",
+  "EDITED",
+  "LOW_RESOLUTION",
+  "MISSING_EDGES",
+  "UNUSUAL_FORMAT",
+  "SYNTHETIC",
+  "DUPLICATE",
+] as const;
+export type RiskReason = (typeof RISK_REASONS)[number];
+
+export const RISK_LEVELS = ["LOW", "MEDIUM", "HIGH"] as const;
+export type RiskLevel = (typeof RISK_LEVELS)[number];
+
+/**
  * Immutable snapshot of exactly what the model extracted, captured once when the
  * analysis reaches a terminal success state. The top-level editable fields may be
  * overwritten by employee corrections, but this snapshot is never mutated — it is
@@ -26,6 +47,10 @@ export interface AiExtractionSnapshot {
   taxInformation: string | null;
   confidenceScore: number; // 0–100
   lowConfidenceReason: string | null;
+  /** 0–100: how likely this is a genuine original receipt (higher = more authentic). */
+  authenticityScore?: number;
+  riskReasons?: RiskReason[];
+  riskLevel?: RiskLevel;
 }
 
 /**
@@ -66,6 +91,10 @@ export interface ExpenseAnalysisDocument {
   /** Why the model reported low confidence, when it provided a reason. */
   lowConfidenceReason?: string;
   confidenceScore?: number; // 0–100
+  /** Receipt authenticity 0–100 + derived risk (HR/Admin-only, never shown to employees). */
+  authenticityScore?: number;
+  riskLevel?: RiskLevel;
+  riskReasons?: RiskReason[];
   /** Immutable original AI extraction — preserved verbatim for the audit trail. */
   aiExtraction?: AiExtractionSnapshot;
   /** End-to-end extraction duration in ms (populated on successful terminal runs). */
@@ -103,6 +132,10 @@ export interface ExpenseAnalysis {
   /** Why the model reported low confidence, when it provided a reason. */
   lowConfidenceReason?: string;
   confidenceScore?: number;
+  /** Receipt authenticity 0–100 + derived risk (HR/Admin-only, never shown to employees). */
+  authenticityScore?: number;
+  riskLevel?: RiskLevel;
+  riskReasons?: RiskReason[];
   /** Immutable original AI extraction — preserved verbatim for the audit trail. */
   aiExtraction?: AiExtractionSnapshot;
   processingMs?: number;

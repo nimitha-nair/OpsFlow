@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 
 import { ApiError } from "../utils/errors";
 import UserRole from "../types/roles";
-import { getTaskById } from "../services/task.service";
+import { getTaskById, isUserResponsibleForTask } from "../services/task.service";
 import {
   createComment,
   deleteComment,
@@ -30,8 +30,8 @@ async function assertTaskAccess(
 ): Promise<void> {
   const task = await getTaskById(taskId); // throws 404 if absent
   if (
-    req.user!.role === UserRole.EMPLOYEE &&
-    task.assigneeId !== req.user!.userId
+    req.user!.role !== UserRole.ADMIN &&
+    !(await isUserResponsibleForTask(task, req.user!.userId))
   ) {
     throw new ApiError(403, "You do not have access to this task");
   }
@@ -73,7 +73,7 @@ export async function postComment(req: Request, res: Response): Promise<Response
       },
       author,
     );
-    const others = [task.assigneeId, task.createdBy].filter(
+    const others = [...task.assignment.userIds, task.createdBy].filter(
       (u) => u !== author && !mentioned.includes(u),
     );
     await notify(

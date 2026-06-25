@@ -55,7 +55,7 @@ export function ScopeSelector({
                 selected ? "text-ai" : "text-muted-foreground"
               }`}
             />
-            <span className="flex flex-col gap-0.5">
+            <span className="flex min-w-0 flex-col gap-0.5">
               <span className="text-sm font-semibold text-foreground">
                 {opt.title}
               </span>

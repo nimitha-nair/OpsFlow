@@ -91,12 +91,12 @@ export function UserListPage() {
         }
       />
 
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name or email…"
-          className="max-w-xs"
+          className="w-full max-w-xs sm:w-auto"
         />
         <Button
           variant="outline"

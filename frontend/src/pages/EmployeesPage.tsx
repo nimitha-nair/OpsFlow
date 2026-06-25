@@ -81,12 +81,12 @@ export function EmployeesPage() {
         breadcrumbs={[{ label: "HR", to: "/hr" }, { label: "Employees" }]}
       />
 
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name or email…"
-          className="max-w-xs"
+          className="w-full max-w-xs sm:w-auto"
         />
         <Button variant="outline" size="icon" onClick={reload} aria-label="Refresh">
           <RefreshCw className={cn("size-4", loading && "animate-spin")} />
@@ -160,7 +160,7 @@ export function EmployeesPage() {
                 <li key={emp.id} className="flex flex-col gap-2 p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="font-medium text-foreground">{emp.name}</p>
+                      <p className="truncate font-medium text-foreground">{emp.name}</p>
                       <p className="truncate text-xs text-muted-foreground">
                         {emp.email}
                       </p>

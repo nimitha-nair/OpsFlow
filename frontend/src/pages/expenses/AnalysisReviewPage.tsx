@@ -156,9 +156,9 @@ export function AnalysisReviewPage() {
       {/* Receipt panel — ~60% */}
       <Card className="overflow-hidden lg:col-span-3">
         <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
-          <CardTitle className="text-base">Receipt</CardTitle>
+          <CardTitle className="shrink-0 text-base">Receipt</CardTitle>
           {projectName && (
-            <span className="truncate text-sm text-muted-foreground">
+            <span className="min-w-0 truncate text-sm text-muted-foreground">
               Project · {projectName}
             </span>
           )}
@@ -300,8 +300,8 @@ export function AnalysisReviewPage() {
 function Row({ label, value }: { label: string; value?: string | null }) {
   return (
     <div className="flex items-start justify-between gap-3 border-b px-3 py-2.5 text-sm last:border-b-0">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="text-right font-medium text-foreground">{value || "—"}</dd>
+      <dt className="shrink-0 text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 break-words text-right font-medium text-foreground">{value || "—"}</dd>
     </div>
   );
 }

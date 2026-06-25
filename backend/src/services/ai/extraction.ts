@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { RISK_REASONS, type RiskReason } from "../../types/expenseAnalysis.types";
+
 /** Token usage as reported by the provider (Kimi/NVIDIA), when available. */
 export interface TokenUsage {
   promptTokens: number;
@@ -19,6 +21,14 @@ export interface ExtractionResult {
   /** Optional model-provided explanation of low confidence (null if none). */
   lowConfidenceReason: string | null;
   confidenceScore: number; // 0–100
+  /**
+   * 0–100: how likely this is a genuine, original receipt photo (not a
+   * screenshot/edit). Optional only so older fixtures stay valid; production
+   * extractors (parseModelJson, mock) always set it — consumers default to 100.
+   */
+  authenticityScore?: number;
+  /** Detected authenticity-risk indicators (may be empty). */
+  riskReasons?: RiskReason[];
   rawOutput: string; // verbatim model content
   /** Provider token usage when reported (Kimi); absent for the mock extractor. */
   usage?: TokenUsage | null;
@@ -61,6 +71,19 @@ const modelJsonSchema = z.object({
     .union([z.number(), z.null()])
     .optional()
     .transform((v) => (v == null ? 0 : v)),
+  authenticityScore: z
+    .union([z.number(), z.null()])
+    .optional()
+    // Absent (legacy/lenient) → assume authentic so we never invent risk.
+    .transform((v) => (v == null ? 100 : v)),
+  riskReasons: z
+    .array(z.string())
+    .optional()
+    .transform((v) =>
+      (v ?? []).filter((r): r is RiskReason =>
+        (RISK_REASONS as readonly string[]).includes(r),
+      ),
+    ),
 });
 
 /** Pull the first balanced JSON object out of a possibly-fenced string. */
@@ -100,6 +123,8 @@ export function parseModelJson(raw: string): ExtractionResult {
     taxInformation: d.taxInformation,
     lowConfidenceReason: d.lowConfidenceReason,
     confidenceScore: confidence,
+    authenticityScore: Math.max(0, Math.min(100, Math.round(d.authenticityScore))),
+    riskReasons: d.riskReasons,
     rawOutput: raw,
   };
 }

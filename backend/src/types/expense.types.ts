@@ -93,6 +93,11 @@ export interface Expense {
   reviewedById?: string;
   reviewedByName?: string;
   reviewedAt?: string;
+  /**
+   * Receipt authenticity risk, attached ONLY on the staff review endpoint
+   * (/expenses/review). Never populated on employee-facing expense responses.
+   */
+  riskLevel?: "LOW" | "MEDIUM" | "HIGH";
   createdAt: string;
   updatedAt: string;
 }

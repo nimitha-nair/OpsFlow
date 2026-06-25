@@ -7,6 +7,7 @@ import {
   createTask,
   deleteTask,
   getTaskById,
+  isUserResponsibleForTask,
   listTasks,
   listTasksForAssignee,
   updateTask,
@@ -36,8 +37,9 @@ export async function postTask(req: Request, res: Response): Promise<Response> {
   try {
     const input = req.valid?.body as Omit<CreateTaskInput, "createdBy">;
     const task = await createTask({ ...input, createdBy: req.user.userId });
+    // Cap fan-out to keep DEPARTMENT assignments (potentially large) bounded.
     await notify(
-      [task.assigneeId],
+      task.assignment.userIds.slice(0, 50),
       {
         type: "TASK_ASSIGNED",
         title: "New task assigned",
@@ -52,7 +54,7 @@ export async function postTask(req: Request, res: Response): Promise<Response> {
   }
 }
 
-/** GET /tasks — ADMIN and HR may view (filterable, e.g. by projectId). */
+/** GET /tasks — ADMIN only: view all tasks (filterable, e.g. by projectId). */
 export async function getTasks(req: Request, res: Response): Promise<Response> {
   try {
     const params = req.valid?.query as ListTasksParams;
@@ -81,8 +83,8 @@ export async function getMyTasks(
 }
 
 /**
- * GET /tasks/:id — ADMIN/HR may view any task; an EMPLOYEE may view a task
- * only if it is assigned to them.
+ * GET /tasks/:id — ADMIN may view any task; everyone else (HR and EMPLOYEE) may
+ * view a task only if they are responsible for it (direct or via department).
  */
 export async function getTask(req: Request, res: Response): Promise<Response> {
   if (!req.user) {
@@ -92,9 +94,11 @@ export async function getTask(req: Request, res: Response): Promise<Response> {
     const { id } = req.valid?.params as IdParams;
     const task = await getTaskById(id);
 
+    // Only ADMIN sees any task; everyone else (HR included) is scoped to tasks
+    // they are responsible for (direct or via their department).
     if (
-      req.user.role === UserRole.EMPLOYEE &&
-      task.assigneeId !== req.user.userId
+      req.user.role !== UserRole.ADMIN &&
+      !(await isUserResponsibleForTask(task, req.user.userId))
     ) {
       return res
         .status(403)
@@ -130,22 +134,30 @@ export async function patchTask(req: Request, res: Response): Promise<Response> 
     const task = await updateTask(id, input);
 
     const actor = req.user?.userId;
-    if (input.assigneeId && before.assigneeId !== task.assigneeId) {
-      await notify([task.assigneeId], {
+    const recipients = task.assignment.userIds.slice(0, 50);
+    const beforeUsers = new Set(before.assignment.userIds);
+    const afterUsers = new Set(task.assignment.userIds);
+    const assignmentChanged =
+      input.assignment !== undefined &&
+      (beforeUsers.size !== afterUsers.size ||
+        [...afterUsers].some((id) => !beforeUsers.has(id)));
+
+    if (assignmentChanged) {
+      await notify(recipients, {
         type: "TASK_ASSIGNED",
         title: "Task assigned to you",
         body: `You were assigned "${task.title}".`,
         taskId: task.id,
       }, actor);
     } else if (input.dueDate && before.dueDate !== task.dueDate) {
-      await notify([task.assigneeId], {
+      await notify(recipients, {
         type: "TASK_DUE_DATE",
         title: "Task due date changed",
         body: `"${task.title}" is now due ${task.dueDate}.`,
         taskId: task.id,
       }, actor);
     } else {
-      await notify([task.assigneeId], {
+      await notify(recipients, {
         type: "TASK_UPDATED",
         title: "Task updated",
         body: `"${task.title}" was updated.`,
@@ -160,8 +172,9 @@ export async function patchTask(req: Request, res: Response): Promise<Response> 
 }
 
 /**
- * PATCH /tasks/:id/status — ADMIN may update any task's status; an EMPLOYEE may
- * update only tasks assigned to them. (HR is excluded at the route level.)
+ * PATCH /tasks/:id/status — ADMIN may update any task's status; EMPLOYEE and HR
+ * may update only tasks assigned to them, and only progress them (In Progress /
+ * Review / On Hold) — completing or reopening stays admin-only.
  */
 export async function patchTaskStatus(
   req: Request,
@@ -178,25 +191,29 @@ export async function patchTaskStatus(
     };
 
     const task = await getTaskById(id);
-    const isEmployee = req.user.role === UserRole.EMPLOYEE;
+    // Non-admins (EMPLOYEE, HR) are self-service: own tasks only, limited moves.
+    const restricted = req.user.role !== UserRole.ADMIN;
 
-    if (isEmployee && task.assigneeId !== req.user.userId) {
+    if (
+      restricted &&
+      !(await isUserResponsibleForTask(task, req.user.userId))
+    ) {
       return res
         .status(403)
         .json({ error: "You can only update tasks assigned to you" });
     }
 
-    // Completed tasks are read-only for employees; only an admin can reopen them.
-    if (task.status === "DONE" && isEmployee) {
+    // Completed tasks are read-only for non-admins; only an admin can reopen them.
+    if (task.status === "DONE" && restricted) {
       return res.status(403).json({
         error: "This task is completed and read-only. Ask an admin to reopen it.",
       });
     }
 
-    // Employees can progress work but cannot complete or reopen a task — only
+    // Non-admins can progress work but cannot complete or reopen a task — only
     // an admin marks DONE or moves a task back to TODO.
-    const EMPLOYEE_ALLOWED: TaskStatus[] = ["IN_PROGRESS", "REVIEW", "ON_HOLD"];
-    if (isEmployee && !EMPLOYEE_ALLOWED.includes(status)) {
+    const SELF_SERVICE_ALLOWED: TaskStatus[] = ["IN_PROGRESS", "REVIEW", "ON_HOLD"];
+    if (restricted && !SELF_SERVICE_ALLOWED.includes(status)) {
       return res.status(403).json({
         error:
           status === "DONE"
@@ -207,7 +224,7 @@ export async function patchTaskStatus(
 
     const updated = await updateTaskStatus(id, status, reason);
     await notify(
-      [task.assigneeId, task.createdBy],
+      [...task.assignment.userIds, task.createdBy].slice(0, 50),
       {
         type: "TASK_STATUS",
         title: "Task status changed",

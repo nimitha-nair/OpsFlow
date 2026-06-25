@@ -44,6 +44,8 @@ export interface Project {
   archived: boolean;
   archivedAt?: string;
   createdBy: string;
+  /** Display name of the creator, resolved from the users collection. */
+  createdByName?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -59,6 +59,28 @@ function timestampToIso(value: Timestamp): string {
   return new Date(0).toISOString();
 }
 
+/** Resolve a single user's display name (undefined if missing). */
+async function resolveCreatorName(uid?: string): Promise<string | undefined> {
+  if (!uid) return undefined;
+  const snap = await db.collection("users").doc(uid).get();
+  return snap.exists ? (snap.get("name") as string | undefined) : undefined;
+}
+
+/** Resolve display names for a set of user ids in one pass. */
+async function resolveCreatorNames(
+  ids: string[],
+): Promise<Map<string, string>> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  const map = new Map<string, string>();
+  await Promise.all(
+    unique.map(async (uid) => {
+      const name = await resolveCreatorName(uid);
+      if (name !== undefined) map.set(uid, name);
+    }),
+  );
+  return map;
+}
+
 /** Project view without the budget, for non-ADMIN roles. */
 export type SafeProject = Omit<Project, "budget">;
 
@@ -78,11 +100,16 @@ export function stripBudget(project: Project): SafeProject {
     updatedAt: project.updatedAt,
   };
   if (project.code !== undefined) safe.code = project.code;
+  if (project.createdByName !== undefined)
+    safe.createdByName = project.createdByName;
   if (project.archivedAt !== undefined) safe.archivedAt = project.archivedAt;
   return safe;
 }
 
-function toPublicProject(project: ProjectDocument): Project {
+function toPublicProject(
+  project: ProjectDocument,
+  createdByName?: string,
+): Project {
   const result: Project = {
     id: project.id,
     name: project.name,
@@ -98,10 +125,18 @@ function toPublicProject(project: ProjectDocument): Project {
     updatedAt: timestampToIso(project.updatedAt),
   };
   if (project.code !== undefined) result.code = project.code;
+  if (createdByName !== undefined) result.createdByName = createdByName;
   if (project.archivedAt !== undefined) {
     result.archivedAt = timestampToIso(project.archivedAt);
   }
   return result;
+}
+
+/** Build a public project with its creator's display name resolved. */
+async function toPublicProjectHydrated(
+  project: ProjectDocument,
+): Promise<Project> {
+  return toPublicProject(project, await resolveCreatorName(project.createdBy));
 }
 
 async function getProjectDocById(id: string): Promise<ProjectDocument | null> {
@@ -118,7 +153,7 @@ export async function getProjectById(id: string): Promise<Project> {
   if (!project) {
     throw new ApiError(404, "Project not found");
   }
-  return toPublicProject(project);
+  return toPublicProjectHydrated(project);
 }
 
 /**
@@ -181,8 +216,12 @@ export async function listProjects(
   const start = (params.page - 1) * params.limit;
   const pageItems = projects.slice(start, start + params.limit);
 
+  const nameById = await resolveCreatorNames(
+    pageItems.map((p) => p.createdBy),
+  );
+
   return {
-    data: pageItems.map(toPublicProject),
+    data: pageItems.map((p) => toPublicProject(p, nameById.get(p.createdBy))),
     pagination: {
       page: params.page,
       limit: params.limit,
@@ -218,7 +257,7 @@ export async function createProject(
   if (!created) {
     throw new ApiError(500, "Failed to load the created project");
   }
-  return toPublicProject(created);
+  return toPublicProjectHydrated(created);
 }
 
 /** Update mutable project fields. Throws 404 if the project does not exist. */
@@ -259,7 +298,7 @@ export async function updateProject(
   if (!updated) {
     throw new ApiError(500, "Failed to load the updated project");
   }
-  return toPublicProject(updated);
+  return toPublicProjectHydrated(updated);
 }
 
 /**
@@ -288,5 +327,5 @@ export async function setProjectArchived(
   if (!updated) {
     throw new ApiError(500, "Failed to load the updated project");
   }
-  return toPublicProject(updated);
+  return toPublicProjectHydrated(updated);
 }

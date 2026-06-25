@@ -99,7 +99,7 @@ export function KanbanMobileList({
                         onClick={() => onOpen(task)}
                         className="block w-full text-left"
                       >
-                        <p className="font-medium text-foreground">{task.title}</p>
+                        <p className="break-words font-medium text-foreground">{task.title}</p>
                         <p className="mt-0.5 truncate text-xs text-muted-foreground">
                           {getProjectName(task.projectId)} ·{" "}
                           {assignmentLabel(task.assignment, getAssigneeName)}

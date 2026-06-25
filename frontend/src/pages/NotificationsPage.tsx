@@ -193,9 +193,9 @@ export function NotificationsPage() {
                     {!n.read && (
                       <span className="size-1.5 shrink-0 rounded-full bg-primary" />
                     )}
-                    <span className="text-sm font-medium text-foreground">{n.title}</span>
+                    <span className="min-w-0 break-words text-sm font-medium text-foreground">{n.title}</span>
                   </div>
-                  <span className="text-sm text-muted-foreground">{n.body}</span>
+                  <span className="break-words text-sm text-muted-foreground">{n.body}</span>
                   <span className="text-xs text-muted-foreground/70">
                     {formatDateTime(n.createdAt)}
                   </span>

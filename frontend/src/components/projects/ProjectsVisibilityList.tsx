@@ -102,12 +102,12 @@ export function ProjectsVisibilityList({
         breadcrumbs={breadcrumbs}
       />
 
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name or client…"
-          className="max-w-xs"
+          className="w-full max-w-xs sm:w-auto"
         />
         <Button
           variant="outline"

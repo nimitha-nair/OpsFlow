@@ -70,7 +70,7 @@ export function TaskDetailsDialog({
               </DialogDescription>
             </DialogHeader>
 
-            <dl className="grid grid-cols-2 gap-4 py-2">
+            <dl className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2">
               <Row
                 label={
                   task.assignment.type === "DEPARTMENT"

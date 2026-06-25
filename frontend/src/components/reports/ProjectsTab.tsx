@@ -125,9 +125,9 @@ export function ProjectsTab() {
           Approved spend across {totals.projectCount} project
           {totals.projectCount === 1 ? "" : "s"}
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <Select value={sort} onValueChange={(v) => v && setSort(v as Sort)}>
-            <SelectTrigger size="sm" className="w-48" aria-label="Sort projects">
+            <SelectTrigger size="sm" className="w-full min-w-40 flex-1 sm:w-48 sm:flex-none" aria-label="Sort projects">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

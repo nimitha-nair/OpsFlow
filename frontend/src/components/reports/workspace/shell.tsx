@@ -69,11 +69,11 @@ export function SectionFrame({
   return (
     <section id={id} ref={ref} data-report-section className="scroll-mt-24 flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border/60 pb-3">
-        <div>
-          <h2 className="text-xl font-semibold tracking-tight text-foreground">{title}</h2>
-          <p className="text-sm text-muted-foreground">{description}</p>
+        <div className="min-w-0">
+          <h2 className="text-xl font-semibold tracking-tight text-foreground break-words">{title}</h2>
+          <p className="text-sm text-muted-foreground break-words">{description}</p>
         </div>
-        <div className="no-print flex items-center gap-2">
+        <div className="no-print flex shrink-0 items-center gap-2">
           {onCsv && (
             <Button variant="outline" size="sm" onClick={onCsv}>
               <FileSpreadsheet className="size-4" />

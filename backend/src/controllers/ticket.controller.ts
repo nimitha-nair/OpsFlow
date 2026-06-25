@@ -17,7 +17,7 @@ import type {
   UpdateTicketInput,
 } from "../services/ticket.service";
 import { notify } from "../services/notification.service";
-import type { TicketStatus } from "../types/ticket.types";
+import type { TicketStatus, TicketTeam } from "../types/ticket.types";
 import type { IdParams } from "../validation/common";
 
 function handleError(res: Response, err: unknown): Response {
@@ -80,7 +80,14 @@ export async function postTicket(req: Request, res: Response): Promise<Response>
   if (!req.user) return res.status(401).json({ error: "Authentication required" });
   try {
     const input = req.valid?.body as Omit<CreateTicketInput, "createdBy">;
-    const ticket = await createTicket({ ...input, createdBy: req.user.userId });
+    // HR can only file into their own queue — never the platform (SYSTEM) team.
+    // The UI already locks this; enforce it here too so the API can't be bypassed.
+    const team: TicketTeam = isHr(req) ? "HR" : input.team;
+    const ticket = await createTicket({
+      ...input,
+      team,
+      createdBy: req.user.userId,
+    });
     // Notify the responders for this ticket's team (HR team → HR + admins;
     // SYSTEM → admins).
     const responders = await getResponderIds(ticket.team);

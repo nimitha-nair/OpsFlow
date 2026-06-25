@@ -107,6 +107,8 @@ describe("printElement", () => {
     expect(portal!.textContent).toContain("Approved spend");
     expect(document.body.classList.contains("printing")).toBe(true);
     expect(document.title).toBe("my-report");
+    // print() is deferred a tick so the browser can lay out the clone first.
+    vi.advanceTimersByTime(50);
     expect(printSpy).toHaveBeenCalledTimes(1);
   });
 

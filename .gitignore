@@ -1,0 +1,21 @@
+# Secrets
+secrets/service-account.json
+
+# Environment
+.env
+.env.local
+
+# Dependencies
+node_modules/
+
+# Build
+dist/
+build/
+
+# Locally stored expense documents (uploaded at runtime)
+backend/uploads/
+
+# Agent / skill tooling artifacts
+.agents/
+.superpowers/
+skills-lock.json

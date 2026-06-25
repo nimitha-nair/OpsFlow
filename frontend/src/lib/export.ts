@@ -176,5 +176,9 @@ export function printElement(
   window.addEventListener("afterprint", restore);
   // Fallback for browsers that don't fire afterprint reliably.
   window.setTimeout(restore, 60_000);
-  window.print();
+  // Defer the print so the browser lays out the freshly-inserted clone before
+  // snapshotting. This matters most for "Export all", whose clone contains
+  // panels just revealed from display:none — a synchronous print() can capture
+  // them before layout, producing blank or partial pages.
+  window.setTimeout(() => window.print(), 50);
 }

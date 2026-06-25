@@ -58,10 +58,13 @@ import type {
 
 const PENDING = ["SUBMITTED", "PENDING_REVIEW"];
 
-function monthLabel(key: string): string {
+function monthLabel(key: string, year?: "2-digit" | "numeric"): string {
   const [y, m] = key.split("-").map(Number);
   if (!y || !m) return key;
-  return new Date(y, m - 1, 1).toLocaleString("en-US", { month: "short" });
+  return new Date(y, m - 1, 1).toLocaleString(
+    "en-US",
+    year ? { month: "short", year } : { month: "short" },
+  );
 }
 
 function utilTone(util: number | null): string {
@@ -277,18 +280,20 @@ export function AdminDashboard() {
             >
               {trend && trend.monthlyTrend.some((m) => m.amount > 0) ? (
                 <ColumnChart
-                  items={trend.monthlyTrend.map((m) => {
-                    const max = Math.max(
-                      1,
-                      ...trend.monthlyTrend.map((x) => x.amount),
-                    );
-                    return {
+                  items={(() => {
+                    const t = trend.monthlyTrend;
+                    const max = Math.max(1, ...t.map((x) => x.amount));
+                    const spansYears =
+                      t.length > 1 &&
+                      t[0]!.month.slice(0, 4) !==
+                        t[t.length - 1]!.month.slice(0, 4);
+                    return t.map((m) => ({
                       key: m.month,
                       ratio: m.amount / max,
-                      label: monthLabel(m.month),
-                      title: `${monthLabel(m.month)} · ${formatMoney(m.amount)}`,
-                    };
-                  })}
+                      label: monthLabel(m.month, spansYears ? "2-digit" : undefined),
+                      title: `${monthLabel(m.month, "numeric")} · ${formatMoney(m.amount)}`,
+                    }));
+                  })()}
                 />
               ) : (
                 <EmptyState

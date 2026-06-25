@@ -61,7 +61,7 @@ export function MetricCard({
         <div className="min-w-0 flex-1">
           <div
             className={cn(
-              "font-bold tracking-tight tabular-nums",
+              "font-bold tracking-tight tabular-nums break-words",
               a.value,
               emphasize ? "text-3xl" : "text-2xl",
             )}

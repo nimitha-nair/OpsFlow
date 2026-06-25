@@ -9,3 +9,12 @@ export const loginBody = z
   .strict();
 
 export type LoginInput = z.infer<typeof loginBody>;
+
+/** POST /auth/qr/exchange — swap a scanned QR token for a session. */
+export const qrExchangeBody = z
+  .object({
+    token: z.string().trim().min(10).max(256),
+  })
+  .strict();
+
+export type QrExchangeInput = z.infer<typeof qrExchangeBody>;

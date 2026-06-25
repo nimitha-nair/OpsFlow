@@ -152,7 +152,7 @@ export function ExpensesOverviewPage() {
         description="Complete expense lifecycle across the organization."
         breadcrumbs={[{ label: "Admin", to: "/admin" }, { label: "Expenses" }]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -193,8 +193,8 @@ export function ExpensesOverviewPage() {
             <StatCard label="Rejected" value={summary.rejected} icon={XCircle} />
           </div>
 
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-            <div className="relative flex-1">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center lg:flex-nowrap">
+            <div className="relative w-full sm:min-w-48 sm:flex-1">
               <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 className="pl-8"
@@ -204,7 +204,7 @@ export function ExpensesOverviewPage() {
               />
             </div>
             <Select value={status} onValueChange={(v) => setStatus((v ?? "ALL") as StatusFilter)}>
-              <SelectTrigger className="lg:w-40">
+              <SelectTrigger className="w-full sm:w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -218,7 +218,7 @@ export function ExpensesOverviewPage() {
               value={category}
               onValueChange={(v) => setCategory((v ?? "ALL") as ExpenseCategory | "ALL")}
             >
-              <SelectTrigger className="lg:w-44">
+              <SelectTrigger className="w-full sm:w-44">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -231,7 +231,7 @@ export function ExpensesOverviewPage() {
               </SelectContent>
             </Select>
             <Select value={projectId} onValueChange={(v) => setProjectId(v ?? "ALL")}>
-              <SelectTrigger className="lg:w-48">
+              <SelectTrigger className="w-full sm:w-48">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

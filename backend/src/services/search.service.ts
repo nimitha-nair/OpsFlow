@@ -82,7 +82,10 @@ export async function globalSearch(
     let docs = await loadDocs("tasks");
     if (!isStaff)
       docs = docs.filter(
-        (t) => t.assigneeId === actor.userId || t.createdBy === actor.userId,
+        (t) =>
+          (t.assignment as { userIds?: string[] } | undefined)?.userIds?.includes(
+            actor.userId,
+          ) || t.createdBy === actor.userId,
       );
     out.push(
       ...docs

@@ -8,7 +8,7 @@ export function LowConfidenceBanner({ reason }: { reason: string }) {
       className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3"
     >
       <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />
-      <div className="flex flex-col gap-0.5">
+      <div className="flex min-w-0 flex-col gap-0.5">
         <p className="text-sm font-semibold text-amber-900">
           Low confidence — please review carefully
         </p>

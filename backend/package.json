@@ -11,6 +11,7 @@
     "backfill:codes": "ts-node-dev --transpile-only src/scripts/backfill-codes.ts",
     "backfill:reimbursed-at": "ts-node-dev --transpile-only src/scripts/backfill-reimbursed-at.ts",
     "backfill:submitted-at": "ts-node-dev --transpile-only src/scripts/backfill-submitted-at.ts",
+    "backfill:task-assignment": "ts-node-dev --transpile-only src/scripts/backfill-task-assignment.ts",
     "try:kimi": "ts-node-dev --transpile-only src/scripts/try-kimi.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"

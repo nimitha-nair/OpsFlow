@@ -102,13 +102,13 @@ export function ExpenseReportPage() {
 
       <div data-print-root className="flex flex-col gap-4 bg-background p-2">
         <div className="flex items-start justify-between gap-3 border-b pb-3">
-          <div>
+          <div className="min-w-0">
             <h1 className="text-xl font-bold tracking-tight">Expense Report</h1>
             <p className="text-sm text-muted-foreground">
               Generated {formatDate(new Date().toISOString())}
             </p>
           </div>
-          <div className="flex flex-col items-end gap-1">
+          <div className="flex shrink-0 flex-col items-end gap-1">
             <ApprovalStatusBadge status={expense.approvalStatus} />
             <CreationMethodBadge method={expense.creationMethod} />
           </div>
@@ -223,9 +223,9 @@ export function ExpenseReportPage() {
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex min-w-0 flex-col gap-1">
       <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
-      <dd className="text-sm text-foreground">{value}</dd>
+      <dd className="break-words text-sm text-foreground">{value}</dd>
     </div>
   );
 }

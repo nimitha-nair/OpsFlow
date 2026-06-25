@@ -14,6 +14,21 @@ function tsMillis(value: unknown): number {
   return value instanceof Timestamp ? value.toMillis() : 0;
 }
 
+/** Format an amount with its currency symbol (e.g. "₹1,500"), matching the
+ *  rest of the app, instead of a raw code like "INR 1500". */
+function formatActivityMoney(amount: number, currency: string): string {
+  const cur = currency.trim() || "INR";
+  try {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: cur,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${cur} ${amount}`;
+  }
+}
+
 /** "IN_PROGRESS" -> "In Progress" for human-readable descriptions. */
 function humanize(token: string): string {
   return token
@@ -138,9 +153,11 @@ export async function listActivity(
     const tasksSnap = await db.collection("tasks").get();
     for (const d of tasksSnap.docs) {
     const t = d.data();
+    const assignedUserIds =
+      (t.assignment as { userIds?: string[] } | undefined)?.userIds ?? [];
     if (
       scopeUserId &&
-      t.assigneeId !== scopeUserId &&
+      !assignedUserIds.includes(scopeUserId) &&
       t.createdBy !== scopeUserId
     )
       continue;
@@ -168,7 +185,7 @@ export async function listActivity(
           title: "Task updated",
           description: `${title} · now ${humanize((t.status as string) ?? "")}`,
           code,
-          actorName: nameOf(t.assigneeId as string),
+          actorName: nameOf(assignedUserIds[0]),
           timestamp: tsIso(t.updatedAt),
         }),
       );
@@ -181,11 +198,14 @@ export async function listActivity(
   for (const d of expensesSnap.docs) {
     const e = d.data();
     if (scopeUserId && e.employeeId !== scopeUserId) continue;
+    // Drafts are private and unsubmitted — they aren't activity. Skip them so a
+    // draft never shows up (previously they were mislabeled "Expense submitted").
+    if ((e.approvalStatus as string | undefined) === "DRAFT") continue;
     const code = e.code as string | undefined;
     const amount = e.amount as number | undefined;
     const currency = (e.currency as string | undefined) ?? "";
     const money =
-      amount !== undefined ? `${currency} ${amount}`.trim() : undefined;
+      amount !== undefined ? formatActivityMoney(amount, currency) : undefined;
     events.push(
       buildEvent({
         entity: "expense",
@@ -196,7 +216,8 @@ export async function listActivity(
         code,
         actorId: e.employeeId as string | undefined,
         actorName: nameOf(e.employeeId as string),
-        timestamp: tsIso(e.createdAt),
+        // Stamp the real submission time when available (drafts excluded above).
+        timestamp: tsIso(e.submittedAt ?? e.createdAt),
       }),
     );
     const status = e.approvalStatus as string | undefined;
@@ -214,6 +235,26 @@ export async function listActivity(
           description: money,
           actorName: e.reviewedByName as string | undefined,
           timestamp: tsIso(e.updatedAt),
+        }),
+      );
+    }
+
+    // A reimbursement event once the payout is marked PAID (stamped with the
+    // paid date). Its own `reimbursement` category, distinct from the expense
+    // approval above.
+    const reimbursementStatus = e.reimbursementStatus as string | undefined;
+    if (reimbursementStatus === "PAID" && e.reimbursedAt) {
+      const who = nameOf(e.employeeId as string);
+      events.push(
+        buildEvent({
+          entity: "reimbursement",
+          entityId: d.id,
+          verb: "paid",
+          title: "Reimbursement paid",
+          code,
+          description: [money, who].filter(Boolean).join(" · ") || undefined,
+          actorName: who,
+          timestamp: tsIso(e.reimbursedAt),
         }),
       );
     }

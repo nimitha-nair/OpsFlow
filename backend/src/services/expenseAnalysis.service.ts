@@ -12,6 +12,7 @@ import { deriveDocumentIds } from "./expense-documents.read";
 import { getExtractor } from "./ai/expense-extractor";
 import { statusForConfidence, type ExtractionResult } from "./ai/extraction";
 import { aggregateExtractions } from "./ai/aggregate";
+import { deriveRiskLevel } from "./ai/risk";
 import { runWithRetry } from "./ai/retry";
 import {
   isAnalysisEditable,
@@ -24,10 +25,35 @@ import type {
   ExpenseAnalysis,
   ExpenseAnalysisDocument,
   PerDocumentExtraction,
+  RiskLevel,
+  RiskReason,
 } from "../types/expenseAnalysis.types";
 
 const ANALYSIS_COLLECTION = "expenseAnalysis";
+const EXPENSES_COLLECTION = "expenses";
 const MAX_RETRIES = 2;
+
+/**
+ * Deterministic duplicate check: has this employee already filed another expense
+ * with the SAME amount and date (the receipt's extracted date)? Far more reliable
+ * than asking the model. Returns false when amount/date are unknown.
+ */
+async function isLikelyDuplicate(
+  expenseId: string,
+  employeeId: string,
+  amount: number | null,
+  transactionDate: string | null,
+): Promise<boolean> {
+  if (amount == null || !transactionDate) return false;
+  const snap = await db
+    .collection(EXPENSES_COLLECTION)
+    .where("employeeId", "==", employeeId)
+    .where("amount", "==", amount)
+    .get();
+  return snap.docs.some(
+    (d) => d.id !== expenseId && d.get("expenseDate") === transactionDate,
+  );
+}
 
 export interface UpdateAnalysisInput {
   vendorName?: string;
@@ -84,6 +110,28 @@ export async function getAnalysisByExpenseId(
 ): Promise<ExpenseAnalysis | null> {
   const doc = await findDocByExpenseId(expenseId);
   return doc ? toView(doc) : null;
+}
+
+/**
+ * Map of expenseId → derived riskLevel for the given expenses. Used by the
+ * STAFF-ONLY review queue to badge/sort by risk without leaking risk to
+ * employees (who never hit the review endpoints).
+ */
+export async function riskLevelsForExpenses(
+  expenseIds: string[],
+): Promise<Map<string, RiskLevel>> {
+  const wanted = new Set(expenseIds);
+  const out = new Map<string, RiskLevel>();
+  if (wanted.size === 0) return out;
+  const snap = await db.collection(ANALYSIS_COLLECTION).get();
+  for (const d of snap.docs) {
+    const expenseId = d.get("expenseId") as string | undefined;
+    const riskLevel = d.get("riskLevel") as RiskLevel | undefined;
+    if (expenseId && riskLevel && wanted.has(expenseId)) {
+      out.set(expenseId, riskLevel);
+    }
+  }
+  return out;
 }
 
 /**
@@ -218,6 +266,23 @@ async function runAnalysis(
       perDoc.push(res);
     }
     const r = aggregateExtractions(perDoc);
+
+    // Receipt authenticity / risk (HR-facing). Model reports visual indicators;
+    // we add DUPLICATE deterministically, then derive a level.
+    const expense = await requireExpense(expenseId);
+    const duplicate = await isLikelyDuplicate(
+      expenseId,
+      expense.employeeId,
+      r.amount,
+      r.transactionDate,
+    );
+    const authenticityScore = r.authenticityScore ?? 100;
+    const riskReasons: RiskReason[] = [
+      ...(r.riskReasons ?? []),
+      ...(duplicate ? (["DUPLICATE"] as RiskReason[]) : []),
+    ];
+    const riskLevel = deriveRiskLevel(authenticityScore, riskReasons);
+
     const documents: PerDocumentExtraction[] = documentIds.map((docId, i) => {
       const d = perDoc[i]!;
       return {
@@ -249,6 +314,10 @@ async function runAnalysis(
       taxInformation: r.taxInformation ?? FieldValue.delete(),
       lowConfidenceReason: r.lowConfidenceReason ?? FieldValue.delete(),
       confidenceScore: r.confidenceScore,
+      // Receipt authenticity / risk — surfaced to HR/Admin only.
+      authenticityScore,
+      riskLevel,
+      riskReasons,
       // Immutable original AI extraction — never touched by employee edits.
       // It is the audit source for the Receipt-vs-AI-vs-corrected comparison.
       aiExtraction: snapshotFromExtraction(r),

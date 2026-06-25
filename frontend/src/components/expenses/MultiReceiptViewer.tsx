@@ -119,7 +119,7 @@ export function MultiReceiptViewer({ expenseId }: { expenseId: string }) {
                     : d.originalFileName
                 }
               >
-                <FileText className="size-3.5 text-muted-foreground" />
+                <FileText className="size-3.5 shrink-0 text-muted-foreground" />
                 <span className="max-w-32 truncate">{d.originalFileName}</span>
               </button>
             ))}

@@ -12,14 +12,39 @@ import { TASK_PRIORITIES, TASK_STATUSES } from "../types/task.types";
 const prioritySchema = z.enum(TASK_PRIORITIES);
 const statusSchema = z.enum(TASK_STATUSES);
 
+/**
+ * Discriminated union describing how a task is assigned.
+ * - INDIVIDUAL: exactly one user id.
+ * - MULTIPLE: two or more user ids.
+ * - DEPARTMENT: a department label; the responsible users are resolved
+ *   server-side from project members in that department.
+ */
+export const assignmentSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("INDIVIDUAL"),
+    userIds: z.array(firestoreId).length(1, "Select exactly one assignee"),
+  }),
+  z.object({
+    type: z.literal("MULTIPLE"),
+    userIds: z.array(firestoreId).min(2, "Select at least two assignees"),
+  }),
+  z.object({
+    type: z.literal("DEPARTMENT"),
+    department: z.string().trim().min(1, "Department is required").max(60),
+  }),
+]);
+
+export type AssignmentInput = z.infer<typeof assignmentSchema>;
+
 /** POST /tasks */
 export const createTaskBody = z
   .object({
-    projectId: firestoreId,
+    // Optional: omit for a company-wide ("General") task not tied to a project.
+    projectId: firestoreId.optional(),
     title: z.string().trim().min(1),
     // Optional — title/project/assignee/priority/due date carry the requirement.
     description: z.string().trim().max(2000).optional().default(""),
-    assigneeId: firestoreId,
+    assignment: assignmentSchema,
     priority: prioritySchema.default("MEDIUM"),
     status: statusSchema.default("TODO"),
     dueDate: dateString,
@@ -37,7 +62,7 @@ export const updateTaskBody = z
   .object({
     title: z.string().trim().min(1).optional(),
     description: z.string().trim().max(2000).optional(),
-    assigneeId: firestoreId.optional(),
+    assignment: assignmentSchema.optional(),
     priority: prioritySchema.optional(),
     status: statusSchema.optional(),
     dueDate: dateString.optional(),
@@ -73,7 +98,7 @@ export const listTasksQuery = z
     projectId: firestoreId.optional(),
     status: statusSchema.optional(),
     priority: prioritySchema.optional(),
-    assigneeId: firestoreId.optional(),
+    assignee: firestoreId.optional(),
     version: z.string().trim().max(40).optional(),
     /** Which date the range filters on — the task's due date or its created date. */
     basis: z.enum(["dueDate", "createdAt"]).optional(),

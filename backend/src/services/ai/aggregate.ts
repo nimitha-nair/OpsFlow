@@ -70,6 +70,10 @@ export function aggregateExtractions(
     taxInformation,
     lowConfidenceReason: firstNonNull(results.map((r) => r.lowConfidenceReason)),
     confidenceScore,
+    // Authenticity is the most conservative (lowest) across docs; risk reasons
+    // are the union — any suspicious document flags the whole expense.
+    authenticityScore: Math.min(...results.map((r) => r.authenticityScore ?? 100)),
+    riskReasons: [...new Set(results.flatMap((r) => r.riskReasons ?? []))],
     rawOutput: JSON.stringify(results.map((r) => r.rawOutput)),
     usage: sumUsage(results),
   };

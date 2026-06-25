@@ -135,7 +135,7 @@ export function PendingReviewsPage() {
         description="Review submitted expenses and browse approval history."
         breadcrumbs={[{ label: "Expenses" }]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <ActiveRangeBadge
               range={range}
               basisLabel={basis === "submittedAt" ? "Submitted" : "Expense date"}
@@ -161,8 +161,12 @@ export function PendingReviewsPage() {
       ) : (
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
-              <TabsList>
+            <Tabs
+              value={tab}
+              onValueChange={(v) => setTab(v as Tab)}
+              className="-mx-1 max-w-full overflow-x-auto px-1"
+            >
+              <TabsList className="w-max">
                 <TabsTrigger value="PENDING">
                   Pending ({counts.PENDING})
                 </TabsTrigger>

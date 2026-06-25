@@ -1,9 +1,10 @@
 import { Router } from "express";
 
-import { login } from "../controllers/auth.controller";
+import { login, qrExchange, qrStart } from "../controllers/auth.controller";
+import { authenticate } from "../middleware/auth.middleware";
 import { authRateLimiter } from "../middleware/rate-limit";
 import { validate } from "../middleware/validate";
-import { loginBody } from "../validation/auth.schema";
+import { loginBody, qrExchangeBody } from "../validation/auth.schema";
 
 const router = Router();
 
@@ -24,6 +25,17 @@ router.post(
   authRateLimiter,
   validate({ body: loginBody }),
   login,
+);
+
+// Authenticated device mints a short-lived QR token for cross-device login.
+router.post("/qr/start", authenticate, qrStart);
+
+// The scanning device swaps the token for a real session (rate-limited, public).
+router.post(
+  "/qr/exchange",
+  authRateLimiter,
+  validate({ body: qrExchangeBody }),
+  qrExchange,
 );
 
 export default router;

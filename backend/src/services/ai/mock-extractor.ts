@@ -31,6 +31,11 @@ export const mockExtractor: ExpenseExtractor = {
     const transactionDate = `2026-06-${String(day).padStart(2, "0")}`;
     // Spread 50–99 so both COMPLETED and LOW_CONFIDENCE states are reachable.
     const confidenceScore = 50 + (h % 50); // 50 – 99
+    // Make ~1 in 4 mock receipts look risky so HR's risk surfacing is demoable.
+    const RISKY = ["BLURRY", "SCREENSHOT", "CROPPED", "LOW_RESOLUTION"] as const;
+    const risky = h % 4 === 0;
+    const authenticityScore = risky ? 55 + (h % 18) : 86 + (h % 14); // risky 55–72, clean 86–99
+    const riskReasons = risky ? [RISKY[(h >> 3) % RISKY.length]!] : [];
     const result = {
       // Non-null assertions: the arrays are constant and non-empty, so the
       // modulo index is always in range (tsconfig has noUncheckedIndexedAccess).
@@ -46,6 +51,8 @@ export const mockExtractor: ExpenseExtractor = {
           ? "Receipt image was blurry; some fields were only partially legible."
           : null,
       confidenceScore,
+      authenticityScore,
+      riskReasons,
     };
     return { ...result, rawOutput: JSON.stringify(result) };
   },

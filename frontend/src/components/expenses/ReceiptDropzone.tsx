@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import {
   ACCEPTED_MIME,
+  compressImage,
   MAX_FILES,
   validateFiles,
 } from "./receipt-dropzone.utils";
@@ -47,9 +48,12 @@ export function ReceiptDropzone({
     };
   }, [previews]);
 
-  function add(incoming: File[]) {
+  async function add(incoming: File[]) {
     if (disabled) return;
-    const { accepted, errors } = validateFiles(incoming, files.length);
+    // Compress large photos before validating so big mobile captures fit the
+    // size cap and upload reliably on slow connections.
+    const prepared = await Promise.all(incoming.map((f) => compressImage(f)));
+    const { accepted, errors } = validateFiles(prepared, files.length);
     errors.forEach((e) => toast.error(e));
     if (accepted.length) onChange([...files, ...accepted]);
   }

@@ -17,6 +17,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={resolvedTheme}
       className="toaster group"
+      // On mobile, lift toasts above the fixed bottom navigation + safe area so
+      // they never sit under it or off-screen.
+      mobileOffset={{ bottom: "calc(env(safe-area-inset-bottom) + 4.75rem)" }}
       icons={{
         success: <CircleCheckIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,

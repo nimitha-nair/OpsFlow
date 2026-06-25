@@ -9,6 +9,7 @@ export const ACTIVITY_ENTITIES = [
   "ticket",
   "task",
   "expense",
+  "reimbursement",
   "user",
   "project",
 ] as const;

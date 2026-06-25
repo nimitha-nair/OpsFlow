@@ -51,6 +51,15 @@ export async function getAnalysis(req: Request, res: Response): Promise<Response
       return res.status(403).json({ error: "You do not have access to this analysis" });
     }
     const analysis = await getAnalysisByExpenseId(id);
+    // Receipt risk/authenticity is for reviewers (HR/Admin) only — never expose
+    // it to the submitting employee, so they can't iterate against the detector.
+    const isStaff =
+      req.user.role === UserRole.HR || req.user.role === UserRole.ADMIN;
+    if (analysis && !isStaff) {
+      delete (analysis as Partial<typeof analysis>).authenticityScore;
+      delete (analysis as Partial<typeof analysis>).riskLevel;
+      delete (analysis as Partial<typeof analysis>).riskReasons;
+    }
     return res.status(200).json(analysis);
   } catch (err) {
     return handleError(res, err);

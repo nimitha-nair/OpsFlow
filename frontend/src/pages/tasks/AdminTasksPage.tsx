@@ -266,13 +266,13 @@ function DashboardTab({ onNewTask }: DashboardTabProps) {
                 <ul className="flex flex-col divide-y">
                   {recent.map((task) => (
                     <li key={task.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                      <div className="min-w-0">
+                      <div className="min-w-0 truncate">
                         {task.code && (
                           <span className="font-mono text-[10px] text-muted-foreground">
                             {task.code}{" "}
                           </span>
                         )}
-                        <span className="truncate text-sm font-medium text-foreground">
+                        <span className="text-sm font-medium text-foreground">
                           {task.title}
                         </span>
                       </div>
@@ -632,7 +632,7 @@ function ListTab({ reloadKey }: ListTabProps) {
                         {task.code ?? "—"}
                       </TableCell>
                       <TableCell className="max-w-xs">
-                        <div className="font-medium text-foreground">{task.title}</div>
+                        <div className="truncate font-medium text-foreground">{task.title}</div>
                         {task.description && (
                           <div className="truncate text-xs text-muted-foreground">
                             {task.description}
@@ -673,7 +673,7 @@ function ListTab({ reloadKey }: ListTabProps) {
                           {task.code}
                         </p>
                       )}
-                      <p className="font-medium text-foreground">{task.title}</p>
+                      <p className="break-words font-medium text-foreground">{task.title}</p>
                       {task.description && (
                         <p className="truncate text-xs text-muted-foreground">
                           {task.description}

@@ -66,7 +66,7 @@ function ProjectSpendCard({
           </h3>
           <ProjectStatusBadge status={p.status as ProjectStatus} />
         </div>
-        <div className="text-right">
+        <div className="shrink-0 text-right">
           <div
             className={cn(
               "text-lg font-semibold tabular-nums",

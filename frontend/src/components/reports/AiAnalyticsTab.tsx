@@ -177,13 +177,13 @@ export function AiAnalyticsTab() {
         <p className="text-xs text-muted-foreground">
           {t.total} analyses · {t.confirmed} confirmed
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <Select
             value={String(months)}
             onValueChange={(v) => v && changeMonths(Number(v))}
             disabled={refreshing}
           >
-            <SelectTrigger size="sm" className="w-40" aria-label="Trend range">
+            <SelectTrigger size="sm" className="w-full min-w-32 flex-1 sm:w-40 sm:flex-none" aria-label="Trend range">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

@@ -40,7 +40,10 @@ import {
   resolveExpenseDocumentFile,
   saveExpenseDocument,
 } from "../services/expense-document.service";
-import { deleteAnalysisForExpense } from "../services/expenseAnalysis.service";
+import {
+  deleteAnalysisForExpense,
+  riskLevelsForExpenses,
+} from "../services/expenseAnalysis.service";
 import { MAX_DOCS } from "../middleware/upload";
 import { deriveDocumentIds } from "../services/expense-documents.read";
 import type {
@@ -226,7 +229,13 @@ export async function getReviewExpenses(
       to,
       basis ?? "expenseDate",
     );
-    return res.status(200).json({ data });
+    // Attach receipt risk (staff-only) so the review queue can badge & sort it.
+    const risks = await riskLevelsForExpenses(data.map((e) => e.id));
+    const withRisk = data.map((e) => {
+      const riskLevel = risks.get(e.id);
+      return riskLevel ? { ...e, riskLevel } : e;
+    });
+    return res.status(200).json({ data: withRisk });
   } catch (err) {
     return handleError(res, err);
   }

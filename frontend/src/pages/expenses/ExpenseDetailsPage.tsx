@@ -64,9 +64,9 @@ import {
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex min-w-0 flex-col gap-1">
       <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
-      <dd className="text-sm text-foreground">{value}</dd>
+      <dd className="break-words text-sm text-foreground">{value}</dd>
     </div>
   );
 }
@@ -379,15 +379,15 @@ export function ExpenseDetailsPage() {
         <div className="flex flex-col gap-4">
           <Card>
             <CardHeader className="flex flex-row items-start justify-between gap-2">
-              <div className="flex flex-col gap-1">
+              <div className="flex min-w-0 flex-col gap-1">
                 <CardTitle className="text-2xl tracking-tight">
                   {formatMoney(expense.amount, expense.currency)}
                 </CardTitle>
-                <span className="text-sm text-muted-foreground">
+                <span className="break-words text-sm text-muted-foreground">
                   {CATEGORY_LABELS[expense.category]} · {projectName}
                 </span>
               </div>
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex shrink-0 flex-col items-end gap-1">
                 <ApprovalStatusBadge status={expense.approvalStatus} />
                 <ReimbursementBadge status={expense.reimbursementStatus} />
                 <CreationMethodBadge method={expense.creationMethod} />
@@ -403,13 +403,13 @@ export function ExpenseDetailsPage() {
                 <Field label="Submitted" value={formatDate(expense.createdAt)} />
                 <Field label="Project" value={projectName} />
                 <Field label="Category" value={CATEGORY_LABELS[expense.category]} />
-                <div className="flex flex-col gap-1">
+                <div className="flex min-w-0 flex-col gap-1">
                   <dt className="text-xs font-medium text-muted-foreground">
                     Receipt
                   </dt>
-                  <dd>
+                  <dd className="min-w-0">
                     {expense.documentId ? (
-                      <div className="flex flex-col gap-2">
+                      <div className="flex min-w-0 flex-col gap-2">
                         <span className="truncate text-sm text-foreground">
                           {(expense.documentIds?.length ?? 1) > 1
                             ? `${expense.documentIds!.length} documents`
@@ -498,7 +498,7 @@ export function ExpenseDetailsPage() {
                 <p className="text-sm text-muted-foreground">
                   This expense is a draft. Edit it, submit it, or delete it.
                 </p>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -549,7 +549,7 @@ export function ExpenseDetailsPage() {
                   This expense was rejected. Review the reason above, then edit
                   and resubmit it for another review.
                 </p>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Link
                     to={`/employee/expenses/${expense.id}/edit`}
                     className={buttonVariants({ variant: "outline", size: "sm" })}
@@ -748,15 +748,15 @@ function ReviewSummaryCard({
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-2">
-        <div className="flex flex-col gap-1">
+        <div className="flex min-w-0 flex-col gap-1">
           <CardTitle className="text-2xl tracking-tight">
             {formatMoney(expense.amount, expense.currency)}
           </CardTitle>
-          <span className="text-sm text-muted-foreground">
+          <span className="break-words text-sm text-muted-foreground">
             {CATEGORY_LABELS[expense.category]} · {projectName}
           </span>
         </div>
-        <div className="flex flex-col items-end gap-1">
+        <div className="flex shrink-0 flex-col items-end gap-1">
           <ApprovalStatusBadge status={expense.approvalStatus} />
           <ReimbursementBadge status={expense.reimbursementStatus} />
         </div>
@@ -782,16 +782,18 @@ function ReviewSummaryCard({
           <Button
             variant="outline"
             size="sm"
-            className="self-start"
+            className="max-w-full self-start"
             onClick={onDownload}
             disabled={downloading}
           >
             {downloading ? (
-              <Loader2 className="size-4 animate-spin" />
+              <Loader2 className="size-4 shrink-0 animate-spin" />
             ) : (
-              <Download className="size-4" />
+              <Download className="size-4 shrink-0" />
             )}
-            Download original{docMeta ? ` (${docMeta.originalFileName})` : ""}
+            <span className="truncate">
+              Download original{docMeta ? ` (${docMeta.originalFileName})` : ""}
+            </span>
           </Button>
         )}
       </CardContent>

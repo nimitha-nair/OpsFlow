@@ -68,7 +68,7 @@ export function AppTopbar({ onMenuClick }: AppTopbarProps) {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-30 flex min-h-16 items-center gap-3 border-b border-border bg-background/80 px-4 pt-[env(safe-area-inset-top)] backdrop-blur sm:px-6 lg:px-8">
       <button
         type="button"
         onClick={onMenuClick}

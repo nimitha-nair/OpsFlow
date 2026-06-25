@@ -18,6 +18,7 @@ import { Login } from "./pages/Login";
 import { QrLogin } from "./pages/QrLogin";
 import { ProfilePage } from "./pages/ProfilePage";
 import { HelpPage } from "./pages/HelpPage";
+import { EmployeeReports } from "./pages/EmployeeReports";
 import { ReportsPage } from "./pages/ReportsPage";
 import { AnalysisReviewPage } from "./pages/expenses/AnalysisReviewPage";
 import { ExpenseDetailsPage } from "./pages/expenses/ExpenseDetailsPage";
@@ -175,6 +176,7 @@ function App() {
         <Route path="expenses/:id/verify" element={<ExpenseVerificationPage />} />
         <Route path="expenses/:id/report" element={<ExpenseReportPage />} />
         <Route path="expenses/:id" element={<ExpenseDetailsPage />} />
+        <Route path="reports" element={<EmployeeReports />} />
         <Route path="activity" element={<ActivityPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="helpdesk" element={<HelpDeskPage />} />

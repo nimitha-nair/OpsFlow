@@ -542,7 +542,7 @@ export function KpiCard({
         <div>
           <div
             className={cn(
-              "font-bold tracking-tight tabular-nums",
+              "truncate font-bold tracking-tight tabular-nums",
               a.value,
               emphasize ? "text-3xl" : "text-2xl",
             )}

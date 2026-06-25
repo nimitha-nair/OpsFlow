@@ -256,9 +256,11 @@ export function HelpDeskPage() {
                         {t.code}
                       </p>
                     )}
-                    <p className="font-medium text-foreground">{t.subject}</p>
+                    <p className="break-words font-medium text-foreground">{t.subject}</p>
                   </div>
-                  <StatusBadge status={t.status} />
+                  <span className="shrink-0">
+                    <StatusBadge status={t.status} />
+                  </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                   <span>{TICKET_CATEGORY_LABELS[t.category]}</span>
@@ -542,9 +544,11 @@ function TicketDialog({
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                {ticket.subject}
-                <StatusBadge status={ticket.status} />
+              <DialogTitle className="flex flex-wrap items-center gap-2">
+                <span className="min-w-0 break-words">{ticket.subject}</span>
+                <span className="shrink-0">
+                  <StatusBadge status={ticket.status} />
+                </span>
               </DialogTitle>
               <DialogDescription>
                 {ticket.code ? `${ticket.code} · ` : ""}
@@ -659,8 +663,8 @@ function TicketDialog({
                 messages.map((m) => (
                   <div key={m.id} className="flex flex-col gap-0.5">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-foreground">{m.authorName}</span>
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="min-w-0 truncate text-sm font-medium text-foreground">{m.authorName}</span>
+                      <span className="shrink-0 text-[11px] text-muted-foreground">
                         {formatDateTime(m.createdAt)}
                       </span>
                     </div>

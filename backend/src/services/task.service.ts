@@ -5,21 +5,25 @@ import { ApiError } from "../utils/errors";
 import { filterByDateWindow } from "../utils/date-window";
 import type {
   Task,
+  TaskAssignment,
   TaskDocument,
   TaskPriority,
   TaskStatus,
 } from "../types/task.types";
+import type { AssignmentInput } from "../validation/task.schema";
 import { assertProjectNotArchived, getProjectById } from "./project.service";
 import { isProjectMember } from "./projectMember.service";
 import { generateCode } from "./code-generator";
+import { getUserById } from "./user.service";
 
 const TASKS_COLLECTION = "tasks";
 
 export interface CreateTaskInput {
-  projectId: string;
+  /** Owning project, or omitted for a company-wide ("General") task. */
+  projectId?: string;
   title: string;
   description: string;
-  assigneeId: string;
+  assignment: AssignmentInput;
   priority: TaskPriority;
   status: TaskStatus;
   dueDate: string;
@@ -30,7 +34,7 @@ export interface CreateTaskInput {
 export interface UpdateTaskInput {
   title?: string;
   description?: string;
-  assigneeId?: string;
+  assignment?: AssignmentInput;
   priority?: TaskPriority;
   status?: TaskStatus;
   dueDate?: string;
@@ -43,7 +47,8 @@ export interface ListTasksParams {
   projectId?: string;
   status?: TaskStatus;
   priority?: TaskPriority;
-  assigneeId?: string;
+  /** Keep tasks where this user is in `assignment.userIds`. */
+  assignee?: string;
   from?: string;
   to?: string;
   version?: string;
@@ -72,13 +77,24 @@ function timestampToIso(value: Timestamp): string {
 }
 
 function toPublicTask(task: TaskDocument): Task {
+  // Legacy docs (pre-assignment migration / not yet backfilled) may lack
+  // `assignment`; synthesize it from the old single `assigneeId` so the API
+  // always returns a valid shape and clients never read `undefined.userIds`.
+  const legacyAssigneeId = (task as { assigneeId?: string }).assigneeId;
+  const assignment: TaskAssignment = task.assignment ?? {
+    type: "INDIVIDUAL",
+    userIds:
+      typeof legacyAssigneeId === "string" && legacyAssigneeId.length > 0
+        ? [legacyAssigneeId]
+        : [],
+  };
   return {
     id: task.id,
     ...(task.code !== undefined ? { code: task.code } : {}),
-    projectId: task.projectId,
+    ...(task.projectId !== undefined ? { projectId: task.projectId } : {}),
     title: task.title,
     description: task.description,
-    assigneeId: task.assigneeId,
+    assignment,
     priority: task.priority,
     status: task.status,
     dueDate: task.dueDate,
@@ -114,6 +130,23 @@ export async function getTaskById(id: string): Promise<Task> {
   return toPublicTask(await getTaskDocumentById(id));
 }
 
+/**
+ * Whether a user is responsible for a task: directly in `assignment.userIds`,
+ * or via a DEPARTMENT assignment matching their own department. Used to scope
+ * non-admin access (employees and HR) to their own work.
+ */
+export async function isUserResponsibleForTask(
+  task: Task,
+  userId: string,
+): Promise<boolean> {
+  if (task.assignment?.userIds?.includes(userId)) return true;
+  if (task.assignment?.type === "DEPARTMENT" && task.assignment.department) {
+    const user = await getUserById(userId);
+    return user.department?.trim() === task.assignment.department;
+  }
+  return false;
+}
+
 /** Delete a task. Throws 404 if it does not exist. */
 export async function deleteTask(id: string): Promise<void> {
   const task = await getTaskDocById(id);
@@ -123,33 +156,87 @@ export async function deleteTask(id: string): Promise<void> {
   await db.collection(TASKS_COLLECTION).doc(id).delete();
 }
 
-/** Assert the project exists and the assignee is a member of it. */
-async function assertAssigneeIsMember(
-  projectId: string,
-  assigneeId: string,
-): Promise<void> {
-  // Project must exist (reuses Projects CRUD; throws 404 otherwise).
-  await getProjectById(projectId);
-  if (!(await isProjectMember(projectId, assigneeId))) {
+/**
+ * Resolve a validated assignment request into a concrete `TaskAssignment`
+ * (always with `userIds.length >= 1`). Scope depends on whether the task has a
+ * project:
+ * - With a project: assignees must be project members; DEPARTMENT resolves to
+ *   the project members in that department.
+ * - Company-wide (no project): assignees must be active users; DEPARTMENT
+ *   resolves to ALL active users in that department — so e.g. HR can be
+ *   targeted even though HR users aren't on any project.
+ * Empty DEPARTMENT resolution → 400.
+ */
+async function resolveAssignment(
+  projectId: string | undefined,
+  input: AssignmentInput,
+): Promise<TaskAssignment> {
+  // A project, when given, must exist (reuses Projects CRUD; 404 otherwise).
+  if (projectId) await getProjectById(projectId);
+
+  // Eligibility: project membership when scoped to a project, else "active user".
+  const isEligible = async (userId: string): Promise<boolean> => {
+    if (projectId) return isProjectMember(projectId, userId);
+    try {
+      const user = await getUserById(userId);
+      return user.isActive !== false;
+    } catch {
+      return false;
+    }
+  };
+
+  if (input.type === "DEPARTMENT") {
+    const target = input.department.trim().toLowerCase();
+    const usersSnap = await db.collection("users").get();
+    const userIds: string[] = [];
+    for (const doc of usersSnap.docs) {
+      const dept = (doc.get("department") as string | undefined)?.trim();
+      if (!dept || dept.toLowerCase() !== target) continue;
+      if (doc.get("isActive") === false) continue;
+      if (projectId && !(await isProjectMember(projectId, doc.id))) continue;
+      userIds.push(doc.id);
+    }
+    if (userIds.length === 0) {
+      throw new ApiError(
+        400,
+        projectId
+          ? "No project members found in that department"
+          : "No active users found in that department",
+      );
+    }
+    return { type: "DEPARTMENT", userIds, department: input.department.trim() };
+  }
+
+  // INDIVIDUAL / MULTIPLE: every id must be eligible. De-dupe defensively.
+  const userIds = [...new Set(input.userIds)];
+  const eligibility = await Promise.all(userIds.map(isEligible));
+  if (eligibility.some((ok) => !ok)) {
     throw new ApiError(
       400,
-      "Assignee must already be assigned to the project",
+      projectId
+        ? "All assignees must be members of the project"
+        : "All assignees must be valid, active users",
     );
   }
+  return { type: input.type, userIds };
 }
 
-/** Create a task. Validates the project is active and the assignee is a member. */
+/**
+ * Create a task. If a project is given it must be active and assignees must be
+ * its members; without a project (company-wide) assignees are validated as
+ * active users. The assignment is resolved to a concrete user set.
+ */
 export async function createTask(input: CreateTaskInput): Promise<Task> {
-  await assertProjectNotArchived(input.projectId);
-  await assertAssigneeIsMember(input.projectId, input.assigneeId);
+  if (input.projectId) await assertProjectNotArchived(input.projectId);
+  const assignment = await resolveAssignment(input.projectId, input.assignment);
 
   const now = FieldValue.serverTimestamp();
   const ref = await db.collection(TASKS_COLLECTION).add({
     code: await generateCode("task"),
-    projectId: input.projectId,
+    ...(input.projectId ? { projectId: input.projectId } : {}),
     title: input.title.trim(),
     description: input.description.trim(),
-    assigneeId: input.assigneeId,
+    assignment,
     priority: input.priority,
     status: input.status,
     dueDate: input.dueDate,
@@ -189,8 +276,9 @@ export async function listTasks(
   if (params.priority !== undefined) {
     tasks = tasks.filter((t) => t.priority === params.priority);
   }
-  if (params.assigneeId !== undefined) {
-    tasks = tasks.filter((t) => t.assigneeId === params.assigneeId);
+  if (params.assignee !== undefined) {
+    const assignee = params.assignee;
+    tasks = tasks.filter((t) => t.assignment?.userIds?.includes(assignee));
   }
   tasks = filterByDateWindow(
     tasks,
@@ -218,21 +306,50 @@ export async function listTasks(
   };
 }
 
-/** All tasks assigned to a user (newest first), optionally filtered by dueDate window. */
+/**
+ * All tasks a user is responsible for (newest first), optionally filtered by a
+ * dueDate window. Includes tasks where the user is in `assignment.userIds` and
+ * DEPARTMENT-assigned tasks targeting the user's own department.
+ */
 export async function listTasksForAssignee(
   userId: string,
   from?: string,
   to?: string,
 ): Promise<Task[]> {
-  const snapshot = await db
-    .collection(TASKS_COLLECTION)
-    .where("assigneeId", "==", userId)
-    .get();
+  // The user's department drives the second (DEPARTMENT) query.
+  const user = await getUserById(userId);
+  const dept = user.department?.trim();
 
-  let tasks: TaskDocument[] = snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...(doc.data() as Omit<TaskDocument, "id">),
-  }));
+  const queries = [
+    db
+      .collection(TASKS_COLLECTION)
+      .where("assignment.userIds", "array-contains", userId)
+      .get(),
+    // Legacy fallback: un-migrated tasks still carry a single `assigneeId`
+    // (no `assignment.userIds`), so match those too until the backfill runs.
+    db.collection(TASKS_COLLECTION).where("assigneeId", "==", userId).get(),
+  ];
+  if (dept) {
+    queries.push(
+      db
+        .collection(TASKS_COLLECTION)
+        .where("assignment.department", "==", dept)
+        .get(),
+    );
+  }
+
+  const snapshots = await Promise.all(queries);
+  const byId = new Map<string, TaskDocument>();
+  for (const snapshot of snapshots) {
+    for (const doc of snapshot.docs) {
+      byId.set(doc.id, {
+        id: doc.id,
+        ...(doc.data() as Omit<TaskDocument, "id">),
+      });
+    }
+  }
+
+  let tasks = [...byId.values()];
   tasks.sort(
     (a, b) => timestampToMillis(b.createdAt) - timestampToMillis(a.createdAt),
   );
@@ -268,15 +385,18 @@ export async function updateTask(
   if (input.dueDate !== undefined) updates.dueDate = input.dueDate;
   if (input.version !== undefined) updates.version = input.version;
 
-  if (input.assigneeId !== undefined && input.assigneeId !== task.assigneeId) {
-    // New assignee must also be a member of the task's project.
-    if (!(await isProjectMember(task.projectId, input.assigneeId))) {
-      throw new ApiError(
-        400,
-        "Assignee must already be assigned to the project",
-      );
+  if (input.assignment !== undefined) {
+    const resolved = await resolveAssignment(task.projectId, input.assignment);
+    const before = new Set(task.assignment?.userIds ?? []);
+    const after = new Set(resolved.userIds);
+    const sameUsers =
+      before.size === after.size &&
+      [...after].every((id) => before.has(id));
+    // Only write when the responsible set actually changed (drives the
+    // reassignment notification in the controller).
+    if (!sameUsers || resolved.type !== task.assignment?.type) {
+      updates.assignment = resolved;
     }
-    updates.assigneeId = input.assigneeId;
   }
 
   if (Object.keys(updates).length === 0) {

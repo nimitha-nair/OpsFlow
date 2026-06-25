@@ -1,4 +1,3 @@
-import { useMemo, useState } from "react";
 import {
   BarChart3,
   Bell,
@@ -7,9 +6,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   HandCoins,
-  HelpCircle,
   LifeBuoy,
-  Search,
   SquareKanban,
   Users,
   Wallet,
@@ -18,9 +15,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { PageHeader } from "../components/layout/PageHeader";
-import { EmptyState } from "../components/common/EmptyState";
 import { useAuth } from "../context/auth-context";
 import type { Role } from "../types/auth";
 
@@ -183,76 +178,44 @@ const SECTIONS_BY_ROLE: Record<Role, HelpSection[]> = {
 
 export function HelpPage() {
   const { user } = useAuth();
-  const [query, setQuery] = useState("");
-
-  const sections = useMemo(() => {
-    const all = [...COMMON, ...(user ? SECTIONS_BY_ROLE[user.role] : [])];
-    const q = query.trim().toLowerCase();
-    if (!q) return all;
-    return all.filter(
-      (s) =>
-        s.title.toLowerCase().includes(q) ||
-        s.points.some((p) => p.toLowerCase().includes(q)),
-    );
-  }, [user, query]);
+  const sections = [...COMMON, ...(user ? SECTIONS_BY_ROLE[user.role] : [])];
 
   return (
     <>
       <PageHeader
         title="Help & User Manual"
-        description="How OpsFlow works for your role — search or browse the guides below."
+        description="How OpsFlow works for your role — browse the guides below."
         breadcrumbs={[{ label: "Help" }]}
-        actions={
-          <div className="relative w-full sm:w-72">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search help…"
-              className="h-9 pl-8"
-            />
-          </div>
-        }
       />
 
-      {sections.length === 0 ? (
-        <Card className="p-6">
-          <EmptyState
-            icon={HelpCircle}
-            title="No help topics match"
-            description={`Nothing found for “${query.trim()}”. Try a different word.`}
-          />
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {sections.map((section) => {
-            const Icon = section.icon;
-            return (
-              <Card key={section.title} className="flex flex-col gap-3 p-5">
-                <div className="flex items-center gap-2.5">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <Icon className="size-[18px]" />
-                  </span>
-                  <h2 className="text-base font-semibold text-foreground">
-                    {section.title}
-                  </h2>
-                </div>
-                <ul className="flex flex-col gap-2">
-                  {section.points.map((point, i) => (
-                    <li
-                      key={i}
-                      className="flex gap-2 text-sm leading-relaxed text-muted-foreground"
-                    >
-                      <span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary/50" />
-                      <span>{point}</span>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {sections.map((section) => {
+          const Icon = section.icon;
+          return (
+            <Card key={section.title} className="flex flex-col gap-3 p-5">
+              <div className="flex items-center gap-2.5">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Icon className="size-[18px]" />
+                </span>
+                <h2 className="text-base font-semibold text-foreground">
+                  {section.title}
+                </h2>
+              </div>
+              <ul className="flex flex-col gap-2">
+                {section.points.map((point, i) => (
+                  <li
+                    key={i}
+                    className="flex gap-2 text-sm leading-relaxed text-muted-foreground"
+                  >
+                    <span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary/50" />
+                    <span>{point}</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          );
+        })}
+      </div>
     </>
   );
 }

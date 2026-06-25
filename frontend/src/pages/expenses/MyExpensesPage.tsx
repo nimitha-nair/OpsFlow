@@ -350,10 +350,12 @@ export function MyExpensesPage() {
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
-                        <span className="tabular-nums font-semibold text-foreground">
+                        <span className="min-w-0 truncate tabular-nums font-semibold text-foreground">
                           {formatMoney(expense.amount, expense.currency)}
                         </span>
-                        <ApprovalStatusBadge status={expense.approvalStatus} />
+                        <span className="shrink-0">
+                          <ApprovalStatusBadge status={expense.approvalStatus} />
+                        </span>
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                         {expense.code && (

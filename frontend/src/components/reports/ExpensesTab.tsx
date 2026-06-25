@@ -33,13 +33,14 @@ function categoryLabel(category: string): string {
   return CATEGORY_LABELS[category as ExpenseCategory] ?? category;
 }
 
-/** "2026-06" → "Jun" (or "Jun 2026" with year). */
-function monthLabel(key: string, withYear = false): string {
+/** Label a "YYYY-MM" key; `year` adds the year ("2-digit" → "Jun 26",
+ *  "numeric" → "Jun 2026") so months in different years stay distinct. */
+function monthLabel(key: string, year?: "2-digit" | "numeric"): string {
   const [y, m] = key.split("-").map(Number);
   if (!y || !m) return key;
   return new Date(y, m - 1, 1).toLocaleString(
     "en-US",
-    withYear ? { month: "short", year: "numeric" } : { month: "short" },
+    year ? { month: "short", year } : { month: "short" },
   );
 }
 
@@ -121,13 +122,13 @@ export function ExpensesTab() {
         <p className="text-xs text-muted-foreground">
           Approved spend · {formatDate(data.range.from)} – {formatDate(data.range.to)}
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <Select
             value={String(months)}
             onValueChange={(v) => v && changeMonths(Number(v))}
             disabled={refreshing}
           >
-            <SelectTrigger size="sm" className="w-40" aria-label="Time range">
+            <SelectTrigger size="sm" className="w-full min-w-32 flex-1 sm:w-40 sm:flex-none" aria-label="Time range">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -223,13 +224,17 @@ function ScopeBars({ data }: { data: ScopeSplit }) {
 
 function MonthlyColumns({ data }: { data: MonthlySpend[] }) {
   const max = Math.max(1, ...data.map((d) => d.amount));
+  // Show the year on axis labels only when the trend spans calendar years.
+  const spansYears =
+    data.length > 1 &&
+    data[0]!.month.slice(0, 4) !== data[data.length - 1]!.month.slice(0, 4);
   return (
     <ColumnChart
       items={data.map((m) => ({
         key: m.month,
         ratio: m.amount / max,
-        label: monthLabel(m.month),
-        title: `${monthLabel(m.month, true)} · ${formatMoney(m.amount)} · ${m.count} expense${m.count === 1 ? "" : "s"}`,
+        label: monthLabel(m.month, spansYears ? "2-digit" : undefined),
+        title: `${monthLabel(m.month, "numeric")} · ${formatMoney(m.amount)} · ${m.count} expense${m.count === 1 ? "" : "s"}`,
       }))}
     />
   );

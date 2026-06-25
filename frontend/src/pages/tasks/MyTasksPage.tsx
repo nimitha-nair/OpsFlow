@@ -245,7 +245,7 @@ export function MyTasksPage() {
                 {sorted.map((task) => (
                   <TableRow key={task.id}>
                     <TableCell className="max-w-xs">
-                      <div className="font-medium text-foreground">
+                      <div className="truncate font-medium text-foreground">
                         {task.title}
                       </div>
                       <div className="truncate text-xs text-muted-foreground">
@@ -289,7 +289,7 @@ export function MyTasksPage() {
                 <li key={task.id} className="flex flex-col gap-2 p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="font-medium text-foreground">{task.title}</p>
+                      <p className="break-words font-medium text-foreground">{task.title}</p>
                       {task.description && (
                         <p className="truncate text-xs text-muted-foreground">
                           {task.description}

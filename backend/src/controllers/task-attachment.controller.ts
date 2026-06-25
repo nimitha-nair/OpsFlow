@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 
 import { ApiError } from "../utils/errors";
 import UserRole from "../types/roles";
-import { getTaskById } from "../services/task.service";
+import { getTaskById, isUserResponsibleForTask } from "../services/task.service";
 import {
   deleteTaskAttachment,
   listTaskAttachments,
@@ -25,8 +25,8 @@ function handleError(res: Response, err: unknown): Response {
 async function assertTaskAccess(req: Request, taskId: string): Promise<void> {
   const task = await getTaskById(taskId);
   if (
-    req.user!.role === UserRole.EMPLOYEE &&
-    task.assigneeId !== req.user!.userId
+    req.user!.role !== UserRole.ADMIN &&
+    !(await isUserResponsibleForTask(task, req.user!.userId))
   ) {
     throw new ApiError(403, "You do not have access to this task");
   }

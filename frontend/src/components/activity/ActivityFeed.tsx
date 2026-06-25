@@ -240,9 +240,9 @@ export function ActivityFeed({ limit = 40, compact, className, dateParams }: Act
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-baseline gap-x-2">
-                      <span className="text-sm font-medium text-foreground">{ev.title}</span>
+                      <span className="min-w-0 break-words text-sm font-medium text-foreground">{ev.title}</span>
                       {ev.code && (
-                        <span className="font-mono text-xs text-muted-foreground">{ev.code}</span>
+                        <span className="shrink-0 font-mono text-xs text-muted-foreground">{ev.code}</span>
                       )}
                     </div>
                     {ev.description && (

@@ -26,7 +26,7 @@ function Field({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-1">
       <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
-      <dd className="text-sm text-foreground">{value}</dd>
+      <dd className="break-words text-sm text-foreground">{value}</dd>
     </div>
   );
 }
@@ -78,17 +78,17 @@ export function ProfilePage() {
       ) : (
         <Card>
           <CardHeader className="flex flex-row items-center gap-4">
-            <Avatar className="size-14">
+            <Avatar className="size-14 shrink-0">
               <AvatarFallback className="bg-primary/10 text-base font-medium text-primary">
                 {initials(user.name)}
               </AvatarFallback>
             </Avatar>
-            <div className="flex flex-col gap-1">
-              <CardTitle className="text-lg">{user.name}</CardTitle>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">{user.role}</Badge>
+            <div className="flex min-w-0 flex-col gap-1">
+              <CardTitle className="break-words text-lg">{user.name}</CardTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary" className="shrink-0">{user.role}</Badge>
                 {user.position && (
-                  <span className="text-sm text-muted-foreground">
+                  <span className="min-w-0 break-words text-sm text-muted-foreground">
                     {user.position}
                   </span>
                 )}

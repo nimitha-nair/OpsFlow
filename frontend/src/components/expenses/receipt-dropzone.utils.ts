@@ -8,6 +8,78 @@ export const ACCEPTED_MIME = [
 export const MAX_FILES = 5;
 export const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
+/** Longest-edge cap (px) and JPEG quality for client-side image compression. */
+const MAX_EDGE = 2000;
+const JPEG_QUALITY = 0.82;
+/** Images already under this size are uploaded as-is (no point recompressing). */
+const COMPRESS_THRESHOLD = 1024 * 1024; // 1 MB
+
+/** Decode a File into something drawable, preferring createImageBitmap. */
+async function loadImage(file: File): Promise<ImageBitmap | HTMLImageElement> {
+  if (typeof createImageBitmap === "function") {
+    try {
+      return await createImageBitmap(file);
+    } catch {
+      /* fall through to the <img> decoder */
+    }
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    return await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("decode failed"));
+      img.src = url;
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/**
+ * Downscale + re-encode a large photo to JPEG so big phone captures (often
+ * 3–8 MB) fit under the upload cap and transfer quickly on mobile networks.
+ * Non-images (PDFs) and already-small images pass through unchanged. Never
+ * throws — returns the original file if anything goes wrong.
+ */
+export async function compressImage(file: File): Promise<File> {
+  if (!file.type.startsWith("image/")) return file;
+  if (file.size <= COMPRESS_THRESHOLD) return file;
+  try {
+    const source = await loadImage(file);
+    const dims = source as {
+      width: number;
+      height: number;
+      naturalWidth?: number;
+      naturalHeight?: number;
+    };
+    const sw = dims.naturalWidth || dims.width;
+    const sh = dims.naturalHeight || dims.height;
+    if (!sw || !sh) return file;
+    const scale = Math.min(1, MAX_EDGE / Math.max(sw, sh));
+    const w = Math.max(1, Math.round(sw * scale));
+    const h = Math.max(1, Math.round(sh * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(source as CanvasImageSource, 0, 0, w, h);
+    if ("close" in source && typeof source.close === "function") source.close();
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY),
+    );
+    // Keep the original if compression didn't actually shrink it.
+    if (!blob || blob.size >= file.size) return file;
+    const name = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+    return new File([blob], name, { type: "image/jpeg" });
+  } catch {
+    return file;
+  }
+}
+
 export interface ValidationResult {
   accepted: File[];
   errors: string[];

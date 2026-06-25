@@ -68,36 +68,42 @@ export function ColumnChart({ items }: { items: ColumnItem[] }) {
   if (items.length === 0 || items.every((it) => it.ratio <= 0)) {
     return <ChartEmpty label="No trend data in this range yet." />;
   }
+  // With many buckets (e.g. 24 months) the columns would crush to a few pixels
+  // and the labels would overlap on narrow screens, so the track scrolls
+  // horizontally with a per-column minimum once there are more than a handful.
+  const many = items.length > 8;
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex h-44 items-end gap-1.5">
-        {items.map((it, i) => (
-          <div
-            key={it.key}
-            className="group flex h-full flex-1 items-end justify-center"
-            title={it.title}
-          >
+    <div className={many ? "-mx-1 overflow-x-auto px-1" : ""}>
+      <div className={`flex flex-col gap-2 ${many ? "min-w-[480px]" : ""}`}>
+        <div className="flex h-44 items-end gap-1.5">
+          {items.map((it, i) => (
             <div
-              style={{
-                height: `${it.ratio > 0 ? Math.max(it.ratio * 100, 3) : 0}%`,
-                ...riseStyle(i),
-              }}
-              className={`r-col w-full rounded-t-md bg-gradient-to-t ${
-                it.tone ?? "from-indigo-500 to-violet-400"
-              } opacity-85 transition-opacity group-hover:opacity-100`}
-            />
-          </div>
-        ))}
-      </div>
-      <div className="flex gap-1.5">
-        {items.map((it) => (
-          <div
-            key={it.key}
-            className="flex-1 truncate text-center text-[10px] font-medium text-muted-foreground"
-          >
-            {it.label}
-          </div>
-        ))}
+              key={it.key}
+              className="group flex h-full flex-1 items-end justify-center"
+              title={it.title}
+            >
+              <div
+                style={{
+                  height: `${it.ratio > 0 ? Math.max(it.ratio * 100, 3) : 0}%`,
+                  ...riseStyle(i),
+                }}
+                className={`r-col w-full rounded-t-md bg-gradient-to-t ${
+                  it.tone ?? "from-indigo-500 to-violet-400"
+                } opacity-85 transition-opacity group-hover:opacity-100`}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-1.5">
+          {items.map((it) => (
+            <div
+              key={it.key}
+              className="flex-1 truncate text-center text-[10px] font-medium text-muted-foreground"
+            >
+              {it.label}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

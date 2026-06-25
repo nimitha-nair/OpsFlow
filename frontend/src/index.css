@@ -190,9 +190,16 @@
   display: none;
 }
 
+/* Consistent, comfortable page margins for every print/PDF export. */
+@page {
+  margin: 12mm;
+}
+
 @media print {
-  /* Mechanism 1 — portal clone. */
-  body.printing > #root {
+  /* Mechanism 1 — portal clone. Hide EVERYTHING except the print portal (not
+     just #root): stray body-level portals (toasts, menus, dialogs) must not
+     add blank pages alongside the report. */
+  body.printing > *:not(#print-portal) {
     display: none !important;
   }
   body.printing > #print-portal {
@@ -200,6 +207,15 @@
     padding: 0;
     color-scheme: light;
     background: #fff;
+  }
+
+  /* Neutralize ALL entrance animations inside the clone. The clone re-runs
+     each animation from its start, and with staggered delays many elements are
+     still at opacity:0 / scale(0) when the print snapshot is taken — i.e. blank
+     pages. `animation: none` reverts every element to its natural, fully-grown,
+     fully-visible resting state. */
+  body.printing #print-portal * {
+    animation: none !important;
   }
 
   /* Force backgrounds, gradients and chart fills to actually print — browsers
@@ -211,9 +227,23 @@
     print-color-adjust: exact !important;
   }
 
-  /* Keep cards and chart blocks from splitting across page boundaries. */
-  body.printing #print-portal [data-slot="card"],
-  body.printing #print-portal section {
+  /* Print the cloned report root in normal block flow so it paginates from the
+     very top of page 1. The panels container is a flex column, and flex/grid
+     roots can emit a blank leading page in print — block flow fixes that. */
+  body.printing #print-portal,
+  body.printing #print-portal > * {
+    display: block !important;
+  }
+  body.printing #print-portal > *:first-child,
+  body.printing #print-portal > * > *:first-child {
+    margin-top: 0 !important;
+    break-before: avoid !important;
+  }
+
+  /* Avoid splitting an individual card/chart across a page break — but NOT the
+     large section wrappers: a too-tall "avoid" block gets bumped to the next
+     page and leaves the page before it blank. */
+  body.printing #print-portal [data-slot="card"] {
     break-inside: avoid;
   }
 
