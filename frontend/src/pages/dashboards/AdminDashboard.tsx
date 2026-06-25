@@ -1,19 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   ArrowRight,
   Bot,
   BarChart3,
   Briefcase,
-  Building2,
   CheckCircle2,
   Clock,
   HandCoins,
   Plus,
+  Users,
   Wallet,
 } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
 
 import { ActiveRangeBadge } from "../../components/common/ActiveRangeBadge";
 import { DateRangeFilter } from "../../components/common/DateRangeFilter";
@@ -23,8 +21,16 @@ import { LoadingState } from "../../components/common/LoadingState";
 import { SectionCard } from "../../components/common/SectionCard";
 import { MetricCard } from "../../components/common/MetricCard";
 import { QuickCreateTaskDialog } from "../../components/tasks/QuickCreateTaskDialog";
-import { makeRange, monthsToParams, rangeToParams, type DateRange } from "../../lib/date-range";
+import {
+  makeRange,
+  monthsToParams,
+  rangeLabel,
+  rangeToMonths,
+  rangeToParams,
+  type DateRange,
+} from "../../lib/date-range";
 import { DashboardHero } from "../../components/dashboard/DashboardHero";
+import { QuickActions } from "../../components/dashboard/QuickActions";
 import { ActivityFeed } from "../../components/activity/ActivityFeed";
 import { TicketsWidget } from "../../components/dashboard/TicketsWidget";
 import { BarList, ColumnChart } from "../../components/reports/charts";
@@ -76,7 +82,6 @@ export function AdminDashboard() {
   const [reloadKey, setReloadKey] = useState(0);
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
   const [quickOpen, setQuickOpen] = useState(false);
-  const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
@@ -84,12 +89,21 @@ export function AdminDashboard() {
       setLoading(true);
       setError(null);
       try {
+        // The month-bound reports (trend, AI) follow the selected range so the
+        // whole dashboard responds to the date filter, not just the KPIs.
+        const reportWindow = monthsToParams(rangeToMonths(range));
         const [all, users, exp, proj, aiRep] = await Promise.all([
-          listReviewExpenses("ALL", rangeToParams(range)),
+          // Window by submission date so a range like "Last 7 days" shows what
+          // was submitted recently, not expenses that happened to be incurred
+          // in that window (which is usually empty → all zeros).
+          listReviewExpenses("ALL", {
+            ...rangeToParams(range),
+            basis: "submittedAt",
+          }),
           listUsers({ limit: 100 }),
-          getReportsExpenses(monthsToParams(6)),
+          getReportsExpenses(reportWindow),
           getReportsProjects(),
-          getReportsAiAnalytics(monthsToParams(6)),
+          getReportsAiAnalytics(reportWindow),
         ]);
         if (cancelled) return;
         setExpenses(all);
@@ -186,23 +200,36 @@ export function AdminDashboard() {
         />
       ) : (
         <div className="flex flex-col gap-6">
+          <QuickActions
+            items={[
+              {
+                onClick: () => setQuickOpen(true),
+                icon: <Plus className="size-4" />,
+                label: "New Task",
+                hint: "Create and assign work",
+              },
+              {
+                to: "/admin/projects/new",
+                icon: <Briefcase className="size-4" />,
+                label: "New Project",
+                hint: "Start a new project",
+              },
+              {
+                to: "/admin/users/new",
+                icon: <Users className="size-4" />,
+                label: "New User",
+                hint: "Add a team member",
+              },
+              {
+                to: "/admin/reports",
+                icon: <BarChart3 className="size-4" />,
+                label: "Reports",
+                hint: "Spend & activity insights",
+              },
+            ]}
+          />
+
           <div className="no-print flex flex-wrap items-center justify-end gap-2">
-            <Button size="sm" onClick={() => setQuickOpen(true)}>
-              <Plus className="size-4" />
-              New Task
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => navigate("/admin/projects/new")}>
-              <Briefcase className="size-4" />
-              New Project
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => navigate("/admin/departments")}>
-              <Building2 className="size-4" />
-              New Department
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => navigate("/admin/reports")}>
-              <BarChart3 className="size-4" />
-              Reports
-            </Button>
             <ActiveRangeBadge range={range} />
             <DateRangeFilter value={range} onChange={setRange} />
           </div>
@@ -245,7 +272,7 @@ export function AdminDashboard() {
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
             <SectionCard
               title="Approved spend trend"
-              description="Last 6 months"
+              description={rangeLabel(range)}
               className="lg:col-span-2"
             >
               {trend && trend.monthlyTrend.some((m) => m.amount > 0) ? (
@@ -273,7 +300,10 @@ export function AdminDashboard() {
               )}
             </SectionCard>
 
-            <SectionCard title="AI usage" description="Receipt extraction, last 6 months">
+            <SectionCard
+              title="AI usage"
+              description={`Receipt extraction · ${rangeLabel(range)}`}
+            >
               {ai && ai.totals.total > 0 ? (
                 <dl className="flex flex-col gap-3">
                   <AiStat label="Analyses run" value={String(ai.totals.total)} />

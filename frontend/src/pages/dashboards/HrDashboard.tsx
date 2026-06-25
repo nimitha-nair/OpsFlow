@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   ArrowRight,
+  BarChart3,
   CheckCircle2,
   ClipboardCheck,
+  ClipboardList,
   Clock,
   LifeBuoy,
   PencilLine,
   XCircle,
 } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
 
 import { ActiveRangeBadge } from "../../components/common/ActiveRangeBadge";
 import { DateRangeFilter } from "../../components/common/DateRangeFilter";
@@ -20,6 +20,7 @@ import { LoadingState } from "../../components/common/LoadingState";
 import { SectionCard } from "../../components/common/SectionCard";
 import { MetricCard } from "../../components/common/MetricCard";
 import { DashboardHero } from "../../components/dashboard/DashboardHero";
+import { QuickActions } from "../../components/dashboard/QuickActions";
 import { ActivityFeed } from "../../components/activity/ActivityFeed";
 import { TicketsWidget } from "../../components/dashboard/TicketsWidget";
 import { makeRange, rangeToParams, type DateRange } from "../../lib/date-range";
@@ -42,7 +43,6 @@ export function HrDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
-  const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
@@ -51,7 +51,9 @@ export function HrDashboard() {
       setError(null);
       try {
         const [all, users] = await Promise.all([
-          listReviewExpenses("ALL", rangeToParams(range)),
+          // Review queue: window by submission date so "Today" means
+          // "submitted today" (what arrived), not when the expense was incurred.
+          listReviewExpenses("ALL", { ...rangeToParams(range), basis: "submittedAt" }),
           listUsers({ limit: 100 }),
         ]);
         if (cancelled) return;
@@ -138,15 +140,36 @@ export function HrDashboard() {
         />
       ) : (
         <div className="flex flex-col gap-6">
+          <QuickActions
+            items={[
+              {
+                to: "/hr/expenses",
+                icon: <ClipboardCheck className="size-4" />,
+                label: "Review Expenses",
+                hint: `${stats.pending} awaiting review`,
+              },
+              {
+                to: "/hr/tasks",
+                icon: <ClipboardList className="size-4" />,
+                label: "My Tasks",
+                hint: "Your assigned work",
+              },
+              {
+                to: "/hr/helpdesk",
+                icon: <LifeBuoy className="size-4" />,
+                label: "Help Desk",
+                hint: "Raise or handle tickets",
+              },
+              {
+                to: "/hr/reports",
+                icon: <BarChart3 className="size-4" />,
+                label: "Reports",
+                hint: "HR insights",
+              },
+            ]}
+          />
+
           <div className="no-print flex flex-wrap items-center justify-end gap-2">
-            <Button size="sm" onClick={() => navigate("/hr/expenses")}>
-              <ClipboardCheck className="size-4" />
-              Review Expenses
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => navigate("/hr/helpdesk")}>
-              <LifeBuoy className="size-4" />
-              Help Desk
-            </Button>
             <ActiveRangeBadge range={range} />
             <DateRangeFilter value={range} onChange={setRange} />
           </div>

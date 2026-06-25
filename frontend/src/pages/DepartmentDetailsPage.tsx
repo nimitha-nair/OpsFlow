@@ -102,7 +102,11 @@ export function DepartmentDetailsPage() {
         .filter((u) => (u.department?.trim() || "Unassigned") === name)
         .map((u) => u.id),
     );
-    return tasks.filter((t) => memberIds.has(t.assigneeId));
+    return tasks.filter(
+      (t) =>
+        t.assignment.userIds.some((id) => memberIds.has(id)) ||
+        t.assignment.department === name,
+    );
   }, [tasks, users, name]);
 
   const taskStats = useMemo(() => {

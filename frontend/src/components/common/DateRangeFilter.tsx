@@ -22,6 +22,9 @@ interface DateRangeFilterProps {
   className?: string;
   /** Hide the leading calendar icon (e.g. in already-dense toolbars). */
   hideIcon?: boolean;
+  /** Preset options to offer. Defaults to the past-facing {@link DATE_PRESETS};
+   *  pass TASK_DUE_PRESETS for due-date views that need upcoming windows. */
+  presets?: { value: DateRangePreset; label: string }[];
 }
 
 /**
@@ -34,6 +37,7 @@ export function DateRangeFilter({
   onChange,
   className,
   hideIcon,
+  presets = DATE_PRESETS,
 }: DateRangeFilterProps) {
   return (
     <div className={cn("no-print flex flex-wrap items-center gap-2", className)}>
@@ -49,7 +53,7 @@ export function DateRangeFilter({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {DATE_PRESETS.map((p) => (
+            {presets.map((p) => (
               <SelectItem key={p.value} value={p.value}>
                 {p.label}
               </SelectItem>

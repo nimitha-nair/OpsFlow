@@ -7,6 +7,8 @@ export interface AuthContextValue {
   isAuthenticated: boolean;
   /** Authenticate against the backend; resolves with the logged-in user. */
   login: (email: string, password: string) => Promise<AuthUser>;
+  /** Establish a session from an already-issued token + user (e.g. QR login). */
+  loginWithSession: (token: string, user: AuthUser) => void;
   logout: () => void;
 }
 

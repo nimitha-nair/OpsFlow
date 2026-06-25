@@ -22,7 +22,7 @@ interface KanbanColumnProps {
   title: string;
   tasks: Task[];
   getAssigneeName: (id: string) => string;
-  getProjectName: (id: string) => string;
+  getProjectName: (id?: string) => string;
   canMove: boolean;
   selectable?: boolean;
   selectedIds?: Set<string>;
@@ -84,7 +84,7 @@ export function KanbanColumn({
               <KanbanCard
                 key={task.id}
                 task={task}
-                assigneeName={getAssigneeName(task.assigneeId)}
+                getAssigneeName={getAssigneeName}
                 projectName={getProjectName(task.projectId)}
                 canMove={canMove}
                 selectable={selectable}

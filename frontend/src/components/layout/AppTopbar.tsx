@@ -1,22 +1,21 @@
 import { useState } from "react";
 import {
   ChevronDown,
-  ClipboardList,
-  LifeBuoy,
+  HelpCircle,
   LogOut,
   Menu,
-  Plus,
-  Receipt,
-  Briefcase,
+  Smartphone,
   User,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { ThemeToggle } from "./ThemeToggle";
 import { NotificationBell } from "./NotificationBell";
 import { GlobalSearch } from "./GlobalSearch";
+import { MobileLoginDialog } from "./MobileLoginDialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,8 +25,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { QuickCreateTaskDialog } from "../tasks/QuickCreateTaskDialog";
 import { useAuth } from "../../context/auth-context";
+import {
+  playNotificationChime,
+  setSoundAlertsEnabled,
+  soundAlertsEnabled,
+} from "../../lib/notification-sound";
 
 function initialsOf(name: string | undefined): string {
   if (!name) return "U";
@@ -44,24 +47,8 @@ interface AppTopbarProps {
 export function AppTopbar({ onMenuClick }: AppTopbarProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [taskOpen, setTaskOpen] = useState(false);
-
-  const role = user?.role;
-  const isAdmin = role === "ADMIN";
-  const isEmployee = role === "EMPLOYEE";
-  // Role-aware "create" shortcuts surfaced from the global header.
-  const newActions =
-    isAdmin
-      ? [
-          { label: "New Task", icon: ClipboardList, onSelect: () => setTaskOpen(true) },
-          { label: "New Project", icon: Briefcase, onSelect: () => navigate("/admin/projects/new") },
-        ]
-      : isEmployee
-        ? [
-            { label: "New Expense", icon: Receipt, onSelect: () => navigate("/employee/expenses/new") },
-            { label: "New Ticket", icon: LifeBuoy, onSelect: () => navigate("/employee/helpdesk") },
-          ]
-        : [];
+  const [soundOn, setSoundOn] = useState(soundAlertsEnabled());
+  const [mobileLoginOpen, setMobileLoginOpen] = useState(false);
 
   function handleLogout() {
     // Clear auth state + storage, then redirect imperatively. Doing the
@@ -69,6 +56,15 @@ export function AppTopbar({ onMenuClick }: AppTopbarProps) {
     // re-render) guarantees the redirect even as the menu/portal unmounts.
     logout();
     navigate("/login", { replace: true });
+  }
+
+  function toggleSound() {
+    const next = !soundOn;
+    setSoundOn(next);
+    setSoundAlertsEnabled(next);
+    // Play a confirmation chime when enabling — also unlocks audio playback
+    // (browsers require a user gesture before the first sound).
+    if (next) playNotificationChime();
   }
 
   return (
@@ -85,28 +81,15 @@ export function AppTopbar({ onMenuClick }: AppTopbarProps) {
       <GlobalSearch />
 
       <div className="ml-auto flex items-center gap-1.5">
-        {newActions.length > 0 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger render={
-              <Button size="sm" className="gap-1.5">
-                <Plus className="size-4" />
-                <span className="hidden sm:inline">New</span>
-                <ChevronDown className="size-3.5 opacity-80" />
-              </Button>
-            } />
-            <DropdownMenuContent align="end" className="w-48">
-              {newActions.map((action) => {
-                const Icon = action.icon;
-                return (
-                  <DropdownMenuItem key={action.label} onClick={action.onSelect}>
-                    <Icon className="size-4" />
-                    {action.label}
-                  </DropdownMenuItem>
-                );
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+        <button
+          type="button"
+          onClick={() => navigate("/help")}
+          aria-label="Help & user manual"
+          title="Help & user manual"
+          className="inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <HelpCircle className="size-5" />
+        </button>
         <NotificationBell />
         <ThemeToggle />
         <DropdownMenu>
@@ -133,6 +116,18 @@ export function AppTopbar({ onMenuClick }: AppTopbarProps) {
               </DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
+            <DropdownMenuItem closeOnClick={false} onClick={toggleSound}>
+              {soundOn ? (
+                <Volume2 className="size-4" />
+              ) : (
+                <VolumeX className="size-4" />
+              )}
+              Sound alerts: {soundOn ? "On" : "Off"}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setMobileLoginOpen(true)}>
+              <Smartphone className="size-4" />
+              Log in on mobile
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/profile")}>
               <User className="size-4" />
               My Profile
@@ -149,9 +144,10 @@ export function AppTopbar({ onMenuClick }: AppTopbarProps) {
         </DropdownMenu>
       </div>
 
-      {isAdmin && (
-        <QuickCreateTaskDialog open={taskOpen} onOpenChange={setTaskOpen} />
-      )}
+      <MobileLoginDialog
+        open={mobileLoginOpen}
+        onOpenChange={setMobileLoginOpen}
+      />
     </header>
   );
 }

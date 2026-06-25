@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { DueDate } from "../tasks/DueDate";
 import { TaskPriorityBadge } from "../tasks/TaskBadges";
 import { TaskStatusControl } from "../tasks/TaskStatusControl";
+import { assignmentLabel } from "../tasks/AssigneeDisplay";
 import {
   TASK_STATUSES,
   TASK_STATUS_LABELS,
@@ -23,7 +24,7 @@ const STATUS_DOT: Record<TaskStatus, string> = {
 interface KanbanMobileListProps {
   tasks: Task[];
   getAssigneeName: (id: string) => string;
-  getProjectName: (id: string) => string;
+  getProjectName: (id?: string) => string;
   canMove: boolean;
   onMove: (taskId: string, status: TaskStatus, reason?: string) => void;
   onOpen: (task: Task) => void;
@@ -101,7 +102,7 @@ export function KanbanMobileList({
                         <p className="font-medium text-foreground">{task.title}</p>
                         <p className="mt-0.5 truncate text-xs text-muted-foreground">
                           {getProjectName(task.projectId)} ·{" "}
-                          {getAssigneeName(task.assigneeId)}
+                          {assignmentLabel(task.assignment, getAssigneeName)}
                         </p>
                         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                           <TaskPriorityBadge priority={task.priority} />

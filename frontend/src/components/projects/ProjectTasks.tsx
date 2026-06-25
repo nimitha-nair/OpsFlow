@@ -28,6 +28,7 @@ import {
   type AssigneeOption,
 } from "../tasks/TaskFormDialog";
 import { DueDate } from "../tasks/DueDate";
+import { assignmentLabel } from "../tasks/AssigneeDisplay";
 import { listProjectMembers } from "../../lib/project-members-api";
 import { apiErrorMessage, listTasks } from "../../lib/tasks-api";
 import type { Task } from "../../types/task";
@@ -74,6 +75,7 @@ export function ProjectTasks({
           memberList.map((m) => ({
             id: m.userId,
             name: m.user?.name ?? m.user?.email ?? "Unknown member",
+            department: m.user?.department,
           })),
         );
       } catch (err) {
@@ -166,7 +168,10 @@ export function ProjectTasks({
                       {task.title}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {nameById.get(task.assigneeId) ?? "Unknown member"}
+                      {assignmentLabel(
+                        task.assignment,
+                        (id) => nameById.get(id) ?? "Unknown member",
+                      )}
                     </TableCell>
                     <TableCell>
                       <TaskPriorityBadge priority={task.priority} />

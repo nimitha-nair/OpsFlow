@@ -117,40 +117,64 @@ export function EmployeesPage() {
             />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-muted/40">
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Position</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((emp) => (
-                  <TableRow key={emp.id}>
-                    <TableCell className="font-medium text-foreground">
-                      {emp.name}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {emp.email}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {emp.position || "—"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {emp.department || "—"}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge active={emp.isActive} />
-                    </TableCell>
+          <>
+            {/* Desktop table */}
+            <div className="hidden overflow-x-auto md:block">
+              <Table>
+                <TableHeader className="bg-muted/40">
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Position</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((emp) => (
+                    <TableRow key={emp.id}>
+                      <TableCell className="font-medium text-foreground">
+                        {emp.name}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {emp.email}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {emp.position || "—"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {emp.department || "—"}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge active={emp.isActive} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Mobile cards */}
+            <ul className="flex flex-col divide-y md:hidden">
+              {filtered.map((emp) => (
+                <li key={emp.id} className="flex flex-col gap-2 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground">{emp.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {emp.email}
+                      </p>
+                    </div>
+                    <StatusBadge active={emp.isActive} />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span>{emp.position || "—"}</span>
+                    <span>{emp.department || "—"}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </Card>
     </>

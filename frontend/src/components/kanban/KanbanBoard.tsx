@@ -22,7 +22,7 @@ import {
 interface KanbanBoardProps {
   tasks: Task[];
   getAssigneeName: (id: string) => string;
-  getProjectName: (id: string) => string;
+  getProjectName: (id?: string) => string;
   canMove: boolean;
   onMoveTask: (taskId: string, status: TaskStatus) => void;
   selectable?: boolean;
@@ -116,7 +116,7 @@ export function KanbanBoard({
         {activeTask ? (
           <KanbanCardView
             task={activeTask}
-            assigneeName={getAssigneeName(activeTask.assigneeId)}
+            getAssigneeName={getAssigneeName}
             projectName={getProjectName(activeTask.projectId)}
             canMove
           />

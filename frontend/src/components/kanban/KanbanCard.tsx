@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { projectColor } from "../../lib/project-color";
 import { DueDate } from "../tasks/DueDate";
 import { TaskPriorityBadge } from "../tasks/TaskBadges";
+import { AssigneeDisplay } from "../tasks/AssigneeDisplay";
 import type { Task, TaskPriority } from "../../types/task";
 
 /** Left-edge accent per priority — an at-a-glance urgency signal. */
@@ -53,7 +54,7 @@ export function AssigneeAvatar({ name, className }: { name: string; className?: 
 
 interface CardInnerProps {
   task: Task;
-  assigneeName: string;
+  getAssigneeName: (id: string) => string;
   projectName: string;
   canMove: boolean;
   selectable?: boolean;
@@ -64,7 +65,7 @@ interface CardInnerProps {
 
 function CardInner({
   task,
-  assigneeName,
+  getAssigneeName,
   projectName,
   canMove,
   selectable,
@@ -121,8 +122,10 @@ function CardInner({
         </span>
       )}
       <div className="mt-2.5 flex items-center gap-2 border-t border-border/60 pt-2.5">
-        <AssigneeAvatar name={assigneeName} />
-        <span className="truncate text-xs text-muted-foreground">{assigneeName}</span>
+        <AssigneeDisplay
+          assignment={task.assignment}
+          getName={getAssigneeName}
+        />
       </div>
     </>
   );

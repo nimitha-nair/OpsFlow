@@ -15,7 +15,7 @@ import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useAuth } from "../../context/auth-context";
-import { roleBasePath } from "../../lib/navigation";
+import { navByRole, roleBasePath, type NavItem } from "../../lib/navigation";
 import { globalSearch } from "../../lib/search-api";
 import { loadRecent, saveRecent } from "../../lib/recent-search";
 import {
@@ -147,10 +147,41 @@ export function GlobalSearch() {
     return c;
   }, [results]);
 
+  // Navigable modules for the current role — surfaced so typing e.g. "reports"
+  // or "kanban" jumps straight to that page.
+  const modules = useMemo(() => (user ? navByRole[user.role] : []), [user]);
+  const moduleMatches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return modules.filter((m) => m.label.toLowerCase().includes(q)).slice(0, 6);
+  }, [modules, query]);
+
   if (!user) return null;
 
   const showingRecent = query.trim() === "";
-  const items = showingRecent ? recent : results;
+
+  // Unified, keyboard-navigable list: matching modules first, then entity hits.
+  type NavEntry =
+    | { kind: "module"; m: NavItem }
+    | { kind: "result"; r: SearchResult };
+  const navList: NavEntry[] = showingRecent
+    ? [
+        ...recent.map((r) => ({ kind: "result" as const, r })),
+        ...modules.map((m) => ({ kind: "module" as const, m })),
+      ]
+    : [
+        ...moduleMatches.map((m) => ({ kind: "module" as const, m })),
+        ...results.map((r) => ({ kind: "result" as const, r })),
+      ];
+
+  function activate(entry: NavEntry) {
+    if (entry.kind === "module") {
+      setOpen(false);
+      navigate(entry.m.to);
+    } else {
+      go(entry.r);
+    }
+  }
 
   function go(r: SearchResult) {
     // Remember it (most-recent first, de-duped, capped).
@@ -172,17 +203,57 @@ export function GlobalSearch() {
   function onKeyDown(e: React.KeyboardEvent) {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActive((i) => Math.min(i + 1, items.length - 1));
+      setActive((i) => Math.min(i + 1, navList.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActive((i) => Math.max(i - 1, 0));
-    } else if (e.key === "Enter" && items[active]) {
+    } else if (e.key === "Enter" && navList[active]) {
       e.preventDefault();
-      go(items[active]);
+      activate(navList[active]);
     }
   }
 
   let lastEntity: SearchEntity | null = null;
+
+  function ModuleRow({ m, i }: { m: NavItem; i: number }) {
+    const Icon = m.icon;
+    const isActive = i === active;
+    return (
+      <button
+        ref={isActive ? activeRef : undefined}
+        type="button"
+        onClick={() => {
+          setOpen(false);
+          navigate(m.to);
+        }}
+        onMouseMove={() => setActive(i)}
+        className={cn(
+          "flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors",
+          isActive ? "bg-accent" : "hover:bg-muted/60",
+        )}
+      >
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+          <Icon className="size-[18px]" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="truncate text-sm font-medium text-foreground">
+            {m.label}
+          </span>
+          <span className="block truncate text-xs text-muted-foreground">
+            Go to {m.label}
+          </span>
+        </span>
+        <span
+          className={cn(
+            "flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground transition-opacity",
+            isActive ? "opacity-100" : "opacity-0",
+          )}
+        >
+          Open <CornerDownLeft className="size-3" />
+        </span>
+      </button>
+    );
+  }
 
   function Row({ r, i }: { r: SearchResult; i: number }) {
     const Icon = ENTITY_ICON[r.entity];
@@ -286,21 +357,10 @@ export function GlobalSearch() {
 
           {/* Results */}
           <div className="max-h-[22rem] overflow-y-auto px-2 py-2">
-            {showingRecent && recent.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
-                <span className="flex size-11 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-                  <Search className="size-5" />
-                </span>
-                <p className="text-sm font-medium text-foreground">
-                  Search across your workspace
-                </p>
-                <p className="max-w-xs text-xs text-muted-foreground">
-                  Find anything by name or code — a project, a teammate,{" "}
-                  <span className="font-mono">TSK-12</span>, or{" "}
-                  <span className="font-mono">EXP-0041</span>.
-                </p>
-              </div>
-            ) : !showingRecent && !loading && results.length === 0 ? (
+            {!showingRecent &&
+            !loading &&
+            moduleMatches.length === 0 &&
+            results.length === 0 ? (
               <div className="flex flex-col items-center gap-1 px-4 py-12 text-center">
                 <p className="text-sm font-medium text-foreground">No matches</p>
                 <p className="text-xs text-muted-foreground">
@@ -309,42 +369,74 @@ export function GlobalSearch() {
               </div>
             ) : showingRecent ? (
               <>
-                <div className="flex items-center justify-between px-2 pb-1 pt-1">
+                {recent.length > 0 && (
+                  <>
+                    <div className="flex items-center justify-between px-2 pb-1 pt-1">
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Recent
+                      </span>
+                      <button
+                        type="button"
+                        onClick={clearRecent}
+                        className="text-[11px] text-muted-foreground hover:text-foreground"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    {recent.map((r, i) => (
+                      <Row key={`${r.entity}:${r.id}`} r={r} i={i} />
+                    ))}
+                  </>
+                )}
+                {/* Modules — always available for quick navigation. */}
+                <div className="px-2 pb-1 pt-3 first:pt-1">
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Recent
+                    Browse
                   </span>
-                  <button
-                    type="button"
-                    onClick={clearRecent}
-                    className="text-[11px] text-muted-foreground hover:text-foreground"
-                  >
-                    Clear
-                  </button>
                 </div>
-                {recent.map((r, i) => (
-                  <Row key={`${r.entity}:${r.id}`} r={r} i={i} />
+                {modules.map((m, mi) => (
+                  <ModuleRow
+                    key={`module:${m.to}`}
+                    m={m}
+                    i={recent.length + mi}
+                  />
                 ))}
               </>
             ) : (
-              results.map((r, i) => {
-                const showHeader = r.entity !== lastEntity;
-                lastEntity = r.entity;
-                return (
-                  <div key={`${r.entity}:${r.id}`}>
-                    {showHeader && (
-                      <div className="flex items-center gap-2 px-2 pb-1 pt-3 first:pt-1">
-                        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                          {SEARCH_ENTITY_LABELS[r.entity]}
-                        </span>
-                        <span className="rounded-full bg-muted px-1.5 text-[10px] font-medium tabular-nums text-muted-foreground">
-                          {counts[r.entity]}
-                        </span>
-                      </div>
-                    )}
-                    <Row r={r} i={i} />
-                  </div>
-                );
-              })
+              <>
+                {moduleMatches.length > 0 && (
+                  <>
+                    <div className="px-2 pb-1 pt-1">
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Go to
+                      </span>
+                    </div>
+                    {moduleMatches.map((m, i) => (
+                      <ModuleRow key={`module:${m.to}`} m={m} i={i} />
+                    ))}
+                  </>
+                )}
+                {results.map((r, ri) => {
+                  const i = moduleMatches.length + ri;
+                  const showHeader = r.entity !== lastEntity;
+                  lastEntity = r.entity;
+                  return (
+                    <div key={`${r.entity}:${r.id}`}>
+                      {showHeader && (
+                        <div className="flex items-center gap-2 px-2 pb-1 pt-3 first:pt-1">
+                          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            {SEARCH_ENTITY_LABELS[r.entity]}
+                          </span>
+                          <span className="rounded-full bg-muted px-1.5 text-[10px] font-medium tabular-nums text-muted-foreground">
+                            {counts[r.entity]}
+                          </span>
+                        </div>
+                      )}
+                      <Row r={r} i={i} />
+                    </div>
+                  );
+                })}
+              </>
             )}
           </div>
 
@@ -365,11 +457,11 @@ export function GlobalSearch() {
                 close
               </span>
             </span>
-            {items.length > 0 && (
+            {navList.length > 0 && (
               <span className="tabular-nums">
                 {showingRecent
-                  ? `${items.length} recent`
-                  : `${items.length} result${items.length === 1 ? "" : "s"}`}
+                  ? `${navList.length} recent`
+                  : `${navList.length} result${navList.length === 1 ? "" : "s"}`}
               </span>
             )}
           </div>

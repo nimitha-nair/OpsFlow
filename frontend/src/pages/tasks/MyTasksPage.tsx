@@ -25,9 +25,16 @@ import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { DueDate } from "../../components/tasks/DueDate";
-import { makeRange, rangeToParams, type DateRange } from "../../lib/date-range";
+import {
+  makeRange,
+  rangeToParams,
+  TASK_DUE_PRESETS,
+  type DateRange,
+} from "../../lib/date-range";
 import { TaskPriorityBadge } from "../../components/tasks/TaskBadges";
 import { TaskStatusControl } from "../../components/tasks/TaskStatusControl";
+import { useAuth } from "../../context/auth-context";
+import { roleBasePath, roleWorkspaceLabel } from "../../lib/navigation";
 import { listMyProjects } from "../../lib/projects-api";
 import {
   apiErrorMessage,
@@ -42,6 +49,9 @@ import {
 } from "../../types/task";
 
 export function MyTasksPage() {
+  const { user } = useAuth();
+  const workspaceBase = user ? roleBasePath[user.role] : "/employee";
+  const workspaceLabel = user ? roleWorkspaceLabel[user.role] : "Employee";
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projectNames, setProjectNames] = useState<Map<string, string>>(
     new Map(),
@@ -132,7 +142,7 @@ export function MyTasksPage() {
         title="My Tasks"
         description="Tasks assigned to you across your projects."
         breadcrumbs={[
-          { label: "Employee", to: "/employee" },
+          { label: workspaceLabel, to: workspaceBase },
           { label: "My Tasks" },
         ]}
         actions={
@@ -185,7 +195,11 @@ export function MyTasksPage() {
                 <SelectItem value="version">Sort: Version</SelectItem>
               </SelectContent>
             </Select>
-            <DateRangeFilter value={range} onChange={setRange} />
+            <DateRangeFilter
+              value={range}
+              onChange={setRange}
+              presets={TASK_DUE_PRESETS}
+            />
           </div>
         }
       />
@@ -239,7 +253,9 @@ export function MyTasksPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {projectNames.get(task.projectId) ?? "—"}
+                      {task.projectId
+                        ? (projectNames.get(task.projectId) ?? "—")
+                        : "General"}
                     </TableCell>
                     <TableCell>
                       <TaskPriorityBadge priority={task.priority} />
@@ -283,7 +299,11 @@ export function MyTasksPage() {
                     <TaskPriorityBadge priority={task.priority} />
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    <span>{projectNames.get(task.projectId) ?? "—"}</span>
+                    <span>
+                      {task.projectId
+                        ? (projectNames.get(task.projectId) ?? "—")
+                        : "General"}
+                    </span>
                     <DueDate dueDate={task.dueDate} status={task.status} />
                     {task.version && <span>v{task.version}</span>}
                   </div>

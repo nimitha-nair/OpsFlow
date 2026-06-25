@@ -4,6 +4,16 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "../components/common/EmptyState";
 import { ErrorState } from "../components/common/ErrorState";
 import { LoadingState } from "../components/common/LoadingState";
@@ -25,7 +35,12 @@ import {
   type AssigneeOption,
 } from "../components/tasks/TaskFormDialog";
 import { listProjectMembers } from "../lib/project-members-api";
-import { makeRange, rangeToParams, type DateRange } from "../lib/date-range";
+import {
+  makeRange,
+  rangeToParams,
+  TASK_DUE_PRESETS,
+  type DateRange,
+} from "../lib/date-range";
 import { fuzzyMatchAny } from "../lib/fuzzy";
 import { useAuth } from "../context/auth-context";
 import { listMyProjects, listProjects } from "../lib/projects-api";
@@ -53,9 +68,12 @@ interface NamedProject {
 export function KanbanPage() {
   const { user } = useAuth();
   const isEmployee = user?.role === "EMPLOYEE";
+  const isHR = user?.role === "HR";
   const isAdmin = user?.role === "ADMIN";
-  // HR is view-only; ADMIN and the assigned EMPLOYEE may move tasks.
-  const canMove = user?.role !== "HR";
+  // Everyone may move tasks on this board. HR now sees a personal board
+  // (own + HR-department tasks); the backend enforces that non-admins can only
+  // act on their own/department tasks.
+  const canMove = true;
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<NamedProject[]>([]);
@@ -65,15 +83,20 @@ export function KanbanPage() {
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
-  const availableViews: SavedView[] = isEmployee
-    ? ["my", "completed"]
-    : ["my", "team", "department", "completed"];
+  const availableViews: SavedView[] =
+    isEmployee || isHR
+      ? ["my", "completed"]
+      : ["my", "team", "department", "completed"];
 
-  const [savedView, setSavedView] = useState<SavedView>(isEmployee ? "my" : "team");
+  const [savedView, setSavedView] = useState<SavedView>(
+    isEmployee || isHR ? "my" : "team",
+  );
   const [boardView, setBoardView] = useState<BoardView>("board");
   const [search, setSearch] = useState("");
-  const [priority, setPriority] = useState<TaskPriority | "all">("all");
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | "all">("all");
+  // Multi-select filters: empty array = no filter (all). Values OR within a
+  // field; different fields AND together.
+  const [priority, setPriority] = useState<TaskPriority[]>([]);
+  const [statusFilter, setStatusFilter] = useState<TaskStatus[]>([]);
   const [versionFilter, setVersionFilter] = useState("all");
   const [projectFilter, setProjectFilter] = useState("all");
   const [departmentFilter, setDepartmentFilter] = useState("all");
@@ -88,6 +111,9 @@ export function KanbanPage() {
   const [quickOpen, setQuickOpen] = useState(false);
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [editMembers, setEditMembers] = useState<AssigneeOption[]>([]);
+  // ON_HOLD requires a reason; this drives the prompt for desktop drag/bulk moves.
+  const [holdPrompt, setHoldPrompt] = useState<{ ids: string[] } | null>(null);
+  const [holdReason, setHoldReason] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -99,11 +125,14 @@ export function KanbanPage() {
       setError(null);
       try {
         const dateParams = rangeToParams(range);
+        // Only ADMIN gets the org-wide oversight board; EMPLOYEE and HR see a
+        // personal board (own + their department's tasks, resolved server-side).
+        const personalBoard = self.role !== "ADMIN";
         const [taskList, projectList] = await Promise.all([
-          self.role === "EMPLOYEE"
+          personalBoard
             ? listMyTasks(dateParams)
             : listTasks({ limit: 100, ...dateParams, basis: taskBasis }),
-          self.role === "EMPLOYEE"
+          personalBoard
             ? listMyProjects()
             : listProjects({ limit: 100 }).then((r) => r.data),
         ]);
@@ -147,7 +176,7 @@ export function KanbanPage() {
     [names],
   );
   const getProjectName = useMemo(
-    () => (id: string) => projectNames.get(id) ?? "—",
+    () => (id?: string) => (id ? (projectNames.get(id) ?? "—") : "General"),
     [projectNames],
   );
 
@@ -161,25 +190,48 @@ export function KanbanPage() {
     [tasks],
   );
 
+  // The current user's department (resolved from the loaded user map), used to
+  // include their department's tasks in the "my" view.
+  const myDepartment = useMemo(
+    () => (user ? depts.get(user.id) : undefined),
+    [user, depts],
+  );
+
+  /** Resolve the department a task belongs to. */
+  const taskDepartment = useMemo(
+    () =>
+      (t: Task): string | undefined =>
+        t.assignment.type === "DEPARTMENT"
+          ? t.assignment.department
+          : depts.get(t.assignment.userIds[0] ?? ""),
+    [depts],
+  );
+
   /** Apply a saved view to the raw task list. */
   const applyView = useMemo(
     () =>
       (list: Task[], view: SavedView): Task[] => {
         switch (view) {
           case "my":
-            return list.filter((t) => t.assigneeId === user?.id);
+            return list.filter(
+              (t) =>
+                (user?.id != null && t.assignment.userIds.includes(user.id)) ||
+                (t.assignment.type === "DEPARTMENT" &&
+                  myDepartment != null &&
+                  t.assignment.department === myDepartment),
+            );
           case "completed":
             return list.filter((t) => t.status === "DONE");
           case "department":
             return departmentFilter === "all"
               ? list
-              : list.filter((t) => depts.get(t.assigneeId) === departmentFilter);
+              : list.filter((t) => taskDepartment(t) === departmentFilter);
           case "team":
           default:
             return list;
         }
       },
-    [user?.id, departmentFilter, depts],
+    [user?.id, myDepartment, departmentFilter, taskDepartment],
   );
 
   const viewsKey = availableViews.join(",");
@@ -193,8 +245,9 @@ export function KanbanPage() {
   const filteredTasks = useMemo(() => {
     let list = applyView(tasks, savedView);
     if (projectFilter !== "all") list = list.filter((t) => t.projectId === projectFilter);
-    if (priority !== "all") list = list.filter((t) => t.priority === priority);
-    if (statusFilter !== "all") list = list.filter((t) => t.status === statusFilter);
+    if (priority.length) list = list.filter((t) => priority.includes(t.priority));
+    if (statusFilter.length)
+      list = list.filter((t) => statusFilter.includes(t.status));
     if (versionFilter !== "all") list = list.filter((t) => t.version === versionFilter);
     const q = search.trim();
     if (q) {
@@ -202,7 +255,8 @@ export function KanbanPage() {
       list = list.filter((t) =>
         fuzzyMatchAny(q, [
           t.title,
-          getAssigneeName(t.assigneeId),
+          ...t.assignment.userIds.map(getAssigneeName),
+          t.assignment.department,
           getProjectName(t.projectId),
           TASK_STATUS_LABELS[t.status],
           t.version,
@@ -239,7 +293,24 @@ export function KanbanPage() {
     });
   }
 
+  // Entry point for all moves. A move to ON_HOLD without a reason (desktop drag)
+  // opens the reason prompt instead of moving; everything else moves directly.
   async function handleMoveTask(
+    taskId: string,
+    status: TaskStatus,
+    reason?: string,
+  ) {
+    if (status === "ON_HOLD" && !reason) {
+      const current = tasks.find((t) => t.id === taskId);
+      if (!current || current.status === status) return;
+      setHoldReason("");
+      setHoldPrompt({ ids: [taskId] });
+      return;
+    }
+    await applyMove(taskId, status, reason);
+  }
+
+  async function applyMove(
     taskId: string,
     status: TaskStatus,
     reason?: string,
@@ -263,12 +334,43 @@ export function KanbanPage() {
     }
   }
 
+  // Apply the shared reason to every task queued for hold (single drag or bulk).
+  async function confirmHold() {
+    const reason = holdReason.trim();
+    if (!holdPrompt || !reason) return;
+    const ids = holdPrompt.ids;
+    setHoldPrompt(null);
+    setHoldReason("");
+    for (const id of ids) {
+      await applyMove(id, "ON_HOLD", reason);
+    }
+    if (ids.length > 1) {
+      toast.success(`Moved ${ids.length} tasks to ${TASK_STATUS_LABELS.ON_HOLD}.`);
+    }
+  }
+
   async function openEdit(task: Task) {
     setSelectedTask(null);
     setEditTask(task);
     try {
-      const ms = await listProjectMembers(task.projectId);
-      setEditMembers(ms.map((m) => ({ id: m.userId, name: m.user?.name ?? "Unknown" })));
+      if (task.projectId) {
+        const ms = await listProjectMembers(task.projectId);
+        setEditMembers(
+          ms.map((m) => ({
+            id: m.userId,
+            name: m.user?.name ?? "Unknown",
+            department: m.user?.department,
+          })),
+        );
+      } else {
+        // General (project-less) task: eligible assignees are all active users.
+        const us = await listUsers({ limit: 1000 });
+        setEditMembers(
+          us.data
+            .filter((u) => u.isActive !== false)
+            .map((u) => ({ id: u.id, name: u.name, department: u.department })),
+        );
+      }
     } catch {
       setEditMembers([]);
     }
@@ -294,8 +396,14 @@ export function KanbanPage() {
   async function bulkMove(status: TaskStatus) {
     const ids = [...activeSelection];
     setSelectedIds(new Set());
+    // ON_HOLD needs one shared reason — prompt once, then apply to all on confirm.
+    if (status === "ON_HOLD") {
+      setHoldReason("");
+      setHoldPrompt({ ids });
+      return;
+    }
     for (const id of ids) {
-      await handleMoveTask(id, status);
+      await applyMove(id, status);
     }
     toast.success(`Moved ${ids.length} task${ids.length === 1 ? "" : "s"} to ${TASK_STATUS_LABELS[status]}.`);
   }
@@ -315,11 +423,11 @@ export function KanbanPage() {
             <ActiveRangeBadge
               range={range}
               basisLabel={
-                isEmployee
-                  ? undefined
-                  : taskBasis === "createdAt"
+                isAdmin
+                  ? taskBasis === "createdAt"
                     ? "Created"
                     : "Due"
+                  : undefined
               }
             />
             {isAdmin && (
@@ -341,7 +449,7 @@ export function KanbanPage() {
           onRetry={() => setReloadKey((k) => k + 1)}
         />
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-6">
           <KanbanToolbar
             views={availableViews}
             activeView={savedView}
@@ -364,8 +472,10 @@ export function KanbanPage() {
             onDepartment={setDepartmentFilter}
             dateRange={range}
             onDateRange={setRange}
+            // Task/board views always offer future-facing windows (upcoming due work).
+            datePresets={TASK_DUE_PRESETS}
             dateBasis={
-              isEmployee ? undefined : { value: taskBasis, onChange: setTaskBasis }
+              isAdmin ? { value: taskBasis, onChange: setTaskBasis } : undefined
             }
             boardView={boardView}
             onBoardView={setBoardView}
@@ -395,6 +505,7 @@ export function KanbanPage() {
                   selectable={canMove}
                   selectedIds={selectedIds}
                   onToggleSelect={toggleSelect}
+                  onOpen={setSelectedTask}
                 />
               </div>
               {/* Mobile: status-grouped vertical list */}
@@ -461,7 +572,7 @@ export function KanbanPage() {
       <TaskDetailsDialog
         task={selectedTask}
         projectName={selectedTask ? getProjectName(selectedTask.projectId) : ""}
-        assigneeName={selectedTask ? getAssigneeName(selectedTask.assigneeId) : ""}
+        getAssigneeName={getAssigneeName}
         onOpenChange={(open) => {
           if (!open) setSelectedTask(null);
         }}
@@ -470,6 +581,57 @@ export function KanbanPage() {
         onReopen={reopenTask}
         onDelete={removeTask}
       />
+
+      <Dialog
+        open={holdPrompt !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setHoldPrompt(null);
+            setHoldReason("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Put{" "}
+              {holdPrompt && holdPrompt.ids.length > 1
+                ? `${holdPrompt.ids.length} tasks`
+                : "task"}{" "}
+              on hold
+            </DialogTitle>
+            <DialogDescription>
+              Add a short reason so the team knows why{" "}
+              {holdPrompt && holdPrompt.ids.length > 1 ? "they're" : "it's"} paused.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 py-2">
+            <Label htmlFor="kanban-hold-reason">Reason</Label>
+            <Textarea
+              id="kanban-hold-reason"
+              rows={3}
+              value={holdReason}
+              onChange={(e) => setHoldReason(e.target.value)}
+              placeholder="e.g. Blocked on design approval"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setHoldPrompt(null);
+                setHoldReason("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={confirmHold} disabled={holdReason.trim() === ""}>
+              Put on hold
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <QuickCreateTaskDialog
         open={quickOpen}

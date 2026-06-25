@@ -238,7 +238,8 @@ export function MyExpensesPage() {
                     )}
                   </TableHead>
                   <TableHead>Ref</TableHead>
-                  <TableHead>Date</TableHead>
+                  <TableHead>Expense date</TableHead>
+                  <TableHead>Submitted</TableHead>
                   <TableHead>Project</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Amount</TableHead>
@@ -271,6 +272,9 @@ export function MyExpensesPage() {
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-muted-foreground">
                         {formatDate(expense.expenseDate)}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        {expense.submittedAt ? formatDate(expense.submittedAt) : "—"}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {projectLabel(expense)}
@@ -355,7 +359,14 @@ export function MyExpensesPage() {
                         {expense.code && (
                           <span className="font-mono">{expense.code}</span>
                         )}
-                        <span>{formatDate(expense.expenseDate)}</span>
+                        <span>Expense {formatDate(expense.expenseDate)}</span>
+                        <span>·</span>
+                        <span>
+                          Submitted{" "}
+                          {expense.submittedAt
+                            ? formatDate(expense.submittedAt)
+                            : "—"}
+                        </span>
                         <span>·</span>
                         <span>{CATEGORY_LABELS[expense.category]}</span>
                         <span>·</span>

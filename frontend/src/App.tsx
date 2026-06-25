@@ -15,7 +15,9 @@ import { HelpDeskPage } from "./pages/HelpDeskPage";
 import { EmployeesPage } from "./pages/EmployeesPage";
 import { KanbanPage } from "./pages/KanbanPage";
 import { Login } from "./pages/Login";
+import { QrLogin } from "./pages/QrLogin";
 import { ProfilePage } from "./pages/ProfilePage";
+import { HelpPage } from "./pages/HelpPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { AnalysisReviewPage } from "./pages/expenses/AnalysisReviewPage";
 import { ExpenseDetailsPage } from "./pages/expenses/ExpenseDetailsPage";
@@ -55,6 +57,7 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/qr-login" element={<QrLogin />} />
 
       {/* Any authenticated user — own profile. */}
       <Route
@@ -66,6 +69,18 @@ function App() {
         }
       >
         <Route index element={<ProfilePage />} />
+      </Route>
+
+      {/* Any authenticated user — help & user manual (role-aware content). */}
+      <Route
+        path="/help"
+        element={
+          <ProtectedRoute>
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<HelpPage />} />
       </Route>
 
       {/* ADMIN */}
@@ -119,6 +134,7 @@ function App() {
         <Route index element={<HrDashboard />} />
         <Route path="projects" element={<HrProjectsPage />} />
         <Route path="projects/:id" element={<ProjectViewPage />} />
+        <Route path="tasks" element={<MyTasksPage />} />
         <Route path="kanban" element={<KanbanPage />} />
         <Route path="expenses" element={<PendingReviewsPage />} />
         <Route

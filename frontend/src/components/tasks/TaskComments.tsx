@@ -19,7 +19,8 @@ import type { Comment } from "../../types/comment";
 
 interface TaskCommentsProps {
   taskId: string;
-  projectId: string;
+  /** Owning project, used to resolve @mentions. Absent for General tasks. */
+  projectId?: string;
 }
 
 export function TaskComments({ taskId, projectId }: TaskCommentsProps) {
@@ -43,15 +44,17 @@ export function TaskComments({ taskId, projectId }: TaskCommentsProps) {
       } finally {
         if (!cancelled) setLoading(false);
       }
-      try {
-        const ms = await listProjectMembers(projectId);
-        if (!cancelled) {
-          setMembers(
-            ms.filter((m) => m.user).map((m) => ({ id: m.userId, name: m.user!.name })),
-          );
+      if (projectId) {
+        try {
+          const ms = await listProjectMembers(projectId);
+          if (!cancelled) {
+            setMembers(
+              ms.filter((m) => m.user).map((m) => ({ id: m.userId, name: m.user!.name })),
+            );
+          }
+        } catch {
+          /* members are optional (mention resolution only) */
         }
-      } catch {
-        /* members are optional (mention resolution only) */
       }
     })();
     return () => {

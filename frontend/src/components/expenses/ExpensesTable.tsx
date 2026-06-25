@@ -44,7 +44,8 @@ export function ExpensesTable({
         <TableHeader className="bg-muted/40">
           <TableRow>
             <TableHead>Ref</TableHead>
-            <TableHead>Date</TableHead>
+            <TableHead>Expense date</TableHead>
+            <TableHead>Submitted</TableHead>
             <TableHead>Employee</TableHead>
             <TableHead>Project</TableHead>
             <TableHead>Category</TableHead>
@@ -63,6 +64,9 @@ export function ExpensesTable({
               </TableCell>
               <TableCell className="whitespace-nowrap text-muted-foreground">
                 {formatDate(expense.expenseDate)}
+              </TableCell>
+              <TableCell className="whitespace-nowrap text-muted-foreground">
+                {expense.submittedAt ? formatDate(expense.submittedAt) : "—"}
               </TableCell>
               <TableCell className="text-foreground">
                 {getEmployeeName(expense.employeeId)}
@@ -130,7 +134,12 @@ export function ExpensesTable({
             </div>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
               {expense.code && <span className="font-mono">{expense.code}</span>}
-              <span>{formatDate(expense.expenseDate)}</span>
+              <span>Expense {formatDate(expense.expenseDate)}</span>
+              <span>·</span>
+              <span>
+                Submitted{" "}
+                {expense.submittedAt ? formatDate(expense.submittedAt) : "—"}
+              </span>
               <span>·</span>
               <span>{CATEGORY_LABELS[expense.category]}</span>
               <span>·</span>

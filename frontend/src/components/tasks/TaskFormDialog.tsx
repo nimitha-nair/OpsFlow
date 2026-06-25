@@ -23,6 +23,13 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  AssignmentField,
+  assignmentInputFromDraft,
+  draftFromAssignment,
+  isAssignmentValid,
+  type AssignmentDraft,
+} from "./AssignmentField";
+import {
   apiErrorMessage,
   createTask,
   updateTask,
@@ -40,6 +47,8 @@ import {
 export interface AssigneeOption {
   id: string;
   name: string;
+  /** Member's department, used for DEPARTMENT assignment. */
+  department?: string;
 }
 
 interface TaskFormDialogProps {
@@ -56,7 +65,6 @@ interface TaskFormDialogProps {
 interface FormValues {
   title: string;
   description: string;
-  assigneeId: string;
   priority: TaskPriority;
   status: TaskStatus;
   dueDate: string;
@@ -76,7 +84,6 @@ function TaskFormBody({
       ? {
           title: task.title,
           description: task.description,
-          assigneeId: task.assigneeId,
           priority: task.priority,
           status: task.status,
           dueDate: task.dueDate,
@@ -85,12 +92,14 @@ function TaskFormBody({
       : {
           title: "",
           description: "",
-          assigneeId: "",
           priority: "MEDIUM",
           status: "TODO",
           dueDate: "",
           version: "",
         },
+  );
+  const [assignment, setAssignment] = useState<AssignmentDraft>(() =>
+    draftFromAssignment(task?.assignment),
   );
   const [submitting, setSubmitting] = useState(false);
 
@@ -100,19 +109,20 @@ function TaskFormBody({
 
   const canSubmit =
     values.title.trim() !== "" &&
-    values.assigneeId !== "" &&
+    isAssignmentValid(assignment) &&
     values.dueDate !== "";
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!canSubmit) return;
+    const assignmentInput = assignmentInputFromDraft(assignment);
+    if (!canSubmit || !assignmentInput) return;
     setSubmitting(true);
     try {
       if (mode === "create") {
-        await createTask({ projectId, ...values });
+        await createTask({ projectId, ...values, assignment: assignmentInput });
         toast.success("Task created.");
       } else if (task) {
-        await updateTask(task.id, values);
+        await updateTask(task.id, { ...values, assignment: assignmentInput });
         toast.success("Task updated.");
       }
       onOpenChange(false);
@@ -159,30 +169,12 @@ function TaskFormBody({
           />
         </div>
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="task-assignee">Assignee</Label>
-          <Select
-            value={values.assigneeId}
-            onValueChange={(v) => set("assigneeId", v ?? "")}
-          >
-            <SelectTrigger id="task-assignee" className="w-full">
-              <SelectValue placeholder="Select a team member" />
-            </SelectTrigger>
-            <SelectContent>
-              {members.length === 0 ? (
-                <SelectItem value="__none" disabled>
-                  No members assigned to this project
-                </SelectItem>
-              ) : (
-                members.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.name}
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
-        </div>
+        <AssignmentField
+          value={assignment}
+          onChange={setAssignment}
+          members={members}
+          idPrefix="task"
+        />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="flex flex-col gap-2">

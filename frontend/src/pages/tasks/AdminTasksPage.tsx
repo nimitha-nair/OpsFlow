@@ -46,13 +46,20 @@ import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { MetricCard } from "../../components/common/MetricCard";
+import { MultiSelectFilter } from "../../components/common/MultiSelectFilter";
 import { SectionCard } from "../../components/common/SectionCard";
 import { BarList } from "../../components/reports/charts";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { DueDate } from "../../components/tasks/DueDate";
 import { TaskPriorityBadge, TaskStatusBadge } from "../../components/tasks/TaskBadges";
 import { QuickCreateTaskDialog } from "../../components/tasks/QuickCreateTaskDialog";
-import { makeRange, rangeSlug, rangeToParams, type DateRange } from "../../lib/date-range";
+import {
+  makeRange,
+  rangeSlug,
+  rangeToParams,
+  TASK_DUE_PRESETS,
+  type DateRange,
+} from "../../lib/date-range";
 import { listProjects } from "../../lib/projects-api";
 import { apiErrorMessage, listTasks } from "../../lib/tasks-api";
 import {
@@ -337,13 +344,17 @@ function AnalyticsTab() {
     // Per-project breakdown (top 8)
     const projectCounts = new Map<string, number>();
     for (const t of tasks) {
-      projectCounts.set(t.projectId, (projectCounts.get(t.projectId) ?? 0) + 1);
+      const key = t.projectId ?? "__general";
+      projectCounts.set(key, (projectCounts.get(key) ?? 0) + 1);
     }
     const projectItems = [...projectCounts.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8)
       .map(([id, count]) => ({
-        label: projectNames.get(id) ?? id,
+        label:
+          id === "__general"
+            ? "General (no project)"
+            : (projectNames.get(id) ?? id),
         valueText: String(count),
         ratio: count / total,
       }));
@@ -360,7 +371,7 @@ function AnalyticsTab() {
         t.status,
         t.priority,
         t.dueDate,
-        `"${(projectNames.get(t.projectId) ?? "").replace(/"/g, '""')}"`,
+        `"${(t.projectId ? (projectNames.get(t.projectId) ?? "") : "General").replace(/"/g, '""')}"`,
       ].join(","),
     );
     const csv = [header, ...rows].join("\n");
@@ -438,10 +449,11 @@ interface ListTabProps {
 }
 
 function ListTab({ reloadKey }: ListTabProps) {
-  // --- server-side filter state (trigger refetch on change) ---
+  // Range + version are server-side (refetch on change); status + priority are
+  // multi-select and filtered client-side (empty array = all).
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
-  const [status, setStatus] = useState<TaskStatus | "all">("all");
-  const [priority, setPriority] = useState<TaskPriority | "all">("all");
+  const [status, setStatus] = useState<TaskStatus[]>([]);
+  const [priority, setPriority] = useState<TaskPriority[]>([]);
   const [version, setVersion] = useState("all");
 
   // --- client-side search ---
@@ -462,8 +474,6 @@ function ListTab({ reloadKey }: ListTabProps) {
         const params = {
           limit: 500,
           ...dateParams,
-          ...(status !== "all" ? { status } : {}),
-          ...(priority !== "all" ? { priority } : {}),
           ...(version !== "all" ? { version } : {}),
         };
         const [fetched, projectsResp] = await Promise.all([
@@ -480,7 +490,7 @@ function ListTab({ reloadKey }: ListTabProps) {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [range, status, priority, version, reloadKey],
+    [range, version, reloadKey],
   );
 
   useEffect(() => {
@@ -498,16 +508,22 @@ function ListTab({ reloadKey }: ListTabProps) {
     [tasks],
   );
 
-  // Client-side search filter (title or code)
+  // Client-side filtering: multi-select status/priority + search (title or code).
   const filtered = useMemo(() => {
+    let list = tasks;
+    if (status.length) list = list.filter((t) => status.includes(t.status));
+    if (priority.length)
+      list = list.filter((t) => priority.includes(t.priority));
     const q = search.trim().toLowerCase();
-    if (!q) return tasks;
-    return tasks.filter(
-      (t) =>
-        t.title.toLowerCase().includes(q) ||
-        (t.code ?? "").toLowerCase().includes(q),
-    );
-  }, [tasks, search]);
+    if (q) {
+      list = list.filter(
+        (t) =>
+          t.title.toLowerCase().includes(q) ||
+          (t.code ?? "").toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [tasks, status, priority, search]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -524,41 +540,29 @@ function ListTab({ reloadKey }: ListTabProps) {
           />
         </div>
 
-        {/* Status */}
-        <Select
-          value={status}
-          onValueChange={(v) => setStatus((v ?? "all") as TaskStatus | "all")}
-        >
-          <SelectTrigger size="sm" className="w-36">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            {TASK_STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>
-                {TASK_STATUS_LABELS[s]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Status (multi-select) */}
+        <MultiSelectFilter
+          label="Status"
+          options={TASK_STATUSES.map((s) => ({
+            value: s,
+            label: TASK_STATUS_LABELS[s],
+          }))}
+          selected={status}
+          onChange={(v) => setStatus(v as TaskStatus[])}
+          className="w-40"
+        />
 
-        {/* Priority */}
-        <Select
-          value={priority}
-          onValueChange={(v) => setPriority((v ?? "all") as TaskPriority | "all")}
-        >
-          <SelectTrigger size="sm" className="w-36">
-            <SelectValue placeholder="Priority" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All priorities</SelectItem>
-            {TASK_PRIORITIES.map((p) => (
-              <SelectItem key={p} value={p}>
-                {TASK_PRIORITY_LABELS[p]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Priority (multi-select) */}
+        <MultiSelectFilter
+          label="Priority"
+          options={TASK_PRIORITIES.map((p) => ({
+            value: p,
+            label: TASK_PRIORITY_LABELS[p],
+          }))}
+          selected={priority}
+          onChange={(v) => setPriority(v as TaskPriority[])}
+          className="w-40"
+        />
 
         {/* Version (only when there are versions in the loaded set) */}
         {versions.length > 0 && (
@@ -577,7 +581,11 @@ function ListTab({ reloadKey }: ListTabProps) {
           </Select>
         )}
 
-        <DateRangeFilter value={range} onChange={setRange} />
+        <DateRangeFilter
+          value={range}
+          onChange={setRange}
+          presets={TASK_DUE_PRESETS}
+        />
         <ActiveRangeBadge range={range} />
       </div>
 
@@ -632,7 +640,9 @@ function ListTab({ reloadKey }: ListTabProps) {
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground whitespace-nowrap">
-                        {projectNames.get(task.projectId) ?? "—"}
+                        {task.projectId
+                          ? (projectNames.get(task.projectId) ?? "—")
+                          : "General"}
                       </TableCell>
                       <TableCell>
                         <TaskPriorityBadge priority={task.priority} />
@@ -673,7 +683,11 @@ function ListTab({ reloadKey }: ListTabProps) {
                     <TaskPriorityBadge priority={task.priority} />
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    <span>{projectNames.get(task.projectId) ?? "—"}</span>
+                    <span>
+                      {task.projectId
+                        ? (projectNames.get(task.projectId) ?? "—")
+                        : "General"}
+                    </span>
                     <DueDate dueDate={task.dueDate} status={task.status} />
                     {task.version && <span>v{task.version}</span>}
                   </div>

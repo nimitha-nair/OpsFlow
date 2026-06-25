@@ -10,14 +10,25 @@ export const TASK_STATUSES = [
 ] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 
+export type AssignmentType = "INDIVIDUAL" | "MULTIPLE" | "DEPARTMENT";
+
+/** Structured task assignment. `userIds` is always resolved (length >= 1). */
+export interface TaskAssignment {
+  type: AssignmentType;
+  userIds: string[];
+  /** Present ONLY when type === "DEPARTMENT". */
+  department?: string;
+}
+
 export interface Task {
   id: string;
   /** Human-readable code (TSK-001). Absent on docs created before backfill. */
   code?: string;
-  projectId: string;
+  /** Owning project, or absent for a company-wide ("General") task. */
+  projectId?: string;
   title: string;
   description: string;
-  assigneeId: string;
+  assignment: TaskAssignment;
   priority: TaskPriority;
   status: TaskStatus;
   dueDate: string;
@@ -44,7 +55,8 @@ export interface ListTasksParams {
   projectId?: string;
   status?: TaskStatus;
   priority?: TaskPriority;
-  assigneeId?: string;
+  /** Match any task whose assignment.userIds includes this user id. */
+  assignee?: string;
   page?: number;
   limit?: number;
   from?: string;
@@ -54,11 +66,23 @@ export interface ListTasksParams {
   basis?: "dueDate" | "createdAt";
 }
 
+/**
+ * Discriminated assignment union sent in create/update payloads.
+ * - INDIVIDUAL: exactly 1 userId.
+ * - MULTIPLE: >= 2 userIds.
+ * - DEPARTMENT: a department name; the server resolves userIds.
+ */
+export type AssignmentInput =
+  | { type: "INDIVIDUAL"; userIds: [string] }
+  | { type: "MULTIPLE"; userIds: string[] }
+  | { type: "DEPARTMENT"; department: string };
+
 export interface CreateTaskPayload {
-  projectId: string;
+  /** Omit for a company-wide ("General") task not tied to a project. */
+  projectId?: string;
   title: string;
   description: string;
-  assigneeId: string;
+  assignment: AssignmentInput;
   priority: TaskPriority;
   status: TaskStatus;
   dueDate: string;

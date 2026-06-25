@@ -25,7 +25,8 @@ import { CalendarClock, CalendarPlus } from "lucide-react";
 
 import { DateRangeFilter } from "../common/DateRangeFilter";
 import { DateBasisToggle } from "../common/DateBasisToggle";
-import type { DateRange } from "../../lib/date-range";
+import { MultiSelectFilter } from "../common/MultiSelectFilter";
+import type { DateRange, DateRangePreset } from "../../lib/date-range";
 import {
   TASK_PRIORITIES,
   TASK_PRIORITY_LABELS,
@@ -59,11 +60,13 @@ interface KanbanToolbarProps {
   search: string;
   onSearch: (v: string) => void;
 
-  priority: TaskPriority | "all";
-  onPriority: (v: TaskPriority | "all") => void;
+  /** Selected priorities (empty = all). */
+  priority: TaskPriority[];
+  onPriority: (v: TaskPriority[]) => void;
 
-  status: TaskStatus | "all";
-  onStatus: (v: TaskStatus | "all") => void;
+  /** Selected statuses (empty = all). */
+  status: TaskStatus[];
+  onStatus: (v: TaskStatus[]) => void;
 
   versions: string[];
   versionFilter: string;
@@ -80,6 +83,8 @@ interface KanbanToolbarProps {
 
   dateRange: DateRange;
   onDateRange: (r: DateRange) => void;
+  /** Preset options for the date filter (future-facing when windowing by due date). */
+  datePresets?: { value: DateRangePreset; label: string }[];
 
   /** Optional Due/Created basis control, rendered beside the date range. */
   dateBasis?: {
@@ -183,39 +188,27 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
             filtersOpen ? "flex" : "hidden",
           )}
         >
-        <Select
-          value={props.priority}
-          onValueChange={(v) => props.onPriority((v as TaskPriority | "all") ?? "all")}
-        >
-          <SelectTrigger size="sm" className="w-full sm:w-36">
-            <SelectValue placeholder="Priority" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All priorities</SelectItem>
-            {TASK_PRIORITIES.map((p) => (
-              <SelectItem key={p} value={p}>
-                {TASK_PRIORITY_LABELS[p]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MultiSelectFilter
+          label="Priority"
+          options={TASK_PRIORITIES.map((p) => ({
+            value: p,
+            label: TASK_PRIORITY_LABELS[p],
+          }))}
+          selected={props.priority}
+          onChange={(v) => props.onPriority(v as TaskPriority[])}
+          className="w-full sm:w-40"
+        />
 
-        <Select
-          value={props.status}
-          onValueChange={(v) => props.onStatus((v as TaskStatus | "all") ?? "all")}
-        >
-          <SelectTrigger size="sm" className="w-full sm:w-36">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            {TASK_STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>
-                {TASK_STATUS_LABELS[s]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MultiSelectFilter
+          label="Status"
+          options={TASK_STATUSES.map((s) => ({
+            value: s,
+            label: TASK_STATUS_LABELS[s],
+          }))}
+          selected={props.status}
+          onChange={(v) => props.onStatus(v as TaskStatus[])}
+          className="w-full sm:w-40"
+        />
 
         {props.versions.length > 0 && (
           <Select
@@ -288,6 +281,7 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
         <DateRangeFilter
           value={props.dateRange}
           onChange={props.onDateRange}
+          presets={props.datePresets}
           className="w-full sm:w-auto"
         />
         </div>

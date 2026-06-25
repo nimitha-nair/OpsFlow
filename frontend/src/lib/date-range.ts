@@ -12,6 +12,10 @@ export type DateRangePreset =
   | "quarter"
   | "6mo"
   | "year"
+  | "overdue"
+  | "next7d"
+  | "next30d"
+  | "next90d"
   | "custom";
 
 export interface DateRange {
@@ -25,16 +29,49 @@ export interface DateRange {
   customEnd?: string;
 }
 
-export const DATE_PRESETS: { value: DateRangePreset; label: string }[] = [
-  { value: "all", label: "All time" },
-  { value: "today", label: "Today" },
-  { value: "7d", label: "Last 7 days" },
-  { value: "30d", label: "Last 30 days" },
-  { value: "quarter", label: "Last quarter" },
-  { value: "6mo", label: "Last 6 months" },
-  { value: "year", label: "Last year" },
-  { value: "custom", label: "Custom range" },
-];
+/** Master label for every preset, shared by the preset lists and the badge. */
+export const PRESET_LABELS: Record<DateRangePreset, string> = {
+  all: "All time",
+  today: "Today",
+  "7d": "Last 7 days",
+  "30d": "Last 30 days",
+  quarter: "Last quarter",
+  "6mo": "Last 6 months",
+  year: "Last year",
+  overdue: "Overdue",
+  next7d: "Next 7 days",
+  next30d: "Next 30 days",
+  next90d: "Next 90 days",
+  custom: "Custom range",
+};
+
+type PresetOption = { value: DateRangePreset; label: string };
+const toOptions = (values: DateRangePreset[]): PresetOption[] =>
+  values.map((value) => ({ value, label: PRESET_LABELS[value] }));
+
+/** Past-facing presets — the default for historical lists (expenses, reports). */
+export const DATE_PRESETS: PresetOption[] = toOptions([
+  "all",
+  "today",
+  "7d",
+  "30d",
+  "quarter",
+  "6mo",
+  "year",
+  "custom",
+]);
+
+/** Due-date presets — upcoming windows plus Overdue, for task views sorted by
+ *  due date where the work that matters is in the future. */
+export const TASK_DUE_PRESETS: PresetOption[] = toOptions([
+  "all",
+  "overdue",
+  "today",
+  "next7d",
+  "next30d",
+  "next90d",
+  "custom",
+]);
 
 function endOfToday(): number {
   const d = new Date();
@@ -53,6 +90,13 @@ function startOfTodayMinusMonths(months: number): number {
   const now = new Date();
   const d = new Date(now.getFullYear(), now.getMonth() - months, now.getDate());
   d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+function endOfTodayPlusDays(days: number): number {
+  const d = new Date();
+  d.setHours(23, 59, 59, 999);
+  d.setDate(d.getDate() + days);
   return d.getTime();
 }
 
@@ -75,6 +119,15 @@ export function makeRange(
       return { preset, fromMs: startOfTodayMinusMonths(6), toMs: endOfToday() };
     case "year":
       return { preset, fromMs: startOfTodayMinusMonths(12), toMs: endOfToday() };
+    case "overdue":
+      // Due before today: unbounded past up to the end of yesterday.
+      return { preset, fromMs: null, toMs: startOfTodayMinusDays(0) - 1 };
+    case "next7d":
+      return { preset, fromMs: startOfTodayMinusDays(0), toMs: endOfTodayPlusDays(6) };
+    case "next30d":
+      return { preset, fromMs: startOfTodayMinusDays(0), toMs: endOfTodayPlusDays(29) };
+    case "next90d":
+      return { preset, fromMs: startOfTodayMinusDays(0), toMs: endOfTodayPlusDays(89) };
     case "custom": {
       const f = customStart ? Date.parse(`${customStart}T00:00:00`) : NaN;
       const t = customEnd ? Date.parse(`${customEnd}T23:59:59.999`) : NaN;
@@ -189,6 +242,10 @@ const PRESET_SLUGS: Record<DateRangePreset, string> = {
   quarter: "last-quarter",
   "6mo": "last-6-months",
   year: "last-year",
+  overdue: "overdue",
+  next7d: "next-7-days",
+  next30d: "next-30-days",
+  next90d: "next-90-days",
   custom: "custom",
 };
 
@@ -202,7 +259,7 @@ export function rangeLabel(range: DateRange): string {
     if (range.customEnd) return `Until ${fmtYmd(range.customEnd)}`;
     return "Custom range";
   }
-  return DATE_PRESETS.find((p) => p.value === range.preset)?.label ?? "All time";
+  return PRESET_LABELS[range.preset] ?? "All time";
 }
 
 /** Filename-safe token describing the range, for export filenames. */

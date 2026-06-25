@@ -13,12 +13,14 @@ import { DueDate } from "../tasks/DueDate";
 import { TaskPriorityBadge, TaskStatusBadge } from "../tasks/TaskBadges";
 import { TaskComments } from "../tasks/TaskComments";
 import { TaskAttachments } from "../tasks/TaskAttachments";
+import { AssigneeDisplay } from "../tasks/AssigneeDisplay";
 import type { Task } from "../../types/task";
 
 interface TaskDetailsDialogProps {
   task: Task | null;
   projectName: string;
-  assigneeName: string;
+  /** id → display name resolver for assignment rendering. */
+  getAssigneeName: (id: string) => string;
   onOpenChange: (open: boolean) => void;
   /** Admin-only actions. When omitted, the dialog is read-only. */
   canManage?: boolean;
@@ -45,7 +47,7 @@ function Row({
 export function TaskDetailsDialog({
   task,
   projectName,
-  assigneeName,
+  getAssigneeName,
   onOpenChange,
   canManage,
   onEdit,
@@ -69,7 +71,28 @@ export function TaskDetailsDialog({
             </DialogHeader>
 
             <dl className="grid grid-cols-2 gap-4 py-2">
-              <Row label="Assignee">{assigneeName}</Row>
+              <Row
+                label={
+                  task.assignment.type === "DEPARTMENT"
+                    ? "Department"
+                    : task.assignment.type === "MULTIPLE"
+                      ? "Assignees"
+                      : "Assignee"
+                }
+              >
+                {task.assignment.type === "MULTIPLE" ? (
+                  <span className="flex flex-wrap gap-x-1.5">
+                    {task.assignment.userIds
+                      .map((id) => getAssigneeName(id))
+                      .join(", ")}
+                  </span>
+                ) : (
+                  <AssigneeDisplay
+                    assignment={task.assignment}
+                    getName={getAssigneeName}
+                  />
+                )}
+              </Row>
               <Row label="Due date">
                 <DueDate dueDate={task.dueDate} status={task.status} />
               </Row>

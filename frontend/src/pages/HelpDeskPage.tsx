@@ -188,7 +188,8 @@ export function HelpDeskPage() {
         </Card>
       ) : (
         <Card className="overflow-hidden p-0">
-          <div className="overflow-x-auto">
+          {/* Desktop table */}
+          <div className="hidden overflow-x-auto md:block">
             <Table>
               <TableHeader className="bg-muted/40">
                 <TableRow>
@@ -236,6 +237,42 @@ export function HelpDeskPage() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Mobile cards */}
+          <ul className="flex flex-col divide-y md:hidden">
+            {tickets.map((t) => (
+              <li
+                key={t.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => setOpenId(t.id)}
+                onKeyDown={(e) => e.key === "Enter" && setOpenId(t.id)}
+                className="flex cursor-pointer flex-col gap-2 p-4"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    {t.code && (
+                      <p className="font-mono text-xs text-muted-foreground">
+                        {t.code}
+                      </p>
+                    )}
+                    <p className="font-medium text-foreground">{t.subject}</p>
+                  </div>
+                  <StatusBadge status={t.status} />
+                </div>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <span>{TICKET_CATEGORY_LABELS[t.category]}</span>
+                  {isStaff && (
+                    <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                      {TICKET_TEAM_SHORT[t.team]}
+                    </span>
+                  )}
+                  {isStaff && <span>{t.createdByName}</span>}
+                  <span>{formatDateTime(t.updatedAt)}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
         </Card>
       )}
 

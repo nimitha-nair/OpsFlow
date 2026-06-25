@@ -25,6 +25,7 @@ import { DateRangeFilter } from "../../components/common/DateRangeFilter";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
+import { StateCard } from "../../components/common/StateCard";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { makeRange, rangeSlug, rangeToParams, type DateRange } from "../../lib/date-range";
 import { StatCard } from "../../components/dashboard/StatCard";
@@ -172,19 +173,19 @@ export function ExpensesOverviewPage() {
       />
 
       {error ? (
-        <Card className="p-6">
+        <StateCard>
           <ErrorState
             title="Couldn't load expenses"
             description={error}
             onRetry={() => setReloadKey((k) => k + 1)}
           />
-        </Card>
+        </StateCard>
       ) : loading ? (
-        <Card className="p-6">
+        <StateCard>
           <LoadingState label="Loading expenses…" />
-        </Card>
+        </StateCard>
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-6">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <StatCard label="Total Expenses" value={summary.total} icon={Wallet} />
             <StatCard label="Pending Review" value={summary.pending} icon={Clock} />

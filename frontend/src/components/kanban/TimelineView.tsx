@@ -12,7 +12,7 @@ const DAY = 24 * 60 * 60 * 1000;
 
 interface TimelineViewProps {
   tasks: Task[];
-  getProjectName: (id: string) => string;
+  getProjectName: (id?: string) => string;
   onTaskClick: (task: Task) => void;
 }
 
@@ -43,12 +43,14 @@ export function TimelineView({
     const start = minStart - 3 * DAY;
     const end = Math.max(maxEnd + 3 * DAY, start + DAY);
 
-    // Group tasks by project, sorted by project name.
+    // Group tasks by project, sorted by project name. Project-less ("General")
+    // tasks bucket under an empty key, which getProjectName renders as "General".
     const byProject = new Map<string, Task[]>();
     for (const task of tasks) {
-      const list = byProject.get(task.projectId);
+      const key = task.projectId ?? "";
+      const list = byProject.get(key);
       if (list) list.push(task);
-      else byProject.set(task.projectId, [task]);
+      else byProject.set(key, [task]);
     }
     const grouped = [...byProject.entries()]
       .map(([projectId, items]) => ({

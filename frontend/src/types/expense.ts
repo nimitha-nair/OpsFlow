@@ -40,7 +40,10 @@ export interface Expense {
   amount: number;
   currency: string;
   description: string;
+  /** Date the expense was incurred (from the receipt). */
   expenseDate: string;
+  /** When first submitted for review (ISO); absent for drafts. */
+  submittedAt?: string;
   approvalStatus: ApprovalStatus;
   reimbursementStatus: ReimbursementStatus;
   documentId?: string;

@@ -21,6 +21,7 @@ import { LoadingState } from "../../components/common/LoadingState";
 import { SectionCard } from "../../components/common/SectionCard";
 import { MetricCard } from "../../components/common/MetricCard";
 import { DashboardHero } from "../../components/dashboard/DashboardHero";
+import { QuickActions } from "../../components/dashboard/QuickActions";
 import { MyTasksWidget } from "../../components/dashboard/MyTasksWidget";
 import { TicketsWidget } from "../../components/dashboard/TicketsWidget";
 import { makeRange, rangeToParams, type DateRange } from "../../lib/date-range";
@@ -138,37 +139,34 @@ export function EmployeeDashboard() {
         />
       ) : (
         <div className="flex flex-col gap-6">
-          <SectionCard
-            title="Quick actions"
-            description="Jump straight to what you need."
-          >
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <QuickAction
-                to="/employee/expenses/new"
-                icon={<FilePlus2 className="size-4" />}
-                label="Submit Expense"
-                hint="Upload a receipt or enter manually"
-              />
-              <QuickAction
-                to="/employee/expenses"
-                icon={<FileText className="size-4" />}
-                label="View Drafts"
-                hint={`${counts.draft} unfinished`}
-              />
-              <QuickAction
-                to="/employee/tasks"
-                icon={<ClipboardList className="size-4" />}
-                label="My Tasks"
-                hint="Work assigned to you"
-              />
-              <QuickAction
-                to="/employee/helpdesk"
-                icon={<LifeBuoy className="size-4" />}
-                label="New Ticket"
-                hint="Raise a support request"
-              />
-            </div>
-          </SectionCard>
+          <QuickActions
+            items={[
+              {
+                to: "/employee/expenses/new",
+                icon: <FilePlus2 className="size-4" />,
+                label: "Submit Expense",
+                hint: "Upload a receipt or enter manually",
+              },
+              {
+                to: "/employee/expenses",
+                icon: <FileText className="size-4" />,
+                label: "View Drafts",
+                hint: `${counts.draft} unfinished`,
+              },
+              {
+                to: "/employee/tasks",
+                icon: <ClipboardList className="size-4" />,
+                label: "My Tasks",
+                hint: "Work assigned to you",
+              },
+              {
+                to: "/employee/helpdesk",
+                icon: <LifeBuoy className="size-4" />,
+                label: "New Ticket",
+                hint: "Raise a support request",
+              },
+            ]}
+          />
 
           <div className="no-print flex items-center justify-end gap-2">
             <ActiveRangeBadge range={range} />
@@ -276,32 +274,3 @@ export function EmployeeDashboard() {
   );
 }
 
-function QuickAction({
-  to,
-  icon,
-  label,
-  hint,
-}: {
-  to: string;
-  icon: React.ReactNode;
-  label: string;
-  hint: string;
-}) {
-  return (
-    <Link
-      to={to}
-      className="group flex items-center gap-3 rounded-lg border border-border/70 p-3 transition hover:border-primary/40 hover:bg-muted/50"
-    >
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-        {icon}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium text-foreground">{label}</span>
-        <span className="block truncate text-xs text-muted-foreground">
-          {hint}
-        </span>
-      </span>
-      <ArrowRight className="size-4 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" />
-    </Link>
-  );
-}

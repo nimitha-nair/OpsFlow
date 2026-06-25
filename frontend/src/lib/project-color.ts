@@ -18,11 +18,13 @@ const PALETTE: ProjectColor[] = [
   { badge: "bg-teal-100 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300", dot: "bg-teal-500", bar: "bg-teal-500" },
 ];
 
-/** Deterministic color for a project id, stable across renders. */
-export function projectColor(projectId: string): ProjectColor {
+/** Deterministic color for a project id, stable across renders. Project-less
+ *  ("General") tasks fall back to a stable shared color. */
+export function projectColor(projectId?: string): ProjectColor {
+  const key = projectId || "general";
   let hash = 0;
-  for (let i = 0; i < projectId.length; i++) {
-    hash = (hash * 31 + projectId.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
   }
   return PALETTE[hash % PALETTE.length]!;
 }

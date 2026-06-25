@@ -25,14 +25,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const loginWithSession = useCallback(
+    (token: string, sessionUser: AuthUser): void => {
+      persistAuth(token, sessionUser);
+      setUser(sessionUser);
+    },
+    [],
+  );
+
   const logout = useCallback((): void => {
     clearAuth();
     setUser(null);
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, isAuthenticated: user !== null, login, logout }),
-    [user, login, logout],
+    () => ({
+      user,
+      isAuthenticated: user !== null,
+      login,
+      loginWithSession,
+      logout,
+    }),
+    [user, login, loginWithSession, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

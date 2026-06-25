@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bell, CheckCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+
+import { playNotificationChime } from "../../lib/notification-sound";
 
 import {
   DropdownMenu,
@@ -24,6 +26,9 @@ export function NotificationBell() {
   const [items, setItems] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
+  // Last unread count we've seen; null until the first load so we never chime
+  // on initial mount — only when a poll reveals a genuinely new notification.
+  const prevUnread = useRef<number | null>(null);
 
   // Initial load + lightweight polling (every 60s).
   useEffect(() => {
@@ -34,6 +39,10 @@ export function NotificationBell() {
         if (!cancelled) {
           setItems(r.data);
           setUnread(r.unread);
+          if (prevUnread.current !== null && r.unread > prevUnread.current) {
+            playNotificationChime();
+          }
+          prevUnread.current = r.unread;
         }
       } catch {
         /* ignore — bell is best-effort */
@@ -52,6 +61,8 @@ export function NotificationBell() {
       const r = await listNotifications();
       setItems(r.data);
       setUnread(r.unread);
+      // Opening the bell isn't a "new notification" event — sync without chiming.
+      prevUnread.current = r.unread;
     } catch {
       /* ignore */
     }
@@ -63,6 +74,7 @@ export function NotificationBell() {
       markNotificationRead(n.id).catch(() => {});
       setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
       setUnread((u) => Math.max(0, u - 1));
+      prevUnread.current = Math.max(0, (prevUnread.current ?? 1) - 1);
     }
     if (user) {
       if (n.ticketId) navigate(`${roleBasePath[user.role]}/helpdesk`);
@@ -74,6 +86,7 @@ export function NotificationBell() {
     markAllNotificationsRead().catch(() => {});
     setItems((prev) => prev.map((x) => ({ ...x, read: true })));
     setUnread(0);
+    prevUnread.current = 0;
   }
 
   return (

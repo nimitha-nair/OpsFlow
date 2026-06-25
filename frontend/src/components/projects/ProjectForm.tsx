@@ -91,7 +91,7 @@ export function ProjectForm({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="budget">Budget (USD)</Label>
+            <Label htmlFor="budget">Budget</Label>
             <Input
               id="budget"
               type="number"
