@@ -48,31 +48,38 @@ export function MetricCard({
         className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full blur-2xl"
         style={{ background: `radial-gradient(circle, ${a.glow}, transparent 70%)` }}
       />
-      <div className="relative flex items-start gap-4 p-5">
+      {/* Mobile: a denser, app-style KPI tile (smaller chrome, prominent value,
+          labels that wrap instead of truncate). Desktop (sm+) is unchanged. */}
+      <div className="relative flex items-start gap-3 p-3.5 sm:gap-4 sm:p-5">
         <span
           className={cn(
-            "flex shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-sm",
+            "flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm sm:rounded-2xl",
             a.chip,
-            emphasize ? "size-14" : "size-12",
+            emphasize ? "size-10 sm:size-14" : "size-9 sm:size-12",
           )}
         >
-          <Icon className={emphasize ? "size-6" : "size-5"} />
+          <Icon
+            className={
+              emphasize ? "size-5 sm:size-6" : "size-4 sm:size-5"
+            }
+          />
         </span>
         <div className="min-w-0 flex-1">
           <div
             className={cn(
               "font-bold tracking-tight tabular-nums break-words",
               a.value,
-              emphasize ? "text-3xl" : "text-2xl",
+              emphasize ? "text-2xl sm:text-3xl" : "text-xl sm:text-2xl",
             )}
           >
             {value}
           </div>
-          <div className="truncate text-xs font-medium text-muted-foreground">
+          {/* Label wraps (no truncate) so longer labels stay fully readable. */}
+          <div className="text-xs font-medium leading-tight text-muted-foreground">
             {label}
           </div>
           {hint && (
-            <div className="mt-0.5 truncate text-xs text-muted-foreground/70">
+            <div className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground/70 sm:text-xs">
               {hint}
             </div>
           )}

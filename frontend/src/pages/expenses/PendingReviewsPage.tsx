@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ClipboardCheck, Search } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
@@ -19,7 +19,17 @@ import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { ExpensesTable } from "../../components/expenses/ExpensesTable";
-import { makeRange, rangeToParams, type DateRange } from "../../lib/date-range";
+import {
+  makeRange,
+  rangeLabel,
+  rangeToParams,
+  type DateRange,
+} from "../../lib/date-range";
+import { MobileFiltersSheet } from "../../components/mobile/MobileFiltersSheet";
+import {
+  MobileFilterChips,
+  type FilterChip,
+} from "../../components/mobile/MobileFilterChips";
 import { apiErrorMessage, listReviewExpenses } from "../../lib/expenses-api";
 import { listProjects } from "../../lib/projects-api";
 import { listUsers } from "../../lib/users-api";
@@ -128,6 +138,19 @@ export function PendingReviewsPage() {
     return rows.sort((a, b) => riskRank(a) - riskRank(b));
   }, [expenses, tab, category, method, search, getEmployeeName, getProjectName]);
 
+  // Active-filter summary for the mobile Filters sheet + chips (date controls).
+  const filterChips: FilterChip[] = [];
+  if (range.preset !== "all")
+    filterChips.push({
+      key: "range",
+      label: rangeLabel(range),
+      onRemove: () => setRange(makeRange("all")),
+    });
+  const activeFilterCount = filterChips.length;
+  function clearFilters() {
+    setRange(makeRange("all"));
+  }
+
   return (
     <>
       <PageHeader
@@ -136,12 +159,28 @@ export function PendingReviewsPage() {
         breadcrumbs={[{ label: "Expenses" }]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <ActiveRangeBadge
-              range={range}
-              basisLabel={basis === "submittedAt" ? "Submitted" : "Expense date"}
-            />
-            <DateBasisToggle value={basis} onChange={setBasis} />
-            <DateRangeFilter value={range} onChange={setRange} />
+            {/* Desktop / tablet filter toolbar (unchanged) */}
+            <div className="hidden flex-wrap items-center gap-2 md:flex">
+              <ActiveRangeBadge
+                range={range}
+                basisLabel={basis === "submittedAt" ? "Submitted" : "Expense date"}
+              />
+              <DateBasisToggle value={basis} onChange={setBasis} />
+              <DateRangeFilter value={range} onChange={setRange} />
+            </div>
+            {/* Mobile: Filters bottom sheet */}
+            <MobileFiltersSheet
+              activeCount={activeFilterCount}
+              onClear={clearFilters}
+              className="md:hidden"
+            >
+              <FilterField label="Date basis">
+                <DateBasisToggle value={basis} onChange={setBasis} />
+              </FilterField>
+              <FilterField label="Date">
+                <DateRangeFilter value={range} onChange={setRange} />
+              </FilterField>
+            </MobileFiltersSheet>
           </div>
         }
       />
@@ -226,6 +265,11 @@ export function PendingReviewsPage() {
             </div>
           </div>
 
+          {/* Mobile: active-filter chips */}
+          <div className="md:hidden">
+            <MobileFilterChips chips={filterChips} />
+          </div>
+
           <Card className="overflow-hidden p-0">
             {visible.length === 0 ? (
               <div className="p-6">
@@ -251,5 +295,21 @@ export function PendingReviewsPage() {
         </div>
       )}
     </>
+  );
+}
+
+/** Labelled control wrapper used inside the mobile Filters sheet. */
+function FilterField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      {children}
+    </div>
   );
 }

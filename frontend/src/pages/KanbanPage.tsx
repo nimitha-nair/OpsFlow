@@ -24,6 +24,7 @@ import { KanbanBoard } from "../components/kanban/KanbanBoard";
 import { KanbanMobileList } from "../components/kanban/KanbanMobileList";
 import { TaskDetailsDialog } from "../components/kanban/TaskDetailsDialog";
 import { TimelineView } from "../components/kanban/TimelineView";
+import { MobileBottomActionBar } from "../components/mobile/MobileBottomActionBar";
 import {
   KanbanToolbar,
   type BoardView,
@@ -540,33 +541,70 @@ export function KanbanPage() {
 
       {/* Bulk action bar */}
       {canMove && activeSelection.length > 0 && (
-        <div className="no-print fixed inset-x-0 bottom-20 z-40 flex justify-center px-4 md:bottom-6">
-          <div className="flex max-w-full flex-wrap items-center justify-center gap-2 rounded-xl border border-border bg-popover px-4 py-2.5 shadow-lg ring-1 ring-foreground/10">
-            <span className="text-sm font-medium text-foreground">
-              {activeSelection.length} selected
-            </span>
-            <span className="text-muted-foreground">·</span>
-            <span className="text-xs text-muted-foreground">Move to</span>
-            {TASK_STATUSES.map((status) => (
+        <>
+          {/* Desktop: centered floating pill (unchanged). */}
+          <div className="no-print fixed inset-x-0 bottom-6 z-40 hidden justify-center px-4 md:flex">
+            <div className="flex max-w-full flex-wrap items-center justify-center gap-2 rounded-xl border border-border bg-popover px-4 py-2.5 shadow-lg ring-1 ring-foreground/10">
+              <span className="text-sm font-medium text-foreground">
+                {activeSelection.length} selected
+              </span>
+              <span className="text-muted-foreground">·</span>
+              <span className="text-xs text-muted-foreground">Move to</span>
+              {TASK_STATUSES.map((status) => (
+                <Button
+                  key={status}
+                  size="xs"
+                  variant="outline"
+                  onClick={() => bulkMove(status)}
+                >
+                  {TASK_STATUS_LABELS[status]}
+                </Button>
+              ))}
               <Button
-                key={status}
-                size="xs"
-                variant="outline"
-                onClick={() => bulkMove(status)}
+                size="icon-xs"
+                variant="ghost"
+                aria-label="Clear selection"
+                onClick={() => setSelectedIds(new Set())}
               >
-                {TASK_STATUS_LABELS[status]}
+                <X className="size-4" />
               </Button>
-            ))}
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              aria-label="Clear selection"
-              onClick={() => setSelectedIds(new Set())}
-            >
-              <X className="size-4" />
-            </Button>
+            </div>
           </div>
-        </div>
+
+          {/* Mobile: full-width bar; the move-to chips scroll horizontally. */}
+          <MobileBottomActionBar className="flex-col items-stretch gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-foreground">
+                {activeSelection.length} selected
+              </span>
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                aria-label="Clear selection"
+                className="ml-auto"
+                onClick={() => setSelectedIds(new Set())}
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+            <div className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-0.5">
+              <span className="shrink-0 text-xs text-muted-foreground">
+                Move to
+              </span>
+              {TASK_STATUSES.map((status) => (
+                <Button
+                  key={status}
+                  size="xs"
+                  variant="outline"
+                  className="shrink-0"
+                  onClick={() => bulkMove(status)}
+                >
+                  {TASK_STATUS_LABELS[status]}
+                </Button>
+              ))}
+            </div>
+          </MobileBottomActionBar>
+        </>
       )}
 
       <TaskDetailsDialog

@@ -202,7 +202,7 @@ export function AdminDashboard() {
           onRetry={() => setReloadKey((k) => k + 1)}
         />
       ) : (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-4 sm:gap-6">
           <QuickActions
             items={[
               {
@@ -272,7 +272,7 @@ export function AdminDashboard() {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-3">
             <SectionCard
               title="Approved spend trend"
               description={rangeLabel(range)}
@@ -347,7 +347,7 @@ export function AdminDashboard() {
             </SectionCard>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-2">
             <SectionCard
               title="Top project utilization"
               description="Approved spend vs budget"
@@ -495,7 +495,7 @@ export function AdminDashboard() {
             )}
           </SectionCard>
 
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-2">
             <TicketsWidget basePath="/admin" showRequester />
             <SectionCard
               title="Organization activity"

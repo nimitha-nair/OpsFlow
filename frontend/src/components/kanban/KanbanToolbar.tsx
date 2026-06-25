@@ -1,9 +1,8 @@
-import { useState } from "react";
+import type { ReactNode } from "react";
 import {
   CalendarDays,
   GanttChart,
   Search,
-  SlidersHorizontal,
   SquareKanban,
   User as UserIcon,
   Users,
@@ -26,7 +25,18 @@ import { CalendarClock, CalendarPlus } from "lucide-react";
 import { DateRangeFilter } from "../common/DateRangeFilter";
 import { DateBasisToggle } from "../common/DateBasisToggle";
 import { MultiSelectFilter } from "../common/MultiSelectFilter";
-import type { DateRange, DateRangePreset } from "../../lib/date-range";
+import { MobileSearch } from "../mobile/MobileSearch";
+import { MobileFiltersSheet } from "../mobile/MobileFiltersSheet";
+import {
+  MobileFilterChips,
+  type FilterChip,
+} from "../mobile/MobileFilterChips";
+import {
+  makeRange,
+  rangeLabel,
+  type DateRange,
+  type DateRangePreset,
+} from "../../lib/date-range";
 import {
   TASK_PRIORITIES,
   TASK_PRIORITY_LABELS,
@@ -99,7 +109,57 @@ interface KanbanToolbarProps {
 }
 
 export function KanbanToolbar(props: KanbanToolbarProps) {
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  // Active-filter summary, shared by the mobile Filters sheet + chips.
+  const filterChips: FilterChip[] = [];
+  for (const p of props.priority)
+    filterChips.push({
+      key: `priority:${p}`,
+      label: TASK_PRIORITY_LABELS[p],
+      onRemove: () =>
+        props.onPriority(props.priority.filter((x) => x !== p)),
+    });
+  for (const s of props.status)
+    filterChips.push({
+      key: `status:${s}`,
+      label: TASK_STATUS_LABELS[s],
+      onRemove: () => props.onStatus(props.status.filter((x) => x !== s)),
+    });
+  if (props.versionFilter !== "all")
+    filterChips.push({
+      key: "version",
+      label: `v${props.versionFilter}`,
+      onRemove: () => props.onVersion("all"),
+    });
+  if (props.projectFilter !== "all")
+    filterChips.push({
+      key: "project",
+      label:
+        props.projects.find((p) => p.id === props.projectFilter)?.name ??
+        "Project",
+      onRemove: () => props.onProject("all"),
+    });
+  if (props.showDepartment && props.departmentFilter !== "all")
+    filterChips.push({
+      key: "department",
+      label: props.departmentFilter,
+      onRemove: () => props.onDepartment("all"),
+    });
+  if (props.dateRange.preset !== "all")
+    filterChips.push({
+      key: "range",
+      label: rangeLabel(props.dateRange),
+      onRemove: () => props.onDateRange(makeRange("all")),
+    });
+  const activeFilterCount = filterChips.length;
+  function clearFilters() {
+    props.onPriority([]);
+    props.onStatus([]);
+    props.onVersion("all");
+    props.onProject("all");
+    props.onDepartment("all");
+    props.onDateRange(makeRange("all"));
+  }
+
   return (
     <div className="flex flex-col gap-3">
       {/* Saved views + visualization toggle */}
@@ -159,8 +219,8 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
         </div>
       </div>
 
-      {/* Filter row — search always visible; the rest collapses on mobile. */}
-      <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
+      {/* Desktop / tablet filter row (unchanged) */}
+      <div className="hidden gap-2 md:flex md:flex-row md:flex-wrap md:items-center">
         <div className="flex items-center gap-2">
           <div className="relative min-w-0 flex-1 sm:max-w-xs">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -171,23 +231,9 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
               className="h-8 pl-8"
             />
           </div>
-          <button
-            type="button"
-            onClick={() => setFiltersOpen((v) => !v)}
-            aria-expanded={filtersOpen}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-input bg-transparent px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted md:hidden"
-          >
-            <SlidersHorizontal className="size-4" />
-            Filters
-          </button>
         </div>
 
-        <div
-          className={cn(
-            "flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center md:flex",
-            filtersOpen ? "flex" : "hidden",
-          )}
-        >
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <MultiSelectFilter
           label="Priority"
           options={TASK_PRIORITIES.map((p) => ({
@@ -286,6 +332,149 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
         />
         </div>
       </div>
+
+      {/* Mobile: native search + Filters bottom sheet + active-filter chips */}
+      <div className="flex flex-col gap-2 md:hidden">
+        <div className="flex items-center gap-2">
+          <MobileSearch
+            value={props.search}
+            onChange={props.onSearch}
+            placeholder="Search tasks…"
+            className="flex-1"
+          />
+          <MobileFiltersSheet
+            activeCount={activeFilterCount}
+            onClear={clearFilters}
+            className="shrink-0"
+          >
+            <FilterField label="Priority">
+              <MultiSelectFilter
+                label="Priority"
+                options={TASK_PRIORITIES.map((p) => ({
+                  value: p,
+                  label: TASK_PRIORITY_LABELS[p],
+                }))}
+                selected={props.priority}
+                onChange={(v) => props.onPriority(v as TaskPriority[])}
+                className="w-full"
+              />
+            </FilterField>
+            <FilterField label="Status">
+              <MultiSelectFilter
+                label="Status"
+                options={TASK_STATUSES.map((s) => ({
+                  value: s,
+                  label: TASK_STATUS_LABELS[s],
+                }))}
+                selected={props.status}
+                onChange={(v) => props.onStatus(v as TaskStatus[])}
+                className="w-full"
+              />
+            </FilterField>
+            {props.versions.length > 0 && (
+              <FilterField label="Version">
+                <Select
+                  value={props.versionFilter}
+                  onValueChange={(v) => props.onVersion(v ?? "all")}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Version" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All versions</SelectItem>
+                    {props.versions.map((ver) => (
+                      <SelectItem key={ver} value={ver}>
+                        v{ver}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FilterField>
+            )}
+            {props.projects.length > 0 && (
+              <FilterField label="Project">
+                <Select
+                  value={props.projectFilter}
+                  onValueChange={(v) => props.onProject(v ?? "all")}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="All projects" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All projects</SelectItem>
+                    {props.projects.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FilterField>
+            )}
+            {props.showDepartment && props.departments.length > 0 && (
+              <FilterField label="Department">
+                <Select
+                  value={props.departmentFilter}
+                  onValueChange={(v) => props.onDepartment(v ?? "all")}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="All departments" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All departments</SelectItem>
+                    {props.departments.map((d) => (
+                      <SelectItem key={d} value={d}>
+                        {d}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FilterField>
+            )}
+            {props.dateBasis && (
+              <FilterField label="Date basis">
+                <DateBasisToggle
+                  value={props.dateBasis.value}
+                  onChange={props.dateBasis.onChange}
+                  options={[
+                    { value: "dueDate", label: "Due date", Icon: CalendarClock },
+                    {
+                      value: "createdAt",
+                      label: "Created date",
+                      Icon: CalendarPlus,
+                    },
+                  ]}
+                />
+              </FilterField>
+            )}
+            <FilterField label="Date range">
+              <DateRangeFilter
+                value={props.dateRange}
+                onChange={props.onDateRange}
+                presets={props.datePresets}
+                className="w-full"
+              />
+            </FilterField>
+          </MobileFiltersSheet>
+        </div>
+        <MobileFilterChips chips={filterChips} />
+      </div>
+    </div>
+  );
+}
+
+/** Labelled control wrapper used inside the mobile Filters sheet. */
+function FilterField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      {children}
     </div>
   );
 }

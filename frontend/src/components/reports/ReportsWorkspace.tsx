@@ -50,6 +50,8 @@ import { DateBasisToggle } from "../common/DateBasisToggle";
 import { DateRangeFilter } from "../common/DateRangeFilter";
 import { makeRange, rangeToParams, rangeSlug, type DateRange } from "../../lib/date-range";
 import { ActiveRangeBadge } from "../common/ActiveRangeBadge";
+import { MobileFiltersSheet } from "../mobile/MobileFiltersSheet";
+import { MobileActionMenu, type MobileAction } from "../mobile/MobileActionMenu";
 import { PageHeader } from "../layout/PageHeader";
 import { SectionCard } from "../common/SectionCard";
 import { LoadingState } from "../common/LoadingState";
@@ -198,29 +200,78 @@ export function ReportsWorkspace() {
         description="Executive expense intelligence across the organization."
         breadcrumbs={[{ label: "Reports" }]}
         actions={
-          <div className="no-print flex flex-wrap items-center gap-2">
-            <ActiveRangeBadge
-              range={range}
-              basisLabel={basis === "submittedAt" ? "Submitted" : "Expense date"}
-            />
-            <DateBasisToggle value={basis} onChange={setBasis} />
-            <DateRangeFilter value={range} onChange={setRange} />
-            <Button variant="outline" size="sm" onClick={onRefresh} disabled={refreshing}>
-              <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
-            <Button variant="outline" size="sm" onClick={exportCurrentTab}>
-              <FileText className="size-4" />
-              This tab
-            </Button>
-            <Button variant="outline" size="sm" onClick={exportSummary}>
-              Summary
-            </Button>
-            <Button size="sm" onClick={exportAll}>
-              <Download className="size-4" />
-              Export all
-            </Button>
-          </div>
+          <>
+            {/* Desktop / tablet toolbar (unchanged) */}
+            <div className="no-print hidden flex-wrap items-center gap-2 md:flex">
+              <ActiveRangeBadge
+                range={range}
+                basisLabel={basis === "submittedAt" ? "Submitted" : "Expense date"}
+              />
+              <DateBasisToggle value={basis} onChange={setBasis} />
+              <DateRangeFilter value={range} onChange={setRange} />
+              <Button variant="outline" size="sm" onClick={onRefresh} disabled={refreshing}>
+                <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportCurrentTab}>
+                <FileText className="size-4" />
+                This tab
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportSummary}>
+                Summary
+              </Button>
+              <Button size="sm" onClick={exportAll}>
+                <Download className="size-4" />
+                Export all
+              </Button>
+            </div>
+
+            {/* Mobile: Filters bottom sheet + actions overflow menu */}
+            <div className="no-print flex items-center gap-2 md:hidden">
+              <ActiveRangeBadge
+                range={range}
+                basisLabel={basis === "submittedAt" ? "Submitted" : "Expense date"}
+              />
+              <MobileFiltersSheet
+                activeCount={range.preset !== "all" ? 1 : 0}
+                onClear={() => setRange(makeRange("all"))}
+                className="shrink-0"
+              >
+                <ReportFilterField label="Date basis">
+                  <DateBasisToggle value={basis} onChange={setBasis} />
+                </ReportFilterField>
+                <ReportFilterField label="Date range">
+                  <DateRangeFilter value={range} onChange={setRange} />
+                </ReportFilterField>
+              </MobileFiltersSheet>
+              <MobileActionMenu
+                className="shrink-0"
+                actions={[
+                  {
+                    label: refreshing ? "Refreshing…" : "Refresh",
+                    icon: <RefreshCw className="size-4" />,
+                    onSelect: onRefresh,
+                    disabled: refreshing,
+                  },
+                  {
+                    label: "Export this tab",
+                    icon: <FileText className="size-4" />,
+                    onSelect: exportCurrentTab,
+                  },
+                  {
+                    label: "Export summary",
+                    icon: <FileText className="size-4" />,
+                    onSelect: exportSummary,
+                  },
+                  {
+                    label: "Export all",
+                    icon: <Download className="size-4" />,
+                    onSelect: exportAll,
+                  },
+                ] satisfies MobileAction[]}
+              />
+            </div>
+          </>
         }
       />
 
@@ -307,6 +358,22 @@ export function ReportsWorkspace() {
         </div>
       )}
     </>
+  );
+}
+
+/** Labelled, full-width control wrapper used inside the mobile Filters sheet. */
+function ReportFilterField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex w-full flex-col gap-1.5">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      {children}
+    </div>
   );
 }
 

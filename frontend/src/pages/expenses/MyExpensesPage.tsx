@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Check, Eye, Pencil, Plus, Trash2, Wallet, X } from "lucide-react";
 import { toast } from "sonner";
@@ -26,7 +26,18 @@ import {
   ApprovalStatusBadge,
   ReimbursementBadge,
 } from "../../components/expenses/ExpenseBadges";
-import { makeRange, rangeToParams, type DateRange } from "../../lib/date-range";
+import {
+  makeRange,
+  rangeLabel,
+  rangeToParams,
+  type DateRange,
+} from "../../lib/date-range";
+import { MobileFiltersSheet } from "../../components/mobile/MobileFiltersSheet";
+import {
+  MobileFilterChips,
+  type FilterChip,
+} from "../../components/mobile/MobileFilterChips";
+import { MobileBottomActionBar } from "../../components/mobile/MobileBottomActionBar";
 import { formatDate, formatMoney } from "../../lib/format";
 import {
   apiErrorMessage,
@@ -174,6 +185,19 @@ export function MyExpensesPage() {
     }
   }
 
+  // Active-filter summary, shared by the mobile Filters sheet + chips.
+  const filterChips: FilterChip[] = [];
+  if (range.preset !== "all")
+    filterChips.push({
+      key: "range",
+      label: rangeLabel(range),
+      onRemove: () => setRange(makeRange("all")),
+    });
+  const activeFilterCount = filterChips.length;
+  function clearFilters() {
+    setRange(makeRange("all"));
+  }
+
   return (
     <>
       <PageHeader
@@ -182,12 +206,28 @@ export function MyExpensesPage() {
         breadcrumbs={[{ label: "Expenses" }]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <ActiveRangeBadge
-              range={range}
-              basisLabel={basis === "submittedAt" ? "Submitted" : "Expense date"}
-            />
-            <DateBasisToggle value={basis} onChange={setBasis} />
-            <DateRangeFilter value={range} onChange={setRange} />
+            {/* Desktop / tablet filter toolbar (unchanged) */}
+            <div className="hidden flex-wrap items-center gap-2 md:flex">
+              <ActiveRangeBadge
+                range={range}
+                basisLabel={basis === "submittedAt" ? "Submitted" : "Expense date"}
+              />
+              <DateBasisToggle value={basis} onChange={setBasis} />
+              <DateRangeFilter value={range} onChange={setRange} />
+            </div>
+            {/* Mobile: Filters bottom sheet */}
+            <MobileFiltersSheet
+              activeCount={activeFilterCount}
+              onClear={clearFilters}
+              className="md:hidden"
+            >
+              <FilterField label="Date basis">
+                <DateBasisToggle value={basis} onChange={setBasis} />
+              </FilterField>
+              <FilterField label="Date">
+                <DateRangeFilter value={range} onChange={setRange} />
+              </FilterField>
+            </MobileFiltersSheet>
             <Link
               to="/employee/expenses/new"
               className={buttonVariants({ size: "sm" })}
@@ -198,6 +238,11 @@ export function MyExpensesPage() {
           </div>
         }
       />
+
+      {/* Mobile: active-filter chips */}
+      <div className="md:hidden">
+        <MobileFilterChips chips={filterChips} />
+      </div>
 
       <Card className="overflow-hidden p-0">
         {error ? (
@@ -420,15 +465,42 @@ export function MyExpensesPage() {
 
       {/* Bulk action bar */}
       {selectedDraftIds.length > 0 && (
-        <div className="no-print fixed inset-x-0 bottom-20 z-40 flex justify-center px-4 md:bottom-6">
-          <div className="flex items-center gap-3 rounded-xl border border-border bg-popover px-4 py-2.5 shadow-lg ring-1 ring-foreground/10">
+        <>
+          {/* Desktop: centered floating pill (unchanged). */}
+          <div className="no-print fixed inset-x-0 bottom-6 z-40 hidden justify-center px-4 md:flex">
+            <div className="flex items-center gap-3 rounded-xl border border-border bg-popover px-4 py-2.5 shadow-lg ring-1 ring-foreground/10">
+              <span className="text-sm font-medium text-foreground">
+                {selectedDraftIds.length} selected
+              </span>
+              <span className="text-muted-foreground">·</span>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setDeleteTarget({ kind: "bulk" })}
+              >
+                <Trash2 className="size-4" />
+                Delete drafts
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Clear selection"
+                onClick={() => setSelectedIds(new Set())}
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Mobile: full-width bottom action bar above the nav + safe area. */}
+          <MobileBottomActionBar>
             <span className="text-sm font-medium text-foreground">
               {selectedDraftIds.length} selected
             </span>
-            <span className="text-muted-foreground">·</span>
             <Button
               variant="destructive"
               size="sm"
+              className="ml-auto"
               onClick={() => setDeleteTarget({ kind: "bulk" })}
             >
               <Trash2 className="size-4" />
@@ -442,8 +514,8 @@ export function MyExpensesPage() {
             >
               <X className="size-4" />
             </Button>
-          </div>
-        </div>
+          </MobileBottomActionBar>
+        </>
       )}
 
       <ConfirmDialog
@@ -470,5 +542,21 @@ export function MyExpensesPage() {
         }
       />
     </>
+  );
+}
+
+/** Labelled control wrapper used inside the mobile Filters sheet. */
+function FilterField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      {children}
+    </div>
   );
 }

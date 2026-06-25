@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
   CheckCircle2,
@@ -27,9 +27,21 @@ import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { StateCard } from "../../components/common/StateCard";
 import { PageHeader } from "../../components/layout/PageHeader";
-import { makeRange, rangeSlug, rangeToParams, type DateRange } from "../../lib/date-range";
+import {
+  makeRange,
+  rangeLabel,
+  rangeSlug,
+  rangeToParams,
+  type DateRange,
+} from "../../lib/date-range";
 import { StatCard } from "../../components/dashboard/StatCard";
 import { ExpensesTable } from "../../components/expenses/ExpensesTable";
+import { MobileSearch } from "../../components/mobile/MobileSearch";
+import { MobileFiltersSheet } from "../../components/mobile/MobileFiltersSheet";
+import {
+  MobileFilterChips,
+  type FilterChip,
+} from "../../components/mobile/MobileFilterChips";
 import { apiErrorMessage, listReviewExpenses } from "../../lib/expenses-api";
 import { downloadCsv, toExpensesCsv } from "../../lib/expenses-csv";
 import { listProjects } from "../../lib/projects-api";
@@ -145,6 +157,31 @@ export function ExpensesOverviewPage() {
     downloadCsv(`expenses_${rangeSlug(range)}_${stamp}.csv`, csv);
   }
 
+  const statusLabel: Record<StatusFilter, string> = {
+    ALL: "All",
+    PENDING: "Pending",
+    APPROVED: "Approved",
+    REJECTED: "Rejected",
+  };
+
+  // Active-filter summary, shared by the mobile Filters sheet + chips.
+  const filterChips: FilterChip[] = [];
+  if (status !== "ALL")
+    filterChips.push({ key: "status", label: statusLabel[status], onRemove: () => setStatus("ALL") });
+  if (category !== "ALL")
+    filterChips.push({ key: "category", label: CATEGORY_LABELS[category], onRemove: () => setCategory("ALL") });
+  if (projectId !== "ALL")
+    filterChips.push({ key: "project", label: getProjectName(projectId), onRemove: () => setProjectId("ALL") });
+  if (range.preset !== "all")
+    filterChips.push({ key: "range", label: rangeLabel(range), onRemove: () => setRange(makeRange("all")) });
+  const activeFilterCount = filterChips.length;
+  function clearFilters() {
+    setStatus("ALL");
+    setCategory("ALL");
+    setProjectId("ALL");
+    setRange(makeRange("all"));
+  }
+
   return (
     <>
       <PageHeader
@@ -193,7 +230,8 @@ export function ExpensesOverviewPage() {
             <StatCard label="Rejected" value={summary.rejected} icon={XCircle} />
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center lg:flex-nowrap">
+          {/* Desktop / tablet filter toolbar (unchanged) */}
+          <div className="hidden gap-2 md:flex md:flex-wrap md:items-center lg:flex-nowrap">
             <div className="relative w-full sm:min-w-48 sm:flex-1">
               <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -251,6 +289,77 @@ export function ExpensesOverviewPage() {
             <DateRangeFilter value={range} onChange={setRange} />
           </div>
 
+          {/* Mobile: native search + Filters bottom sheet + active-filter chips */}
+          <div className="flex flex-col gap-2 md:hidden">
+            <div className="flex items-center gap-2">
+              <MobileSearch
+                value={search}
+                onChange={setSearch}
+                placeholder="Search expenses…"
+                className="flex-1"
+              />
+              <MobileFiltersSheet
+                activeCount={activeFilterCount}
+                onClear={clearFilters}
+                className="shrink-0"
+              >
+                <FilterField label="Status">
+                  <Select value={status} onValueChange={(v) => setStatus((v ?? "ALL") as StatusFilter)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All statuses</SelectItem>
+                      <SelectItem value="PENDING">Pending</SelectItem>
+                      <SelectItem value="APPROVED">Approved</SelectItem>
+                      <SelectItem value="REJECTED">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FilterField>
+                <FilterField label="Category">
+                  <Select
+                    value={category}
+                    onValueChange={(v) => setCategory((v ?? "ALL") as ExpenseCategory | "ALL")}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All categories</SelectItem>
+                      {EXPENSE_CATEGORIES.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {CATEGORY_LABELS[c]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FilterField>
+                <FilterField label="Project">
+                  <Select value={projectId} onValueChange={(v) => setProjectId(v ?? "ALL")}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All projects</SelectItem>
+                      {projects.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FilterField>
+                <FilterField label="Date">
+                  <div className="flex flex-col gap-2">
+                    <DateBasisToggle value={basis} onChange={setBasis} />
+                    <DateRangeFilter value={range} onChange={setRange} />
+                  </div>
+                </FilterField>
+              </MobileFiltersSheet>
+            </div>
+            <MobileFilterChips chips={filterChips} />
+          </div>
+
           <Card className="overflow-hidden p-0">
             {visible.length === 0 ? (
               <div className="p-6">
@@ -273,5 +382,21 @@ export function ExpensesOverviewPage() {
         </div>
       )}
     </>
+  );
+}
+
+/** Labelled control wrapper used inside the mobile Filters sheet. */
+function FilterField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      {children}
+    </div>
   );
 }

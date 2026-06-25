@@ -6,7 +6,7 @@
  * The List tab is fully functional; Dashboard + Analytics are date-scoped.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   BarChart3,
@@ -53,8 +53,15 @@ import { PageHeader } from "../../components/layout/PageHeader";
 import { DueDate } from "../../components/tasks/DueDate";
 import { TaskPriorityBadge, TaskStatusBadge } from "../../components/tasks/TaskBadges";
 import { QuickCreateTaskDialog } from "../../components/tasks/QuickCreateTaskDialog";
+import { MobileSearch } from "../../components/mobile/MobileSearch";
+import { MobileFiltersSheet } from "../../components/mobile/MobileFiltersSheet";
+import {
+  MobileFilterChips,
+  type FilterChip,
+} from "../../components/mobile/MobileFilterChips";
 import {
   makeRange,
+  rangeLabel,
   rangeSlug,
   rangeToParams,
   TASK_DUE_PRESETS,
@@ -525,10 +532,44 @@ function ListTab({ reloadKey }: ListTabProps) {
     return list;
   }, [tasks, status, priority, search]);
 
+  // Active-filter summary, shared by the mobile Filters sheet + chips.
+  const filterChips: FilterChip[] = [];
+  for (const s of status)
+    filterChips.push({
+      key: `status:${s}`,
+      label: TASK_STATUS_LABELS[s],
+      onRemove: () => setStatus((prev) => prev.filter((x) => x !== s)),
+    });
+  for (const p of priority)
+    filterChips.push({
+      key: `priority:${p}`,
+      label: TASK_PRIORITY_LABELS[p],
+      onRemove: () => setPriority((prev) => prev.filter((x) => x !== p)),
+    });
+  if (version !== "all")
+    filterChips.push({
+      key: "version",
+      label: `v${version}`,
+      onRemove: () => setVersion("all"),
+    });
+  if (range.preset !== "all")
+    filterChips.push({
+      key: "range",
+      label: rangeLabel(range),
+      onRemove: () => setRange(makeRange("all")),
+    });
+  const activeFilterCount = filterChips.length;
+  function clearFilters() {
+    setStatus([]);
+    setPriority([]);
+    setVersion("all");
+    setRange(makeRange("all"));
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      {/* Filters row */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Filters row (desktop / tablet — unchanged) */}
+      <div className="hidden flex-wrap items-center gap-2 md:flex">
         {/* Client-side search */}
         <div className="relative flex-1 min-w-[180px] max-w-xs">
           <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -587,6 +628,73 @@ function ListTab({ reloadKey }: ListTabProps) {
           presets={TASK_DUE_PRESETS}
         />
         <ActiveRangeBadge range={range} />
+      </div>
+
+      {/* Mobile: native search + Filters bottom sheet + active-filter chips */}
+      <div className="flex flex-col gap-2 md:hidden">
+        <div className="flex items-center gap-2">
+          <MobileSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search tasks…"
+            className="flex-1"
+          />
+          <MobileFiltersSheet
+            activeCount={activeFilterCount}
+            onClear={clearFilters}
+            className="shrink-0"
+          >
+            <FilterField label="Status">
+              <MultiSelectFilter
+                label="Status"
+                options={TASK_STATUSES.map((s) => ({
+                  value: s,
+                  label: TASK_STATUS_LABELS[s],
+                }))}
+                selected={status}
+                onChange={(v) => setStatus(v as TaskStatus[])}
+                className="w-full"
+              />
+            </FilterField>
+            <FilterField label="Priority">
+              <MultiSelectFilter
+                label="Priority"
+                options={TASK_PRIORITIES.map((p) => ({
+                  value: p,
+                  label: TASK_PRIORITY_LABELS[p],
+                }))}
+                selected={priority}
+                onChange={(v) => setPriority(v as TaskPriority[])}
+                className="w-full"
+              />
+            </FilterField>
+            {versions.length > 0 && (
+              <FilterField label="Version">
+                <Select value={version} onValueChange={(v) => setVersion(v ?? "all")}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Version" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All versions</SelectItem>
+                    {versions.map((ver) => (
+                      <SelectItem key={ver} value={ver}>
+                        v{ver}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FilterField>
+            )}
+            <FilterField label="Due date">
+              <DateRangeFilter
+                value={range}
+                onChange={setRange}
+                presets={TASK_DUE_PRESETS}
+              />
+            </FilterField>
+          </MobileFiltersSheet>
+        </div>
+        <MobileFilterChips chips={filterChips} />
       </div>
 
       {/* Content */}
@@ -700,6 +808,22 @@ function ListTab({ reloadKey }: ListTabProps) {
           </>
         )}
       </Card>
+    </div>
+  );
+}
+
+/** Labelled control wrapper used inside the mobile Filters sheet. */
+function FilterField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      {children}
     </div>
   );
 }

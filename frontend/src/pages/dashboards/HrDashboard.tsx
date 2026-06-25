@@ -139,7 +139,7 @@ export function HrDashboard() {
           onRetry={() => setReloadKey((k) => k + 1)}
         />
       ) : (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-4 sm:gap-6">
           <QuickActions
             items={[
               {
@@ -273,7 +273,7 @@ export function HrDashboard() {
             )}
           </SectionCard>
 
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-2">
             <TicketsWidget basePath="/hr" showRequester />
             <SectionCard
               title="Compliance activity"

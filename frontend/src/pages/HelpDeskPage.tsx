@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { LifeBuoy, Loader2, Plus, Send } from "lucide-react";
 import { toast } from "sonner";
 
@@ -40,7 +40,12 @@ import { LoadingState } from "../components/common/LoadingState";
 import { PageHeader } from "../components/layout/PageHeader";
 import { useAuth } from "../context/auth-context";
 import { formatDateTime } from "../lib/format";
-import { makeRange, rangeToParams, type DateRange } from "../lib/date-range";
+import { makeRange, rangeLabel, rangeToParams, type DateRange } from "../lib/date-range";
+import { MobileFiltersSheet } from "../components/mobile/MobileFiltersSheet";
+import {
+  MobileFilterChips,
+  type FilterChip,
+} from "../components/mobile/MobileFilterChips";
 import {
   addTicketMessage,
   apiErrorMessage,
@@ -122,6 +127,26 @@ export function HelpDeskPage() {
 
   const reload = () => setReloadKey((k) => k + 1);
 
+  // Active-filter summary, shared by the mobile Filters sheet + chips.
+  const filterChips: FilterChip[] = [];
+  if (statusFilter !== "all")
+    filterChips.push({
+      key: "status",
+      label: TICKET_STATUS_LABELS[statusFilter],
+      onRemove: () => setStatusFilter("all"),
+    });
+  if (range.preset !== "all")
+    filterChips.push({
+      key: "range",
+      label: rangeLabel(range),
+      onRemove: () => setRange(makeRange("all")),
+    });
+  const activeFilterCount = filterChips.length;
+  function clearFilters() {
+    setStatusFilter("all");
+    setRange(makeRange("all"));
+  }
+
   return (
     <>
       <PageHeader
@@ -134,24 +159,55 @@ export function HelpDeskPage() {
         breadcrumbs={[{ label: "Help Desk" }]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <ActiveRangeBadge range={range} />
-            <DateRangeFilter value={range} onChange={setRange} hideIcon />
-            <Select
-              value={statusFilter}
-              onValueChange={(v) => setStatusFilter((v ?? "all") as TicketStatus | "all")}
+            {/* Desktop / tablet filter toolbar (unchanged) */}
+            <div className="hidden flex-wrap items-center gap-2 md:flex">
+              <ActiveRangeBadge range={range} />
+              <DateRangeFilter value={range} onChange={setRange} hideIcon />
+              <Select
+                value={statusFilter}
+                onValueChange={(v) => setStatusFilter((v ?? "all") as TicketStatus | "all")}
+              >
+                <SelectTrigger size="sm" className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  {TICKET_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {TICKET_STATUS_LABELS[s]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Mobile: Filters bottom sheet */}
+            <MobileFiltersSheet
+              activeCount={activeFilterCount}
+              onClear={clearFilters}
+              className="md:hidden"
             >
-              <SelectTrigger size="sm" className="w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                {TICKET_STATUSES.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {TICKET_STATUS_LABELS[s]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <FilterField label="Status">
+                <Select
+                  value={statusFilter}
+                  onValueChange={(v) => setStatusFilter((v ?? "all") as TicketStatus | "all")}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    {TICKET_STATUSES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {TICKET_STATUS_LABELS[s]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FilterField>
+              <FilterField label="Date">
+                <DateRangeFilter value={range} onChange={setRange} />
+              </FilterField>
+            </MobileFiltersSheet>
             <Button size="sm" onClick={() => setCreateOpen(true)}>
               <Plus className="size-4" />
               New Ticket
@@ -159,6 +215,11 @@ export function HelpDeskPage() {
           </div>
         }
       />
+
+      {/* Mobile: active-filter chips */}
+      <div className="md:hidden">
+        <MobileFilterChips chips={filterChips} />
+      </div>
 
       {error ? (
         <Card className="p-6">
@@ -291,6 +352,22 @@ export function HelpDeskPage() {
         onChanged={reload}
       />
     </>
+  );
+}
+
+/** Labelled control wrapper used inside the mobile Filters sheet. */
+function FilterField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      {children}
+    </div>
   );
 }
 
