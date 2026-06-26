@@ -18,6 +18,7 @@ import { CurrencyScope } from "./CurrencyScope";
 import { paletteAt } from "./report-palette";
 import { formatDate, formatMoney } from "../../lib/format";
 import { monthsToParams } from "../../lib/date-range";
+import { monthAxisLabel, monthFull } from "../../lib/month-format";
 import { getReportsExpenses } from "../../lib/reports-api";
 import { CATEGORY_LABELS, type ExpenseCategory } from "../../types/expense";
 import type {
@@ -32,17 +33,6 @@ const ERROR_MSG = "We couldn't load the expense analytics. Please try again.";
 
 function categoryLabel(category: string): string {
   return CATEGORY_LABELS[category as ExpenseCategory] ?? category;
-}
-
-/** Label a "YYYY-MM" key; `year` adds the year ("2-digit" → "Jun 26",
- *  "numeric" → "Jun 2026") so months in different years stay distinct. */
-function monthLabel(key: string, year?: "2-digit" | "numeric"): string {
-  const [y, m] = key.split("-").map(Number);
-  if (!y || !m) return key;
-  return new Date(y, m - 1, 1).toLocaleString(
-    "en-US",
-    year ? { month: "short", year } : { month: "short" },
-  );
 }
 
 export function ExpensesTab() {
@@ -238,17 +228,14 @@ function ScopeBars({ data, currency }: { data: ScopeSplit; currency: string }) {
 
 function MonthlyColumns({ data, currency }: { data: MonthlySpend[]; currency: string }) {
   const max = Math.max(1, ...data.map((d) => d.amount));
-  // Show the year on axis labels only when the trend spans calendar years.
-  const spansYears =
-    data.length > 1 &&
-    data[0]!.month.slice(0, 4) !== data[data.length - 1]!.month.slice(0, 4);
   return (
     <ColumnChart
-      items={data.map((m) => ({
+      items={data.map((m, i) => ({
         key: m.month,
         ratio: m.amount / max,
-        label: monthLabel(m.month, spansYears ? "2-digit" : undefined),
-        title: `${monthLabel(m.month, "numeric")} · ${formatMoney(m.amount, currency)} · ${m.count} expense${m.count === 1 ? "" : "s"}`,
+        // Year shown only at year boundaries (see month-format); full month in the tooltip.
+        label: monthAxisLabel(m.month, i > 0 ? data[i - 1]!.month : undefined),
+        title: `${monthFull(m.month)} · ${formatMoney(m.amount, currency)} · ${m.count} expense${m.count === 1 ? "" : "s"}`,
       }))}
     />
   );

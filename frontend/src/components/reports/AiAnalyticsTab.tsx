@@ -24,6 +24,7 @@ import { ErrorState } from "../common/ErrorState";
 import { LoadingState } from "../common/LoadingState";
 import { BarList, ColumnChart } from "./charts";
 import { monthsToParams } from "../../lib/date-range";
+import { monthAxisLabel, monthFull } from "../../lib/month-format";
 import { getReportsAiAnalytics } from "../../lib/reports-api";
 import type { AiAnalyticsReport } from "../../types/reports";
 
@@ -43,11 +44,6 @@ function providerLabel(p: string): string {
   return p.charAt(0).toUpperCase() + p.slice(1);
 }
 
-function monthLabel(key: string): string {
-  const [y, m] = key.split("-").map(Number);
-  if (!y || !m) return key;
-  return new Date(y, m - 1, 1).toLocaleString("en-US", { month: "short" });
-}
 
 export function AiAnalyticsTab() {
   const [months, setMonths] = useState(12);
@@ -163,11 +159,11 @@ export function AiAnalyticsTab() {
   ];
 
   const maxTrend = Math.max(1, ...data.lowConfidenceTrend.map((p) => p.total));
-  const trendItems = data.lowConfidenceTrend.map((p) => ({
+  const trendItems = data.lowConfidenceTrend.map((p, i) => ({
     key: p.month,
-    label: monthLabel(p.month),
+    label: monthAxisLabel(p.month, i > 0 ? data.lowConfidenceTrend[i - 1]!.month : undefined),
     ratio: p.lowConfidence / maxTrend,
-    title: `${monthLabel(p.month)} · ${p.lowConfidence} low-confidence of ${p.total}`,
+    title: `${monthFull(p.month)} · ${p.lowConfidence} low-confidence of ${p.total}`,
     tone: "from-amber-500 to-orange-400",
   }));
 

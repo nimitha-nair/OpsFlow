@@ -49,6 +49,7 @@ import {
 } from "../../lib/reports-api";
 import { listUsers } from "../../lib/users-api";
 import { formatDate, formatMoney } from "../../lib/format";
+import { monthAxisLabel, monthFull } from "../../lib/month-format";
 import type { Expense } from "../../types/expense";
 import type {
   AiAnalyticsReport,
@@ -57,15 +58,6 @@ import type {
 } from "../../types/reports";
 
 const PENDING = ["SUBMITTED", "PENDING_REVIEW"];
-
-function monthLabel(key: string, year?: "2-digit" | "numeric"): string {
-  const [y, m] = key.split("-").map(Number);
-  if (!y || !m) return key;
-  return new Date(y, m - 1, 1).toLocaleString(
-    "en-US",
-    year ? { month: "short", year } : { month: "short" },
-  );
-}
 
 function utilTone(util: number | null): string {
   if (util === null) return "from-slate-400 to-slate-500";
@@ -283,15 +275,11 @@ export function AdminDashboard() {
                   items={(() => {
                     const t = trend.monthlyTrend;
                     const max = Math.max(1, ...t.map((x) => x.amount));
-                    const spansYears =
-                      t.length > 1 &&
-                      t[0]!.month.slice(0, 4) !==
-                        t[t.length - 1]!.month.slice(0, 4);
-                    return t.map((m) => ({
+                    return t.map((m, i) => ({
                       key: m.month,
                       ratio: m.amount / max,
-                      label: monthLabel(m.month, spansYears ? "2-digit" : undefined),
-                      title: `${monthLabel(m.month, "numeric")} · ${formatMoney(m.amount)}`,
+                      label: monthAxisLabel(m.month, i > 0 ? t[i - 1]!.month : undefined),
+                      title: `${monthFull(m.month)} · ${formatMoney(m.amount)}`,
                     }));
                   })()}
                 />

@@ -13,6 +13,7 @@
 import type { Expense, ReimbursementStatus } from "../../../types/expense";
 import { CATEGORY_LABELS } from "../../../types/expense";
 import type { User } from "../../../types/user";
+import { monthAxisLabel } from "../../../lib/month-format";
 
 const APPROVED = "APPROVED";
 const REJECTED = "REJECTED";
@@ -25,16 +26,20 @@ export interface MonthBucket {
   label: string; // e.g. "Jun"
 }
 
-/** Build the last `n` month buckets ending with the current month. */
+/** Build the last `n` month buckets ending with the current month. The label
+ *  shows the year only at year boundaries (see month-format) to keep the axis
+ *  uncrowded across multi-year ranges. */
 export function lastMonths(n: number): MonthBucket[] {
-  const out: MonthBucket[] = [];
+  const keys: string[] = [];
   const now = new Date();
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    out.push({ key, label: d.toLocaleString("en-US", { month: "short" }) });
+    keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   }
-  return out;
+  return keys.map((key, i) => ({
+    key,
+    label: monthAxisLabel(key, i > 0 ? keys[i - 1] : undefined),
+  }));
 }
 
 function monthKey(iso: string): string {

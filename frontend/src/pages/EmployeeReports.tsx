@@ -22,6 +22,7 @@ import {
 import { downloadCsv, printElement } from "../lib/export";
 import { apiErrorMessage, listMyExpenses } from "../lib/expenses-api";
 import { formatDate, formatDateTime, formatMoney } from "../lib/format";
+import { monthAxisLabel, monthFull } from "../lib/month-format";
 import {
   APPROVAL_LABELS,
   CATEGORY_LABELS,
@@ -30,17 +31,6 @@ import {
 } from "../types/expense";
 
 const PENDING = ["SUBMITTED", "PENDING_REVIEW"];
-
-/** Label a "YYYY-MM" key. `year` adds the year ("2-digit" → "Jun 26",
- *  "numeric" → "Jun 2026") so months across different years stay distinct. */
-function monthLabel(key: string, year?: "2-digit" | "numeric"): string {
-  const [y, m] = key.split("-").map(Number);
-  if (!y || !m) return key;
-  return new Date(y, m - 1, 1).toLocaleString(
-    "en-US",
-    year ? { month: "short", year } : { month: "short" },
-  );
-}
 
 /** Inclusive list of "YYYY-MM" keys from `first` to `last` (continuous axis). */
 function monthRange(first: string, last: string): string[] {
@@ -135,15 +125,14 @@ export function EmployeeReports() {
       const full = monthRange(dataMonths[0]!, dataMonths[dataMonths.length - 1]!);
       const axis = full.length > 24 ? full.slice(-24) : full;
       // Show the year on axis labels only when the span crosses calendar years.
-      const spansYears = axis[0]!.slice(0, 4) !== axis[axis.length - 1]!.slice(0, 4);
       const maxMonth = Math.max(1, ...axis.map((m) => byMonth.get(m) ?? 0));
-      trendItems = axis.map((m) => {
+      trendItems = axis.map((m, i) => {
         const amount = byMonth.get(m) ?? 0;
         return {
           key: m,
           ratio: amount / maxMonth,
-          label: monthLabel(m, spansYears ? "2-digit" : undefined),
-          title: `${monthLabel(m, "numeric")} · ${formatMoney(amount, currency)}`,
+          label: monthAxisLabel(m, i > 0 ? axis[i - 1] : undefined),
+          title: `${monthFull(m)} · ${formatMoney(amount, currency)}`,
         };
       });
     }
