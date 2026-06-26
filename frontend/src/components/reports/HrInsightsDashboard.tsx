@@ -44,6 +44,8 @@ import { ErrorState } from "../common/ErrorState";
 import { BarList } from "./charts";
 import { DonutGauge, KpiCard, RankingList } from "./bi";
 import { MoneyTotals } from "../common/MoneyTotals";
+import { CurrencyScope } from "./CurrencyScope";
+import { PerCurrencySections } from "./PerCurrencySections";
 import { formatCurrencyTotals, totalsByCurrency } from "../../lib/currency";
 import { paletteAt } from "../common/accent";
 import { SectionFrame } from "./workspace/shell";
@@ -104,12 +106,30 @@ export function HrInsightsDashboard() {
   const [tab, setTab] = useState("workforce");
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
   const [basis, setBasis] = useState<"expenseDate" | "submittedAt">("expenseDate");
+  // Multi-currency: null = default (all present); array = explicit pick.
+  const [selectedCurrencies, setSelectedCurrencies] = useState<string[] | null>(null);
   const panelsRef = useRef<HTMLDivElement>(null);
   // employeeId → name, for the print-only per-expense detail listing.
   const userNameMap = useMemo(
     () => new Map((data?.users ?? []).map((u) => [u.id, u.name] as const)),
     [data],
   );
+  const currencyTotals = useMemo(
+    () => (data ? totalsByCurrency(data.records) : []),
+    [data],
+  );
+  const allCurrencies = currencyTotals.map((t) => t.currency);
+  const picked = selectedCurrencies?.filter((c) => allCurrencies.includes(c)) ?? null;
+  const renderCurrencies = picked && picked.length > 0 ? picked : allCurrencies;
+  // Per-currency slice of the loaded data (records/reimbursements filtered).
+  const scopedFor = (c: string): LoadedData => {
+    const match = (r: Expense) => (r.currency || "INR").toUpperCase() === c;
+    return {
+      ...data!,
+      records: data!.records.filter(match),
+      reimbursementRecords: data!.reimbursementRecords.filter(match),
+    };
+  };
 
   const panelNode = (id: string) =>
     panelsRef.current?.querySelector<HTMLElement>(`[data-panel="${id}"]`) ?? null;
@@ -256,7 +276,18 @@ export function HrInsightsDashboard() {
             </TabsList>
           </Tabs>
 
+          {currencyTotals.length > 0 && (
+            <div className="no-print -mt-2">
+              <CurrencyScope
+                totals={currencyTotals}
+                selected={renderCurrencies}
+                onChange={setSelectedCurrencies}
+              />
+            </div>
+          )}
+
           <div ref={panelsRef} className="flex min-w-0 flex-col">
+            {/* Workforce is headcount, not money → shown once. */}
             <HrPanel id="workforce" active={tab}>
               <Workforce data={data} slug={rangeSlug(range)} />
             </HrPanel>
@@ -266,7 +297,9 @@ export function HrInsightsDashboard() {
                 title="Expense Analytics"
                 description="Category mix, scope split, and monthly spend trend."
               >
-                <ExpensesTab />
+                <PerCurrencySections currencies={renderCurrencies}>
+                  {(c) => <ExpensesTab currency={c} />}
+                </PerCurrencySections>
                 {/* Print-only: every expense by currency, in tab + full prints. */}
                 <ExpenseDetailTable
                   expenses={data.records}
@@ -276,16 +309,23 @@ export function HrInsightsDashboard() {
               </SectionFrame>
             </HrPanel>
             <HrPanel id="approvals" active={tab}>
-              <Governance data={data} />
+              <PerCurrencySections currencies={renderCurrencies}>
+                {(c) => <Governance data={scopedFor(c)} />}
+              </PerCurrencySections>
             </HrPanel>
             <HrPanel id="reimbursement" active={tab}>
-              <Reimbursement data={data} slug={rangeSlug(range)} />
+              <PerCurrencySections currencies={renderCurrencies}>
+                {(c) => <Reimbursement data={scopedFor(c)} slug={rangeSlug(range)} />}
+              </PerCurrencySections>
             </HrPanel>
+            {/* AI extraction metrics are currency-agnostic → shown once. */}
             <HrPanel id="ai" active={tab}>
               <AiProcessing data={data} />
             </HrPanel>
             <HrPanel id="compliance" active={tab}>
-              <AuditRisk data={data} slug={rangeSlug(range)} />
+              <PerCurrencySections currencies={renderCurrencies}>
+                {(c) => <AuditRisk data={scopedFor(c)} slug={rangeSlug(range)} />}
+              </PerCurrencySections>
             </HrPanel>
           </div>
         </div>
@@ -406,8 +446,28 @@ function Workforce({ data, slug }: { data: LoadedData; slug: string }) {
 /* ----------------------------- Governance ------------------------------ */
 
 function Governance({ data }: { data: LoadedData }) {
-  const { overview, records } = data;
-  const k = overview.kpis;
+  const { records } = data;
+  // Counts derived from the (currency-scoped) records so each per-currency
+  // section is correct — not the backend overview's dominant-currency KPIs.
+  const k = useMemo(() => {
+    let approved = 0;
+    let rejected = 0;
+    let pending = 0;
+    for (const e of records) {
+      if (e.approvalStatus === "APPROVED") approved += 1;
+      else if (e.approvalStatus === "REJECTED") rejected += 1;
+      else if (
+        e.approvalStatus === "SUBMITTED" ||
+        e.approvalStatus === "PENDING_REVIEW"
+      )
+        pending += 1;
+    }
+    return {
+      approved: { count: approved },
+      rejected: { count: rejected },
+      pending: { count: pending },
+    };
+  }, [records]);
   // Pending amount grouped per currency (never summed across currencies).
   const pendingByCurrency = useMemo(
     () =>
@@ -507,7 +567,8 @@ function Governance({ data }: { data: LoadedData }) {
 
 function Reimbursement({ data, slug }: { data: LoadedData; slug: string }) {
   const { reimbursementRecords, users, overview } = data;
-  const currency = overview.activeCurrency;
+  // Per-currency section → use the scoped records' currency, not the dominant.
+  const currency = (reimbursementRecords[0]?.currency || overview.activeCurrency).toUpperCase();
   const model = useMemo(() => deriveReimbursements(reimbursementRecords, users), [reimbursementRecords, users]);
   // Headline payouts grouped per currency (never summed across currencies).
   const pendingByCurrency = useMemo(
@@ -640,7 +701,8 @@ function AiProcessing({ data }: { data: LoadedData }) {
 
 function AuditRisk({ data, slug }: { data: LoadedData; slug: string }) {
   const { records, users, overview } = data;
-  const currency = overview.activeCurrency;
+  // Per-currency section → use the scoped records' currency, not the dominant.
+  const currency = (records[0]?.currency || overview.activeCurrency).toUpperCase();
   const audit = useMemo(() => deriveAudit(records, users), [records, users]);
 
   return (
