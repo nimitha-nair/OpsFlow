@@ -69,11 +69,14 @@ export function AppTopbar({ onMenuClick }: AppTopbarProps) {
 
   return (
     <header className="sticky top-0 z-30 flex min-h-16 items-center gap-3 border-b border-border bg-background/80 px-4 pt-[env(safe-area-inset-top)] backdrop-blur sm:px-6 lg:px-8">
+      {/* Tablet-only menu trigger. Phones navigate via the bottom-nav "More"
+          (which opens the same drawer), so the hamburger is hidden below md to
+          avoid duplicate navigation. Desktop (lg+) has the fixed sidebar. */}
       <button
         type="button"
         onClick={onMenuClick}
         aria-label="Open menu"
-        className="inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
+        className="hidden size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground md:inline-flex lg:hidden"
       >
         <Menu className="size-5" />
       </button>
