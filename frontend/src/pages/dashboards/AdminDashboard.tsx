@@ -20,6 +20,7 @@ import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { SectionCard } from "../../components/common/SectionCard";
 import { MetricCard } from "../../components/common/MetricCard";
+import { MoneyTotals } from "../../components/common/MoneyTotals";
 import { QuickCreateTaskDialog } from "../../components/tasks/QuickCreateTaskDialog";
 import {
   makeRange,
@@ -48,7 +49,8 @@ import {
   getReportsProjects,
 } from "../../lib/reports-api";
 import { listUsers } from "../../lib/users-api";
-import { formatDate, formatMoney } from "../../lib/format";
+import { formatCompactMoney, formatDate, formatMoney } from "../../lib/format";
+import { formatCurrencyTotals, totalsByCurrency } from "../../lib/currency";
 import { monthAxisLabel, monthFull } from "../../lib/month-format";
 import type { Expense } from "../../types/expense";
 import type {
@@ -121,20 +123,22 @@ export function AdminDashboard() {
   const employeeName = (id: string) => userNames.get(id) ?? "Unknown";
 
   const kpis = useMemo(() => {
-    let spend = 0;
     let pending = 0;
     let approved = 0;
     let reimbursePending = 0;
     for (const e of expenses) {
       if (e.approvalStatus === "APPROVED") {
         approved += 1;
-        spend += e.amount;
         if (e.reimbursementStatus !== "PAID") reimbursePending += 1;
       } else if (PENDING.includes(e.approvalStatus)) {
         pending += 1;
       }
     }
-    return { spend, pending, approved, reimbursePending };
+    // Approved spend grouped per currency (never summed across currencies).
+    const spendByCurrency = totalsByCurrency(
+      expenses.filter((e) => e.approvalStatus === "APPROVED"),
+    );
+    return { spendByCurrency, pending, approved, reimbursePending };
   }, [expenses]);
 
   const reimbursementQueue = useMemo(
@@ -167,7 +171,7 @@ export function AdminDashboard() {
           ) : (
             <>
               <strong className="font-semibold text-foreground">
-                {formatMoney(kpis.spend)}
+                {formatCurrencyTotals(kpis.spendByCurrency, formatCompactMoney)}
               </strong>{" "}
               approved spend ·{" "}
               <strong className="font-semibold text-foreground">
@@ -235,7 +239,7 @@ export function AdminDashboard() {
               accent="indigo"
               icon={Wallet}
               label="Total Spend"
-              value={formatMoney(kpis.spend)}
+              value={<MoneyTotals totals={kpis.spendByCurrency} compact />}
               hint={`${kpis.approved} approved expenses`}
             />
             <MetricCard
@@ -355,7 +359,7 @@ export function AdminDashboard() {
                         label: p.projectName,
                         valueText:
                           p.utilization === null
-                            ? formatMoney(p.totalSpent, projects.activeCurrency)
+                            ? formatCurrencyTotals(p.spentByCurrency, formatCompactMoney)
                             : `${p.utilization}%`,
                         ratio:
                           p.utilization === null

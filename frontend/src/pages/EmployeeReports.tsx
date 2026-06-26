@@ -8,6 +8,7 @@ import { EmptyState } from "../components/common/EmptyState";
 import { ErrorState } from "../components/common/ErrorState";
 import { LoadingState } from "../components/common/LoadingState";
 import { MetricCard } from "../components/common/MetricCard";
+import { MoneyTotals } from "../components/common/MoneyTotals";
 import { SectionCard } from "../components/common/SectionCard";
 import { PageHeader } from "../components/layout/PageHeader";
 import { BarList, ColumnChart } from "../components/reports/charts";
@@ -95,30 +96,35 @@ export function EmployeeReports() {
   }, [reloadKey, range]);
 
   const report = useMemo(() => {
+    // Counts are currency-agnostic (whole record set). Headline money is grouped
+    // per currency (never summed across). The category/trend charts are scoped
+    // to the active currency, which the picker controls.
     const counts = { draft: 0, pending: 0, approved: 0, rejected: 0 };
-    let approvedSpend = 0;
-    let reimbursed = 0;
-    const currency = activeCurrency;
-    const byCategory = new Map<string, number>();
-    const byMonth = new Map<string, number>();
-
-    // Scope to the active currency so amounts are never summed across currencies.
-    const scoped = expenses.filter(
-      (e) => normalizeCurrency(e.currency) === activeCurrency,
-    );
-    for (const e of scoped) {
+    for (const e of expenses) {
       if (e.approvalStatus === "DRAFT") counts.draft += 1;
       else if (PENDING.includes(e.approvalStatus)) counts.pending += 1;
       else if (e.approvalStatus === "REJECTED") counts.rejected += 1;
-      else if (e.approvalStatus === "APPROVED") {
-        counts.approved += 1;
-        approvedSpend += e.amount;
-        if (e.reimbursementStatus === "PAID") reimbursed += e.amount;
-        // Approved spend by category and by month (of the expense date).
-        byCategory.set(e.category, (byCategory.get(e.category) ?? 0) + e.amount);
-        const month = (e.expenseDate ?? "").slice(0, 7);
-        if (month) byMonth.set(month, (byMonth.get(month) ?? 0) + e.amount);
-      }
+      else if (e.approvalStatus === "APPROVED") counts.approved += 1;
+    }
+    const approved = expenses.filter((e) => e.approvalStatus === "APPROVED");
+    const approvedByCurrency = totalsByCurrency(approved);
+    const reimbursedByCurrency = totalsByCurrency(
+      approved.filter((e) => e.reimbursementStatus === "PAID"),
+    );
+
+    const currency = activeCurrency;
+    let approvedSpend = 0;
+    const byCategory = new Map<string, number>();
+    const byMonth = new Map<string, number>();
+    // Charts scope to the active currency so a chart never mixes currencies.
+    const scoped = approved.filter(
+      (e) => normalizeCurrency(e.currency) === activeCurrency,
+    );
+    for (const e of scoped) {
+      approvedSpend += e.amount;
+      byCategory.set(e.category, (byCategory.get(e.category) ?? 0) + e.amount);
+      const month = (e.expenseDate ?? "").slice(0, 7);
+      if (month) byMonth.set(month, (byMonth.get(month) ?? 0) + e.amount);
     }
 
     const catItems = [...byCategory.entries()]
@@ -155,7 +161,14 @@ export function EmployeeReports() {
       });
     }
 
-    return { counts, approvedSpend, reimbursed, currency, catItems, trendItems };
+    return {
+      counts,
+      approvedByCurrency,
+      reimbursedByCurrency,
+      currency,
+      catItems,
+      trendItems,
+    };
   }, [expenses, activeCurrency]);
 
   function exportCsv() {
@@ -254,7 +267,7 @@ export function EmployeeReports() {
               accent="indigo"
               icon={Wallet}
               label="Approved Spend"
-              value={formatMoney(report.approvedSpend, report.currency)}
+              value={<MoneyTotals totals={report.approvedByCurrency} compact />}
               hint={`${report.counts.approved} approved`}
             />
             <MetricCard
@@ -269,7 +282,7 @@ export function EmployeeReports() {
               accent="emerald"
               icon={CheckCircle2}
               label="Reimbursed"
-              value={formatMoney(report.reimbursed, report.currency)}
+              value={<MoneyTotals totals={report.reimbursedByCurrency} compact />}
             />
             <MetricCard
               index={3}

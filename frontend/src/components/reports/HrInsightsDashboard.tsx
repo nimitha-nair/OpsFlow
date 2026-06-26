@@ -43,6 +43,8 @@ import { LoadingState } from "../common/LoadingState";
 import { ErrorState } from "../common/ErrorState";
 import { BarList } from "./charts";
 import { DonutGauge, KpiCard, RankingList } from "./bi";
+import { MoneyTotals } from "../common/MoneyTotals";
+import { formatCurrencyTotals, totalsByCurrency } from "../../lib/currency";
 import { paletteAt } from "../common/accent";
 import { SectionFrame } from "./workspace/shell";
 import { type SectionDef } from "./workspace/report-sections";
@@ -394,7 +396,18 @@ function Workforce({ data, slug }: { data: LoadedData; slug: string }) {
 function Governance({ data }: { data: LoadedData }) {
   const { overview, records } = data;
   const k = overview.kpis;
-  const currency = overview.activeCurrency;
+  // Pending amount grouped per currency (never summed across currencies).
+  const pendingByCurrency = useMemo(
+    () =>
+      totalsByCurrency(
+        records.filter(
+          (e) =>
+            e.approvalStatus === "SUBMITTED" ||
+            e.approvalStatus === "PENDING_REVIEW",
+        ),
+      ),
+    [records],
+  );
   const processing = useMemo(() => deriveProcessing(records), [records]);
   const decided = k.approved.count + k.rejected.count;
   const approvalRate = decided > 0 ? (k.approved.count / decided) * 100 : 0;
@@ -417,7 +430,7 @@ function Governance({ data }: { data: LoadedData }) {
           icon={Clock}
           label="Pending approvals"
           value={k.pending.count}
-          hint={`${formatCompactMoney(k.pending.amount, currency)} in queue`}
+          hint={`${formatCurrencyTotals(pendingByCurrency, formatCompactMoney)} in queue`}
           invertTrend
         />
         <KpiCard
@@ -484,6 +497,15 @@ function Reimbursement({ data, slug }: { data: LoadedData; slug: string }) {
   const { reimbursementRecords, users, overview } = data;
   const currency = overview.activeCurrency;
   const model = useMemo(() => deriveReimbursements(reimbursementRecords, users), [reimbursementRecords, users]);
+  // Headline payouts grouped per currency (never summed across currencies).
+  const pendingByCurrency = useMemo(
+    () => totalsByCurrency(reimbursementRecords.filter((e) => e.reimbursementStatus !== "PAID")),
+    [reimbursementRecords],
+  );
+  const paidByCurrency = useMemo(
+    () => totalsByCurrency(reimbursementRecords.filter((e) => e.reimbursementStatus === "PAID")),
+    [reimbursementRecords],
+  );
 
   return (
     <SectionFrame
@@ -505,7 +527,7 @@ function Reimbursement({ data, slug }: { data: LoadedData; slug: string }) {
           accent="amber"
           icon={Banknote}
           label="Pending reimbursements"
-          value={formatCompactMoney(model.pendingAmount, currency)}
+          value={<MoneyTotals totals={pendingByCurrency} compact />}
           hint={`${model.outstandingCount} unpaid`}
           invertTrend
         />
@@ -514,7 +536,7 @@ function Reimbursement({ data, slug }: { data: LoadedData; slug: string }) {
           accent="emerald"
           icon={CheckCircle2}
           label="Paid out"
-          value={formatCompactMoney(model.paidAmount, currency)}
+          value={<MoneyTotals totals={paidByCurrency} compact />}
           hint={`${model.byStatus.PAID.count} reimbursed`}
         />
         <KpiCard index={2} accent="sky" icon={Clock} label="Processing" value={model.byStatus.PROCESSING.count} />

@@ -61,7 +61,12 @@ import { ProjectsTab } from "./ProjectsTab";
 import { AiAnalyticsTab } from "./AiAnalyticsTab";
 import { BarList, DonutChart } from "./charts";
 import { CurrencyScope } from "./CurrencyScope";
-import { pickActiveCurrency, totalsByCurrency } from "../../lib/currency";
+import { MoneyTotals } from "../common/MoneyTotals";
+import {
+  formatCurrencyTotals,
+  pickActiveCurrency,
+  totalsByCurrency,
+} from "../../lib/currency";
 import { AreaTrend, DonutGauge, Heatmap, KpiCard, RankingList } from "./bi";
 import { paletteAt } from "../common/accent";
 import { formatDateTime, formatMoney } from "../../lib/format";
@@ -351,6 +356,7 @@ export function ReportsWorkspace() {
             <Panel id="overview" active={tab}>
               <ExecutiveOverview
                 data={scopedData!}
+                allRecords={data.records}
                 currency={activeCurrency}
                 slug={rangeSlug(range)}
                 onOpenProjects={() => changeTab("projects")}
@@ -439,18 +445,41 @@ function Panel({
 
 function ExecutiveOverview({
   data,
+  allRecords,
   currency,
   slug,
   onOpenProjects,
 }: {
   data: LoadedData;
+  /** Full (all-currency) records — counts + grouped money come from these. */
+  allRecords: Expense[];
   currency: string;
   slug: string;
   onOpenProjects: () => void;
 }) {
   const { projects, records, users } = data;
-  // KPIs derive from the (date-filtered) records so they honor the range.
-  const k = useMemo(() => deriveKpis(records), [records]);
+  // Counts come from the full record set (currency-agnostic); money is grouped
+  // per currency (never summed across). The scoped `records` drive the charts.
+  const k = useMemo(() => deriveKpis(allRecords), [allRecords]);
+  const approvedByCurrency = useMemo(
+    () => totalsByCurrency(allRecords.filter((r) => r.approvalStatus === "APPROVED")),
+    [allRecords],
+  );
+  const pendingByCurrency = useMemo(
+    () =>
+      totalsByCurrency(
+        allRecords.filter(
+          (r) =>
+            r.approvalStatus === "SUBMITTED" ||
+            r.approvalStatus === "PENDING_REVIEW",
+        ),
+      ),
+    [allRecords],
+  );
+  const rejectedByCurrency = useMemo(
+    () => totalsByCurrency(allRecords.filter((r) => r.approvalStatus === "REJECTED")),
+    [allRecords],
+  );
   const decided = k.approved.count + k.rejected.count;
   const approvalRate = decided > 0 ? (k.approved.count / decided) * 100 : 0;
 
@@ -476,16 +505,21 @@ function ExecutiveOverview({
       title="Executive Overview"
       description="The numbers leadership checks first — spend, throughput, and risk."
       onCsv={() =>
+        // Per-currency rows — exports never combine currencies into one total.
         downloadCsv(
           `opsflow-executive-overview_${slug}`,
           [
-            { metric: "Total submitted", value: k.total.amount, count: k.total.count },
-            { metric: "Approved spend", value: k.approved.amount, count: k.approved.count },
-            { metric: "Pending review", value: k.pending.amount, count: k.pending.count },
-            { metric: "Rejected", value: k.rejected.amount, count: k.rejected.count },
-          ],
+            { metric: "Approved spend", totals: approvedByCurrency },
+            { metric: "Pending review", totals: pendingByCurrency },
+            { metric: "Rejected", totals: rejectedByCurrency },
+          ].flatMap(({ metric, totals }) =>
+            (totals.length > 0 ? totals : [{ currency, amount: 0, count: 0 }]).map(
+              (t) => ({ metric, currency: t.currency, value: t.amount, count: t.count }),
+            ),
+          ),
           [
             { label: "Metric", value: (r) => r.metric },
+            { label: "Currency", value: (r) => r.currency },
             { label: "Amount", value: (r) => r.value },
             { label: "Count", value: (r) => r.count },
           ],
@@ -499,7 +533,7 @@ function ExecutiveOverview({
           accent="indigo"
           icon={Wallet}
           label="Approved spend"
-          value={compactMoney(k.approved.amount, currency)}
+          value={<MoneyTotals totals={approvedByCurrency} compact />}
           hint={`${k.approved.count} approved of ${k.total.count} submitted`}
           trend={momDelta}
           spark={monthly.slice(-8).map((m) => m.amount)}
@@ -530,7 +564,7 @@ function ExecutiveOverview({
           icon={AlertTriangle}
           label="Pending approval risk"
           value={k.pending.count}
-          hint={`${compactMoney(k.pending.amount, currency)} awaiting · ${budgetAtRisk} project(s) over budget`}
+          hint={`${formatCurrencyTotals(pendingByCurrency, compactMoney)} awaiting · ${budgetAtRisk} project(s) over budget`}
           invertTrend
         />
       </div>
@@ -620,8 +654,8 @@ function ExecutiveOverview({
               accent="violet"
               icon={TrendingUp}
               label="Approved spend"
-              value={compactMoney(projects.totals.spent, currency)}
-              hint={`${compactMoney(projects.totals.remaining, currency)} remaining`}
+              value={<MoneyTotals totals={projects.totals.spentByCurrency} compact />}
+              hint={`${compactMoney(projects.totals.remaining, currency)} remaining vs budget`}
             />
             <KpiCard
               index={3}
