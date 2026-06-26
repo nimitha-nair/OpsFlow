@@ -2,6 +2,10 @@ import type { Request, Response } from "express";
 
 import { ApiError } from "../utils/errors";
 import {
+  FIRESTORE_UNAVAILABLE_MESSAGE,
+  isFirestoreQuotaError,
+} from "../utils/firestore";
+import {
   getAiAnalyticsReport,
   getExpensesReport,
   getOverviewReport,
@@ -17,6 +21,13 @@ import type {
 function handleError(res: Response, err: unknown): Response {
   if (err instanceof ApiError) {
     return res.status(err.statusCode).json({ error: err.message });
+  }
+  // Firestore quota/rate-limit/unavailable → 503 with a retry message, never a
+  // generic 500 or a crash. These analytics endpoints are the heaviest readers.
+  if (isFirestoreQuotaError(err)) {
+    const code = (err as { code?: number }).code;
+    console.warn(`Reports: Firestore unavailable (gRPC ${code})`);
+    return res.status(503).json({ error: FIRESTORE_UNAVAILABLE_MESSAGE });
   }
   console.error("Unexpected reports error:", err);
   return res.status(500).json({ error: "Internal server error" });

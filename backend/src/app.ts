@@ -17,6 +17,10 @@ import userRoutes from "./routes/user.routes";
 import { authenticate } from "./middleware/auth.middleware";
 import { apiRateLimiter } from "./middleware/rate-limit";
 import { cors } from "./middleware/cors";
+import {
+  FIRESTORE_UNAVAILABLE_MESSAGE,
+  isFirestoreQuotaError,
+} from "./utils/firestore";
 
 const app = express();
 
@@ -88,6 +92,12 @@ const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   }
   if (e?.type === "entity.too.large" || e?.status === 413) {
     res.status(413).json({ error: "Request body too large" });
+    return;
+  }
+  // A Firestore quota/rate-limit/unavailable error that reached here is transient
+  // — answer 503 (retryable) with a clear message rather than a generic 500.
+  if (isFirestoreQuotaError(err)) {
+    res.status(503).json({ error: FIRESTORE_UNAVAILABLE_MESSAGE });
     return;
   }
   console.error("Unhandled error:", err);
