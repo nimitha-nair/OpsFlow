@@ -857,7 +857,30 @@ function DepartmentAnalytics({ data, currency, slug }: { data: LoadedData; curre
 
 function DepartmentTable({ rows, currency }: { rows: DepartmentMetric[]; currency: string }) {
   return (
-    <div className="overflow-x-auto">
+    <>
+      {/* Mobile: a card per department instead of a 7-column scrolling table. */}
+      <ul className="flex flex-col gap-2 md:hidden">
+        {rows.map((d) => (
+          <li key={d.name} className="rounded-xl border border-border/60 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="truncate font-medium text-foreground">{d.name}</span>
+              <RiskBadge risk={d.risk} />
+            </div>
+            <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+              <DeptStat label="Head count" value={`${d.activeHeadcount}/${d.headcount}`} />
+              <DeptStat label="Approved spend" value={formatMoney(d.totalSpend, currency)} />
+              <DeptStat label="Pending" value={String(d.pendingCount)} />
+              <DeptStat label="Reimb. due" value={compactMoney(d.reimbursementPending, currency)} />
+              <DeptStat
+                label="Avg turnaround"
+                value={d.avgProcessingDays === null ? "—" : `${d.avgProcessingDays.toFixed(1)}d`}
+              />
+            </dl>
+          </li>
+        ))}
+      </ul>
+
+      <div className="hidden overflow-x-auto md:block">
       <Table>
         <TableHeader>
           <TableRow>
@@ -894,6 +917,17 @@ function DepartmentTable({ rows, currency }: { rows: DepartmentMetric[]; currenc
           ))}
         </TableBody>
       </Table>
+      </div>
+    </>
+  );
+}
+
+/** Compact label/value pair for the mobile department cards. */
+function DeptStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col">
+      <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className="tabular-nums font-medium text-foreground">{value}</dd>
     </div>
   );
 }
@@ -989,7 +1023,30 @@ function EmployeeAnalytics({ data, currency, slug }: { data: LoadedData; currenc
       </SectionCard>
 
       <SectionCard title="Employee breakdown" description="Full submission record">
-        <div className="overflow-x-auto">
+        {/* Mobile: a card per employee instead of a 7-column scrolling table. */}
+        <ul className="flex flex-col gap-2 md:hidden">
+          {spenders.slice(0, 25).map((e) => (
+            <li key={e.id} className="rounded-xl border border-border/60 p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-foreground">{e.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{e.department}</p>
+                </div>
+                <span className="shrink-0 tabular-nums font-semibold text-foreground">
+                  {formatMoney(e.totalSpend, currency)}
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                <span>Submitted <b className="tabular-nums text-foreground">{e.submittedCount}</b></span>
+                <span>Approved <b className="tabular-nums text-foreground">{e.approvedCount}</b></span>
+                <span>Rejected <b className="tabular-nums text-foreground">{e.rejectedCount}</b></span>
+                <span>Manual <b className="tabular-nums text-foreground">{e.manualCount}</b></span>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        <div className="hidden overflow-x-auto md:block">
           <Table>
             <TableHeader>
               <TableRow>

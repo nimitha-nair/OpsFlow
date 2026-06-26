@@ -166,7 +166,58 @@ export function ReimbursementsPage() {
         </Card>
       ) : (
         <Card className="overflow-hidden p-0">
-          <div className="overflow-x-auto">
+          {/* Mobile: readable cards instead of a horizontally-scrolling table. */}
+          <ul className="flex flex-col divide-y md:hidden">
+            {expenses.map((expense) => {
+              const paid = expense.reimbursementStatus === "PAID";
+              return (
+                <li key={expense.id} className="flex flex-col gap-2 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground">
+                        {getEmployeeName(expense.employeeId)}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        <span className="font-mono">{expense.code ?? "—"}</span>
+                        {" · "}
+                        {expense.scope === "GENERAL"
+                          ? "General"
+                          : getProjectName(expense.projectId)}
+                      </p>
+                    </div>
+                    <span className="shrink-0 tabular-nums font-semibold text-foreground">
+                      {formatMoney(expense.amount, expense.currency)}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <ReimbursementBadge status={expense.reimbursementStatus} />
+                    {canManage &&
+                      (paid ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                          <Lock className="size-3" /> Paid
+                        </span>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {forwardStatuses(expense.reimbursementStatus).map((s) => (
+                            <Button
+                              key={s}
+                              variant="outline"
+                              size="sm"
+                              disabled={savingId === expense.id}
+                              onClick={() => changeStatus(expense, s)}
+                            >
+                              Mark {REIMBURSEMENT_LABELS[s]}
+                            </Button>
+                          ))}
+                        </div>
+                      ))}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+
+          <div className="hidden overflow-x-auto md:block">
             <Table>
               <TableHeader className="bg-muted/40">
                 <TableRow>
