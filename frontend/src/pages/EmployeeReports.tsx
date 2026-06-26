@@ -13,6 +13,7 @@ import { SectionCard } from "../components/common/SectionCard";
 import { PageHeader } from "../components/layout/PageHeader";
 import { BarList, ColumnChart } from "../components/reports/charts";
 import { CurrencyScope } from "../components/reports/CurrencyScope";
+import { ExpenseDetailTable } from "../components/reports/ExpenseDetailTable";
 import { paletteAt } from "../components/reports/report-palette";
 import {
   normalizeCurrency,
@@ -362,6 +363,9 @@ export function EmployeeReports() {
               />
             </SectionCard>
           )}
+
+          {/* Print-only: every expense by currency, included in the PDF export. */}
+          <ExpenseDetailTable expenses={expenses} scope="employee" />
         </div>
       )}
       </div>

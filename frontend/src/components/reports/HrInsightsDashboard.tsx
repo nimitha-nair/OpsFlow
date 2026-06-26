@@ -51,6 +51,7 @@ import { type SectionDef } from "./workspace/report-sections";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { ExpensesTab } from "./ExpensesTab";
+import { ExpenseDetailTable } from "./ExpenseDetailTable";
 import { formatCompactMoney, formatMoney } from "../../lib/format";
 import { DateBasisToggle } from "../common/DateBasisToggle";
 import { DateRangeFilter } from "../common/DateRangeFilter";
@@ -104,6 +105,11 @@ export function HrInsightsDashboard() {
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
   const [basis, setBasis] = useState<"expenseDate" | "submittedAt">("expenseDate");
   const panelsRef = useRef<HTMLDivElement>(null);
+  // employeeId → name, for the print-only per-expense detail listing.
+  const userNameMap = useMemo(
+    () => new Map((data?.users ?? []).map((u) => [u.id, u.name] as const)),
+    [data],
+  );
 
   const panelNode = (id: string) =>
     panelsRef.current?.querySelector<HTMLElement>(`[data-panel="${id}"]`) ?? null;
@@ -261,6 +267,12 @@ export function HrInsightsDashboard() {
                 description="Category mix, scope split, and monthly spend trend."
               >
                 <ExpensesTab />
+                {/* Print-only: every expense by currency, in tab + full prints. */}
+                <ExpenseDetailTable
+                  expenses={data.records}
+                  scope="admin"
+                  employeeNames={userNameMap}
+                />
               </SectionFrame>
             </HrPanel>
             <HrPanel id="approvals" active={tab}>

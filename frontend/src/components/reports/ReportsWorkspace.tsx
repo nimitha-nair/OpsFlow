@@ -61,6 +61,7 @@ import { ProjectsTab } from "./ProjectsTab";
 import { AiAnalyticsTab } from "./AiAnalyticsTab";
 import { BarList, DonutChart } from "./charts";
 import { CurrencyScope } from "./CurrencyScope";
+import { ExpenseDetailTable } from "./ExpenseDetailTable";
 import { MoneyTotals } from "../common/MoneyTotals";
 import {
   formatCurrencyTotals,
@@ -210,6 +211,11 @@ export function ReportsWorkspace() {
   // every derived KPI/chart/total honors the selected currency.
   const currencyTotals = useMemo(
     () => (data ? totalsByCurrency(data.records) : []),
+    [data],
+  );
+  // employeeId → name, for the print-only per-expense detail listing.
+  const userNameMap = useMemo(
+    () => new Map((data?.users ?? []).map((u) => [u.id, u.name] as const)),
     [data],
   );
   const activeCurrency = pickActiveCurrency(currencyTotals, currency);
@@ -369,6 +375,12 @@ export function ReportsWorkspace() {
                 description="Category mix, scope split, and monthly spend trend."
               >
                 <ExpensesTab />
+                {/* Print-only: every expense by currency, included in tab + full prints. */}
+                <ExpenseDetailTable
+                  expenses={data.records}
+                  scope="admin"
+                  employeeNames={userNameMap}
+                />
               </SectionFrame>
             </Panel>
             <Panel id="projects" active={tab}>
