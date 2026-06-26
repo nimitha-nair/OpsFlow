@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { donutArcs } from "./charts";
+import { donutArcs } from "./donut-geometry";
 
 const C = 100; // easy circumference for percentage-like dash maths
 

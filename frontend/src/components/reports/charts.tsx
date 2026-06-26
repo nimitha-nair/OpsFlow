@@ -1,8 +1,12 @@
 /** Shared CSS-bar chart primitives for the Reports tabs (no chart library). */
 
-import { ACCENT_TEXT, type Accent } from "../common/accent";
+import { ACCENT_TEXT } from "../common/accent";
 import { cn } from "@/lib/utils";
 import { paletteAt, riseStyle } from "./report-palette";
+import { donutArcs } from "./donut-geometry";
+import type { DonutSegment } from "./donut-geometry";
+
+export type { DonutSegment, DonutArc } from "./donut-geometry";
 
 export interface BarItem {
   label: string;
@@ -109,62 +113,6 @@ export function ColumnChart({ items }: { items: ColumnItem[] }) {
       </div>
     </div>
   );
-}
-
-/** Default accent cycle for donut/pie segments (distinct, theme-aware colours). */
-const DONUT_ACCENTS: Accent[] = [
-  "indigo",
-  "emerald",
-  "amber",
-  "rose",
-  "sky",
-  "violet",
-];
-
-export interface DonutSegment {
-  label: string;
-  value: number;
-  /** Explicit accent; when omitted a stable palette colour is assigned by order. */
-  accent?: Accent;
-}
-
-export interface DonutArc extends DonutSegment {
-  accent: Accent;
-  /** Share of the whole, 0–100. */
-  percent: number;
-  /** Arc length along the circumference. */
-  dash: number;
-  /** strokeDashoffset that positions this arc after the preceding ones. */
-  offset: number;
-}
-
-/**
- * Pure geometry for a donut/pie: turn raw segments into renderable arcs whose
- * dash lengths/offsets lay out head-to-tail along `circumference`. Non-positive
- * values are dropped; returns [] when nothing is positive. Tested in
- * charts.test.ts.
- */
-export function donutArcs(
-  segments: DonutSegment[],
-  circumference: number,
-): DonutArc[] {
-  const positives = segments.filter((s) => s.value > 0);
-  const total = positives.reduce((sum, s) => sum + s.value, 0);
-  if (total <= 0) return [];
-  let cumulative = 0;
-  return positives.map((s, i) => {
-    const fraction = s.value / total;
-    const dash = fraction * circumference;
-    const arc: DonutArc = {
-      ...s,
-      accent: s.accent ?? DONUT_ACCENTS[i % DONUT_ACCENTS.length]!,
-      percent: Math.round(fraction * 1000) / 10,
-      dash,
-      offset: -cumulative,
-    };
-    cumulative += dash;
-    return arc;
-  });
 }
 
 export interface DonutChartProps {
