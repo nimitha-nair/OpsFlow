@@ -22,7 +22,7 @@ import {
 } from "../lib/notifications-api";
 import type { Notification, NotificationType } from "../types/notification";
 
-type Category = "all" | "tasks" | "tickets" | "discussion";
+type Category = "all" | "tasks" | "tickets" | "discussion" | "expenses";
 
 const CATEGORY_OF: Record<NotificationType, Exclude<Category, "all">> = {
   TASK_ASSIGNED: "tasks",
@@ -33,6 +33,10 @@ const CATEGORY_OF: Record<NotificationType, Exclude<Category, "all">> = {
   COMMENT: "discussion",
   REPLY: "discussion",
   MENTION: "discussion",
+  EXPENSE_SUBMITTED: "expenses",
+  EXPENSE_APPROVED: "expenses",
+  EXPENSE_REJECTED: "expenses",
+  EXPENSE_PAID: "expenses",
 };
 
 const CATEGORY_LABELS: Record<Category, string> = {
@@ -40,6 +44,7 @@ const CATEGORY_LABELS: Record<Category, string> = {
   tasks: "Tasks",
   tickets: "Tickets",
   discussion: "Comments & mentions",
+  expenses: "Expenses",
 };
 
 export function NotificationsPage() {

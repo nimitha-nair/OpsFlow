@@ -6,7 +6,11 @@ export type NotificationType =
   | "COMMENT"
   | "REPLY"
   | "MENTION"
-  | "TICKET_UPDATE";
+  | "TICKET_UPDATE"
+  | "EXPENSE_SUBMITTED"
+  | "EXPENSE_APPROVED"
+  | "EXPENSE_REJECTED"
+  | "EXPENSE_PAID";
 
 export interface Notification {
   id: string;

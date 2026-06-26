@@ -9,6 +9,10 @@ export const NOTIFICATION_TYPES = [
   "REPLY",
   "MENTION",
   "TICKET_UPDATE",
+  "EXPENSE_SUBMITTED",
+  "EXPENSE_APPROVED",
+  "EXPENSE_REJECTED",
+  "EXPENSE_PAID",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 

@@ -46,6 +46,8 @@ import {
 } from "../services/expenseAnalysis.service";
 import { MAX_DOCS } from "../middleware/upload";
 import { deriveDocumentIds } from "../services/expense-documents.read";
+import { notify } from "../services/notification.service";
+import { getStaffIds } from "../services/ticket.service";
 import type {
   CreateExpenseInput,
   ExpenseStatusFilter,
@@ -60,6 +62,11 @@ function handleError(res: Response, err: unknown): Response {
   }
   console.error("Unexpected expense-controller error:", err);
   return res.status(500).json({ error: "Internal server error" });
+}
+
+/** Human-readable reference for an expense in notifications (code, else id). */
+function expenseRef(expense: { code?: string; id: string }): string {
+  return `Expense ${expense.code ?? expense.id}`;
 }
 
 /** Whether a user may view a given expense. */
@@ -122,6 +129,17 @@ export async function postSubmitExpense(
   try {
     const { id } = req.valid?.params as IdParams;
     const expense = await submitExpense(id, req.user.userId);
+    // Best-effort: alert the reviewers (HR + Admin) of the new submission.
+    const reviewers = await getStaffIds();
+    await notify(
+      reviewers,
+      {
+        type: "EXPENSE_SUBMITTED",
+        title: "New expense submitted",
+        body: `${expenseRef(expense)} is awaiting review.`,
+      },
+      req.user.userId,
+    );
     return res.status(200).json(expense);
   } catch (err) {
     return handleError(res, err);
@@ -360,6 +378,16 @@ export async function patchApprove(
     const { id } = req.valid?.params as IdParams;
     const { remarks } = req.valid?.body as { remarks: string };
     const expense = await approveExpense(id, req.user.userId, remarks);
+    // Best-effort: let the submitter know their expense was approved.
+    await notify(
+      [expense.employeeId],
+      {
+        type: "EXPENSE_APPROVED",
+        title: "Expense approved",
+        body: `${expenseRef(expense)} was approved.`,
+      },
+      req.user.userId,
+    );
     return res.status(200).json(expense);
   } catch (err) {
     return handleError(res, err);
@@ -378,6 +406,18 @@ export async function patchReject(
     const { id } = req.valid?.params as IdParams;
     const { remarks } = req.valid?.body as { remarks: string };
     const expense = await rejectExpense(id, req.user.userId, remarks);
+    // Best-effort: tell the submitter, including the reviewer's remark when given.
+    await notify(
+      [expense.employeeId],
+      {
+        type: "EXPENSE_REJECTED",
+        title: "Expense rejected",
+        body: remarks
+          ? `${expenseRef(expense)} was rejected: ${remarks}`
+          : `${expenseRef(expense)} was rejected.`,
+      },
+      req.user.userId,
+    );
     return res.status(200).json(expense);
   } catch (err) {
     return handleError(res, err);
@@ -395,6 +435,18 @@ export async function patchReimbursement(
       reimbursementStatus: ReimbursementStatus;
     };
     const expense = await setReimbursementStatus(id, reimbursementStatus);
+    // Best-effort: notify the submitter once their reimbursement is paid.
+    if (expense.reimbursementStatus === "PAID") {
+      await notify(
+        [expense.employeeId],
+        {
+          type: "EXPENSE_PAID",
+          title: "Reimbursement paid",
+          body: `${expenseRef(expense)} has been reimbursed.`,
+        },
+        req.user?.userId,
+      );
+    }
     return res.status(200).json(expense);
   } catch (err) {
     return handleError(res, err);
