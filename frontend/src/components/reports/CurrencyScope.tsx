@@ -11,6 +11,20 @@ import { cn } from "@/lib/utils";
 import { formatCompactMoney } from "../../lib/format";
 import type { CurrencyTotal } from "../../lib/currency";
 
+/**
+ * Compact amount for a chip that already shows the currency code. For currencies
+ * without a symbol the formatter prefixes the code (e.g. "AED 19.4K"); drop that
+ * leading code so it isn't shown twice. Presentation only — the formatter and
+ * stored data are untouched. Symbol currencies (₹/$/€) are unaffected.
+ */
+function chipAmount(amount: number, currency: string): string {
+  const formatted = formatCompactMoney(amount, currency);
+  if (formatted.toUpperCase().startsWith(currency.toUpperCase())) {
+    return formatted.slice(currency.length).trimStart();
+  }
+  return formatted;
+}
+
 interface CurrencyScopeProps {
   totals: CurrencyTotal[];
   /** Currently selected currency codes. */
@@ -40,7 +54,7 @@ export function CurrencyScope({
         <Coins className="size-3.5" />
         {only.currency}
         <span className="tabular-nums">
-          {formatCompactMoney(only.amount, only.currency)}
+          {chipAmount(only.amount, only.currency)}
         </span>
       </div>
     );
@@ -106,7 +120,7 @@ export function CurrencyScope({
             >
               {t.currency}
               <span className="tabular-nums opacity-80">
-                {formatCompactMoney(t.amount, t.currency)}
+                {chipAmount(t.amount, t.currency)}
               </span>
               <span className="tabular-nums opacity-60">· {t.count}</span>
             </button>
