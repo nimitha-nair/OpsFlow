@@ -248,10 +248,14 @@ export function ReportsWorkspace() {
     () => new Map((data?.users ?? []).map((u) => [u.id, u.name] as const)),
     [data],
   );
-  // Currencies to render: the user's valid picks, else ALL present (default).
+  // Currencies to render: the user's valid picks, else INR by default (falling
+  // back to the dominant currency when there's no INR).
   const allCurrencies = currencyTotals.map((t) => t.currency);
+  const defaultCurrencies = allCurrencies.includes("INR")
+    ? ["INR"]
+    : allCurrencies.slice(0, 1);
   const picked = selectedCurrencies?.filter((c) => allCurrencies.includes(c)) ?? null;
-  const renderCurrencies = picked && picked.length > 0 ? picked : allCurrencies;
+  const renderCurrencies = picked && picked.length > 0 ? picked : defaultCurrencies;
 
   // A per-currency slice of the loaded data: records/reimbursements filtered and
   // the projects report re-scoped to that currency (never combined).

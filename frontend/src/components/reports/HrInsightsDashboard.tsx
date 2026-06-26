@@ -119,8 +119,11 @@ export function HrInsightsDashboard() {
     [data],
   );
   const allCurrencies = currencyTotals.map((t) => t.currency);
+  const defaultCurrencies = allCurrencies.includes("INR")
+    ? ["INR"]
+    : allCurrencies.slice(0, 1);
   const picked = selectedCurrencies?.filter((c) => allCurrencies.includes(c)) ?? null;
-  const renderCurrencies = picked && picked.length > 0 ? picked : allCurrencies;
+  const renderCurrencies = picked && picked.length > 0 ? picked : defaultCurrencies;
   // Per-currency slice of the loaded data (records/reimbursements filtered).
   const scopedFor = (c: string): LoadedData => {
     const match = (r: Expense) => (r.currency || "INR").toUpperCase() === c;

@@ -70,8 +70,11 @@ export function EmployeeReports() {
 
   const currencyTotals = useMemo(() => totalsByCurrency(expenses), [expenses]);
   const allCurrencies = currencyTotals.map((t) => t.currency);
+  const defaultCurrencies = allCurrencies.includes("INR")
+    ? ["INR"]
+    : allCurrencies.slice(0, 1);
   const picked = selectedCurrencies?.filter((c) => allCurrencies.includes(c)) ?? null;
-  const renderCurrencies = picked && picked.length > 0 ? picked : allCurrencies;
+  const renderCurrencies = picked && picked.length > 0 ? picked : defaultCurrencies;
 
   useEffect(() => {
     let cancelled = false;
