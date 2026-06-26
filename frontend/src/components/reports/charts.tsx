@@ -67,25 +67,60 @@ export interface ColumnItem {
   label: string;
   title: string;
   tone?: string;
+  /** Formatted value for the single-period KPI fallback (e.g. "₹50,000"). */
+  valueText?: string;
 }
 
-/** Vertical column chart for monthly trends. */
+/**
+ * Single-value KPI shown when a trend has only one period in range — a trend
+ * needs at least two points to be a trend, so we show the value instead of a
+ * lone stretched bar.
+ */
+export function SinglePeriodValue({
+  value,
+  label,
+}: {
+  value: string;
+  label: string;
+}) {
+  return (
+    <div className="flex min-h-44 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border/60 px-4 py-8 text-center">
+      <span className="text-3xl font-bold tabular-nums text-foreground">
+        {value}
+      </span>
+      <span className="text-sm font-medium text-muted-foreground">{label}</span>
+      <span className="text-[11px] text-muted-foreground/70">
+        Only one period in the selected range
+      </span>
+    </div>
+  );
+}
+
+/** Vertical column chart for monthly trends; adapts to how many periods exist. */
 export function ColumnChart({ items }: { items: ColumnItem[] }) {
   if (items.length === 0 || items.every((it) => it.ratio <= 0)) {
     return <ChartEmpty label="No trend data in this range yet." />;
+  }
+  // One period in range → a KPI, never a single stretched full-width bar.
+  if (items.length === 1) {
+    const it = items[0]!;
+    return <SinglePeriodValue value={it.valueText ?? it.label} label={it.label} />;
   }
   // With many buckets (e.g. 24 months) the columns would crush to a few pixels
   // and the labels would overlap on narrow screens, so the track scrolls
   // horizontally with a per-column minimum once there are more than a handful.
   const many = items.length > 8;
+  // With only a few buckets, cap each column's width and center the row so the
+  // bars stay a sensible size instead of stretching into wide rectangles.
+  const colWidth = many ? "flex-1" : "w-full max-w-[72px] flex-1";
   return (
     <div className={many ? "-mx-1 overflow-x-auto px-1" : ""}>
       <div className={`flex flex-col gap-2 ${many ? "min-w-[480px]" : ""}`}>
-        <div className="flex h-44 items-end gap-1.5">
+        <div className={`flex h-44 items-end gap-1.5 ${many ? "" : "justify-center"}`}>
           {items.map((it, i) => (
             <div
               key={it.key}
-              className="group flex h-full flex-1 items-end justify-center"
+              className={`group flex h-full items-end justify-center ${colWidth}`}
               title={it.title}
             >
               <div
@@ -100,11 +135,11 @@ export function ColumnChart({ items }: { items: ColumnItem[] }) {
             </div>
           ))}
         </div>
-        <div className="flex gap-1.5">
+        <div className={`flex gap-1.5 ${many ? "" : "justify-center"}`}>
           {items.map((it) => (
             <div
               key={it.key}
-              className="flex-1 truncate text-center text-[10px] font-medium text-muted-foreground"
+              className={`truncate text-center text-[10px] font-medium text-muted-foreground ${colWidth}`}
             >
               {it.label}
             </div>

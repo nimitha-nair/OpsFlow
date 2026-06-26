@@ -137,19 +137,26 @@ export function EmployeeReports() {
         tone: paletteAt(i),
       }));
 
-    // Continuous month axis from the first to the last month that has approved
-    // spend (one bucket per month, gaps filled with 0), capped to 24 buckets.
+    // Continuous month axis, one bucket per month with gaps zero-filled (capped
+    // to 24). For a bounded date range, span the FULL range (incl. leading/
+    // trailing zero months) so the timeline is complete; for the unbounded "All"
+    // preset, span the first→last month that actually has approved spend.
     const dataMonths = [...byMonth.keys()].sort();
+    const params = rangeToParams(range);
+    const rangeFrom = params.from?.slice(0, 7);
+    const rangeTo = params.to?.slice(0, 7);
+    const axisStart = rangeFrom ?? dataMonths[0];
+    const axisEnd = rangeTo ?? dataMonths[dataMonths.length - 1];
     let trendItems: {
       key: string;
       ratio: number;
       label: string;
       title: string;
+      valueText: string;
     }[] = [];
-    if (dataMonths.length > 0) {
-      const full = monthRange(dataMonths[0]!, dataMonths[dataMonths.length - 1]!);
+    if (axisStart && axisEnd && axisStart <= axisEnd) {
+      const full = monthRange(axisStart, axisEnd);
       const axis = full.length > 24 ? full.slice(-24) : full;
-      // Show the year on axis labels only when the span crosses calendar years.
       const maxMonth = Math.max(1, ...axis.map((m) => byMonth.get(m) ?? 0));
       trendItems = axis.map((m, i) => {
         const amount = byMonth.get(m) ?? 0;
@@ -157,6 +164,7 @@ export function EmployeeReports() {
           key: m,
           ratio: amount / maxMonth,
           label: monthAxisLabel(m, i > 0 ? axis[i - 1] : undefined),
+          valueText: formatMoney(amount, currency),
           title: `${monthFull(m)} · ${formatMoney(amount, currency)}`,
         };
       });
@@ -170,7 +178,7 @@ export function EmployeeReports() {
       catItems,
       trendItems,
     };
-  }, [expenses, activeCurrency]);
+  }, [expenses, activeCurrency, range]);
 
   function exportCsv() {
     downloadCsv(`my-expenses-${rangeSlug(range)}`, expenses, [

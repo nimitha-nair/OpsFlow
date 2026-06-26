@@ -18,6 +18,7 @@ import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { ACCENT_TEXT, ACCENTS, riseStyle, type Accent } from "../common/accent";
+import { SinglePeriodValue } from "./charts";
 
 /* ------------------------------------------------------------------ */
 /* Trend delta badge                                                   */
@@ -160,12 +161,17 @@ export function AreaTrend({
   format = (v) => String(v),
 }: AreaTrendProps) {
   const gradId = useId();
-  if (data.length < 2) {
+  if (data.length === 0) {
     return (
       <div className="flex h-44 items-center justify-center text-sm text-muted-foreground">
-        Not enough data to chart a trend.
+        No trend data in this range yet.
       </div>
     );
+  }
+  // One period in range → a KPI, not a single stretched point/area.
+  if (data.length === 1) {
+    const p = data[0]!;
+    return <SinglePeriodValue value={format(p.value)} label={p.label} />;
   }
   const w = 600;
   const h = height;

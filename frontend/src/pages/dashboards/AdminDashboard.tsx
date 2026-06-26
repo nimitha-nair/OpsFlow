@@ -283,6 +283,7 @@ export function AdminDashboard() {
                       key: m.month,
                       ratio: m.amount / max,
                       label: monthAxisLabel(m.month, i > 0 ? t[i - 1]!.month : undefined),
+                      valueText: formatMoney(m.amount),
                       title: `${monthFull(m.month)} · ${formatMoney(m.amount)}`,
                     }));
                   })()}

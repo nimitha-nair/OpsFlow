@@ -226,6 +226,7 @@ function MonthlyColumns({ data, currency }: { data: MonthlySpend[]; currency: st
         ratio: m.amount / max,
         // Year shown only at year boundaries (see month-format); full month in the tooltip.
         label: monthAxisLabel(m.month, i > 0 ? data[i - 1]!.month : undefined),
+        valueText: formatMoney(m.amount, currency),
         title: `${monthFull(m.month)} · ${formatMoney(m.amount, currency)} · ${m.count} expense${m.count === 1 ? "" : "s"}`,
       }))}
     />

@@ -149,6 +149,7 @@ export function AiAnalyticsTab() {
     key: p.month,
     label: monthAxisLabel(p.month, i > 0 ? data.lowConfidenceTrend[i - 1]!.month : undefined),
     ratio: p.lowConfidence / maxTrend,
+    valueText: `${p.lowConfidence} low-confidence of ${p.total}`,
     title: `${monthFull(p.month)} · ${p.lowConfidence} low-confidence of ${p.total}`,
     tone: "from-amber-500 to-orange-400",
   }));
