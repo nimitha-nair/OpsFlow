@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { DueDate } from "../tasks/DueDate";
 import { TaskPriorityBadge } from "../tasks/TaskBadges";
-import { TaskStatusControl } from "../tasks/TaskStatusControl";
 import { assignmentLabel } from "../tasks/AssigneeDisplay";
+import { TaskMoveSheet } from "./TaskMoveSheet";
 import {
   TASK_STATUSES,
   TASK_STATUS_LABELS,
@@ -31,9 +31,10 @@ interface KanbanMobileListProps {
 }
 
 /**
- * Mobile board: status-grouped, collapsible vertical list of task cards — the
- * touch-friendly alternative to the horizontally-scrolling desktop columns.
- * Status is changed via the chip control (no drag, no horizontal scroll).
+ * Touch-first mobile board. One status "column" is shown at a time via a
+ * horizontally-scrollable status switcher (with live counts); tapping a card
+ * opens the move bottom-sheet (big tappable status rows) — no drag, no tiny
+ * congested columns, no horizontal card scrolling.
  */
 export function KanbanMobileList({
   tasks,
@@ -43,89 +44,80 @@ export function KanbanMobileList({
   onMove,
   onOpen,
 }: KanbanMobileListProps) {
-  const [collapsed, setCollapsed] = useState<Set<TaskStatus>>(new Set());
+  const [activeStatus, setActiveStatus] = useState<TaskStatus>(
+    () => TASK_STATUSES.find((s) => tasks.some((t) => t.status === s)) ?? "TODO",
+  );
+  const [moveTask, setMoveTask] = useState<Task | null>(null);
 
-  function toggle(status: TaskStatus) {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(status)) next.delete(status);
-      else next.add(status);
-      return next;
-    });
-  }
+  const items = tasks.filter((t) => t.status === activeStatus);
 
   return (
     <div className="flex flex-col gap-3 md:hidden">
-      {TASK_STATUSES.map((status) => {
-        const items = tasks.filter((t) => t.status === status);
-        const isCollapsed = collapsed.has(status);
-        return (
-          <div key={status} className="rounded-xl border border-border bg-muted/20">
+      {/* Status switcher — swipeable chips with live counts. */}
+      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {TASK_STATUSES.map((s) => {
+          const n = tasks.filter((t) => t.status === s).length;
+          const active = s === activeStatus;
+          return (
             <button
+              key={s}
               type="button"
-              onClick={() => toggle(status)}
-              aria-expanded={!isCollapsed}
-              className="flex w-full items-center justify-between gap-2 px-3 py-2.5"
+              onClick={() => setActiveStatus(s)}
+              aria-pressed={active}
+              className={cn(
+                "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                active
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border/70 text-muted-foreground active:bg-muted/60",
+              )}
             >
-              <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <span className={cn("size-2 rounded-full", STATUS_DOT[status])} />
-                {TASK_STATUS_LABELS[status]}
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
-                  {items.length}
-                </span>
-              </span>
-              <ChevronDown
-                className={cn(
-                  "size-4 text-muted-foreground transition-transform",
-                  isCollapsed && "-rotate-90",
-                )}
-              />
+              <span className={cn("size-2 rounded-full", STATUS_DOT[s])} />
+              {TASK_STATUS_LABELS[s]}
+              <span className="tabular-nums opacity-70">{n}</span>
             </button>
+          );
+        })}
+      </div>
 
-            {!isCollapsed && (
-              <ul className="flex flex-col gap-2 px-2 pb-2">
-                {items.length === 0 ? (
-                  <li className="px-2 py-3 text-center text-xs text-muted-foreground">
-                    No tasks
-                  </li>
-                ) : (
-                  items.map((task) => (
-                    <li
-                      key={task.id}
-                      className="rounded-lg border border-border bg-background p-3"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => onOpen(task)}
-                        className="block w-full text-left"
-                      >
-                        <p className="break-words font-medium text-foreground">{task.title}</p>
-                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                          {getProjectName(task.projectId)} ·{" "}
-                          {assignmentLabel(task.assignment, getAssigneeName)}
-                        </p>
-                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                          <TaskPriorityBadge priority={task.priority} />
-                          <DueDate dueDate={task.dueDate} status={task.status} />
-                        </div>
-                      </button>
-                      {canMove && (
-                        <div className="mt-2">
-                          <TaskStatusControl
-                            status={task.status}
-                            onChange={(s, reason) => onMove(task.id, s, reason)}
-                            reasonRequired={["ON_HOLD"]}
-                          />
-                        </div>
-                      )}
-                    </li>
-                  ))
-                )}
-              </ul>
-            )}
-          </div>
-        );
-      })}
+      {items.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-border/70 px-4 py-10 text-center text-sm text-muted-foreground">
+          No {TASK_STATUS_LABELS[activeStatus].toLowerCase()} tasks.
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {items.map((task) => (
+            <li key={task.id}>
+              <button
+                type="button"
+                onClick={() => (canMove ? setMoveTask(task) : onOpen(task))}
+                className="flex w-full items-center gap-3 rounded-xl border border-border bg-background p-3 text-left transition-colors active:bg-muted/50"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="break-words font-medium text-foreground">{task.title}</p>
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    {getProjectName(task.projectId)} ·{" "}
+                    {assignmentLabel(task.assignment, getAssigneeName)}
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <TaskPriorityBadge priority={task.priority} />
+                    <DueDate dueDate={task.dueDate} status={task.status} />
+                  </div>
+                </div>
+                <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <TaskMoveSheet
+        task={moveTask}
+        getProjectName={getProjectName}
+        reasonRequired={["ON_HOLD"]}
+        onMove={onMove}
+        onOpenDetails={onOpen}
+        onOpenChange={(o) => !o && setMoveTask(null)}
+      />
     </div>
   );
 }
