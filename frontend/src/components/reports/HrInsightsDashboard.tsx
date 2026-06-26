@@ -394,7 +394,7 @@ function Workforce({ data, slug }: { data: LoadedData; slug: string }) {
 function Governance({ data }: { data: LoadedData }) {
   const { overview, records } = data;
   const k = overview.kpis;
-  const currency = overview.currency;
+  const currency = overview.activeCurrency;
   const processing = useMemo(() => deriveProcessing(records), [records]);
   const decided = k.approved.count + k.rejected.count;
   const approvalRate = decided > 0 ? (k.approved.count / decided) * 100 : 0;
@@ -482,7 +482,7 @@ function Governance({ data }: { data: LoadedData }) {
 
 function Reimbursement({ data, slug }: { data: LoadedData; slug: string }) {
   const { reimbursementRecords, users, overview } = data;
-  const currency = overview.currency;
+  const currency = overview.activeCurrency;
   const model = useMemo(() => deriveReimbursements(reimbursementRecords, users), [reimbursementRecords, users]);
 
   return (
@@ -606,7 +606,7 @@ function AiProcessing({ data }: { data: LoadedData }) {
 
 function AuditRisk({ data, slug }: { data: LoadedData; slug: string }) {
   const { records, users, overview } = data;
-  const currency = overview.currency;
+  const currency = overview.activeCurrency;
   const audit = useMemo(() => deriveAudit(records, users), [records, users]);
 
   return (

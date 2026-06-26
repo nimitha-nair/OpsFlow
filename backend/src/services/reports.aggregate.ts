@@ -78,6 +78,60 @@ export function composeOverviewKpis(
   };
 }
 
+// ── Multi-currency (group-by-currency reporting) ──────────────────────────────
+
+/** Per-currency count + summed amount for one slice of expenses. */
+export interface CurrencyTotal {
+  currency: string;
+  count: number;
+  amount: number;
+}
+
+/** Normalize a raw currency value to a non-empty uppercase code (default INR). */
+export function normalizeCurrency(value: unknown): string {
+  if (typeof value !== "string") return "INR";
+  const code = value.trim().toUpperCase();
+  return code.length > 0 ? code : "INR";
+}
+
+/**
+ * Tally count + amount per currency, descending by amount (ties: code asc). The
+ * group-by-currency strategy never sums across currencies — analytics scope to a
+ * single active currency and this summary lists every currency present so the UI
+ * can offer a breakdown/selector.
+ */
+export function totalsByCurrency(
+  rows: Array<{ currency?: unknown; amount?: number }>,
+): CurrencyTotal[] {
+  const map = new Map<string, { count: number; amount: number }>();
+  for (const r of rows) {
+    const currency = normalizeCurrency(r.currency);
+    const b = map.get(currency) ?? { count: 0, amount: 0 };
+    b.count += 1;
+    b.amount += typeof r.amount === "number" ? r.amount : 0;
+    map.set(currency, b);
+  }
+  return [...map.entries()]
+    .map(([currency, v]) => ({ currency, count: v.count, amount: round2(v.amount) }))
+    .sort((a, b) => b.amount - a.amount || a.currency.localeCompare(b.currency));
+}
+
+/**
+ * Choose the currency analytics should scope to: the requested one when it has
+ * data in range, otherwise the dominant currency (largest amount), falling back
+ * to INR when there is no data at all.
+ */
+export function pickActiveCurrency(
+  totals: CurrencyTotal[],
+  requested?: string,
+): string {
+  if (requested) {
+    const norm = normalizeCurrency(requested);
+    if (totals.some((t) => t.currency === norm)) return norm;
+  }
+  return totals[0]?.currency ?? "INR";
+}
+
 // ── Expenses analytics (Phase 2) ──────────────────────────────────────────────
 
 /** Clamp a requested month window to the supported 1–24 (default 12 for junk). */
@@ -183,6 +237,7 @@ export interface ProjectLike {
 export function buildProjectRows(
   projects: ProjectLike[],
   spentByProject: Map<string, ProjectExpenseAgg>,
+  currency = "INR",
 ): ProjectReportRow[] {
   return projects
     .map((p) => {
@@ -199,7 +254,7 @@ export function buildProjectRows(
         totalSpent: spent,
         remaining: hasBudget ? round2(p.budget - spent) : null,
         utilization: hasBudget ? round2((spent / p.budget) * 100) : null,
-        currency: "INR",
+        currency,
         expenseCount: agg.count,
       };
     })

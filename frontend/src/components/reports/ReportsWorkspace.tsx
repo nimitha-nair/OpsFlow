@@ -60,6 +60,8 @@ import { ExpensesTab } from "./ExpensesTab";
 import { ProjectsTab } from "./ProjectsTab";
 import { AiAnalyticsTab } from "./AiAnalyticsTab";
 import { BarList } from "./charts";
+import { CurrencyScope } from "./CurrencyScope";
+import { pickActiveCurrency, totalsByCurrency } from "../../lib/currency";
 import { AreaTrend, DonutGauge, Heatmap, KpiCard, RankingList } from "./bi";
 import { paletteAt } from "../common/accent";
 import { formatDateTime, formatMoney } from "../../lib/format";
@@ -127,6 +129,9 @@ interface LoadedData {
 export function ReportsWorkspace() {
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
   const [basis, setBasis] = useState<"expenseDate" | "submittedAt">("expenseDate");
+  // Group-by-currency: undefined = auto (dominant currency in range). Selecting a
+  // currency refetches the currency-scoped backend reports (overview/projects).
+  const [currency, setCurrency] = useState<string | undefined>(undefined);
   const [data, setData] = useState<LoadedData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -157,10 +162,12 @@ export function ReportsWorkspace() {
   const exportAll = () => printElement(panelsRef.current, "opsflow-full-report", revealAll);
 
   const load = useCallback(async (signal?: { cancelled: boolean }) => {
-    const params = { ...rangeToParams(range), basis };
+    const params = { ...rangeToParams(range), basis, currency };
     const [overview, records, usersResp, projects, reimbursementRecords] = await Promise.all([
       getReportsOverview(params),
-      listReviewExpenses("ALL", params),
+      // The lifecycle list is fetched across all currencies; it's filtered to the
+      // active currency client-side so the picker switches without a refetch.
+      listReviewExpenses("ALL", { ...rangeToParams(range), basis }),
       listUsers({ limit: 1000 }),
       getReportsProjects(params).catch(() => null),
       listReimbursements(rangeToParams(range)),
@@ -168,7 +175,7 @@ export function ReportsWorkspace() {
     if (signal?.cancelled) return;
     setData({ overview, projects, records, reimbursementRecords, users: usersResp.data });
     setError(null);
-  }, [range, basis]);
+  }, [range, basis, currency]);
 
   useEffect(() => {
     const signal = { cancelled: false };
@@ -192,6 +199,36 @@ export function ReportsWorkspace() {
       .catch(() => setError("We couldn't refresh the reports. Please try again."))
       .finally(() => setRefreshing(false));
   };
+
+  // Currencies present across the (date-scoped) lifecycle records, and the active
+  // one the picker/derivations scope to. Records are filtered client-side so
+  // every derived KPI/chart/total honors the selected currency.
+  const currencyTotals = useMemo(
+    () => (data ? totalsByCurrency(data.records) : []),
+    [data],
+  );
+  const activeCurrency = pickActiveCurrency(currencyTotals, currency);
+  const scopedData = useMemo<LoadedData | null>(() => {
+    if (!data) return null;
+    return {
+      ...data,
+      records: data.records.filter(
+        (r) => (r.currency || "INR").toUpperCase() === activeCurrency,
+      ),
+      reimbursementRecords: data.reimbursementRecords.filter(
+        (r) => (r.currency || "INR").toUpperCase() === activeCurrency,
+      ),
+    };
+  }, [data, activeCurrency]);
+
+  const currencyScope =
+    currencyTotals.length > 0 ? (
+      <CurrencyScope
+        totals={currencyTotals}
+        active={activeCurrency}
+        onChange={(c) => setCurrency(c)}
+      />
+    ) : null;
 
   return (
     <>
@@ -302,15 +339,19 @@ export function ReportsWorkspace() {
             </TabsList>
           </Tabs>
 
+          {/* Group-by-currency picker / breakdown (only when there's data). */}
+          {currencyScope && <div className="no-print -mt-2">{currencyScope}</div>}
+
           {/* All panels are mounted; only the active one is visible. Hidden
               panels are revealed in the clone for the "Export all" PDF. */}
           <div ref={panelsRef} className="flex min-w-0 flex-col">
             <p className="mb-4 hidden text-xs text-muted-foreground print:block">
-              OpsFlow — generated {formatDateTime(data.overview.generatedAt)}
+              OpsFlow — generated {formatDateTime(data.overview.generatedAt)} · {activeCurrency}
             </p>
             <Panel id="overview" active={tab}>
               <ExecutiveOverview
-                data={data}
+                data={scopedData!}
+                currency={activeCurrency}
                 slug={rangeSlug(range)}
                 onOpenProjects={() => changeTab("projects")}
               />
@@ -334,13 +375,13 @@ export function ReportsWorkspace() {
               </SectionFrame>
             </Panel>
             <Panel id="department" active={tab}>
-              <DepartmentAnalytics data={data} slug={rangeSlug(range)} />
+              <DepartmentAnalytics data={scopedData!} currency={activeCurrency} slug={rangeSlug(range)} />
             </Panel>
             <Panel id="employee" active={tab}>
-              <EmployeeAnalytics data={data} slug={rangeSlug(range)} />
+              <EmployeeAnalytics data={scopedData!} currency={activeCurrency} slug={rangeSlug(range)} />
             </Panel>
             <Panel id="reimbursement" active={tab}>
-              <ReimbursementAnalytics data={data} slug={rangeSlug(range)} />
+              <ReimbursementAnalytics data={scopedData!} currency={activeCurrency} slug={rangeSlug(range)} />
             </Panel>
             <Panel id="ai" active={tab}>
               <SectionFrame
@@ -352,7 +393,7 @@ export function ReportsWorkspace() {
               </SectionFrame>
             </Panel>
             <Panel id="audit" active={tab}>
-              <AuditCompliance data={data} slug={rangeSlug(range)} />
+              <AuditCompliance data={scopedData!} currency={activeCurrency} slug={rangeSlug(range)} />
             </Panel>
           </div>
         </div>
@@ -398,15 +439,16 @@ function Panel({
 
 function ExecutiveOverview({
   data,
+  currency,
   slug,
   onOpenProjects,
 }: {
   data: LoadedData;
+  currency: string;
   slug: string;
   onOpenProjects: () => void;
 }) {
-  const { overview, projects, records, users } = data;
-  const currency = overview.currency;
+  const { projects, records, users } = data;
   // KPIs derive from the (date-filtered) records so they honor the range.
   const k = useMemo(() => deriveKpis(records), [records]);
   const decided = k.approved.count + k.rejected.count;
@@ -599,9 +641,8 @@ function ExecutiveOverview({
 
 /* --------------------------- Department -------------------------------- */
 
-function DepartmentAnalytics({ data, slug }: { data: LoadedData; slug: string }) {
-  const { records, users, overview } = data;
-  const currency = overview.currency;
+function DepartmentAnalytics({ data, currency, slug }: { data: LoadedData; currency: string; slug: string }) {
+  const { records, users } = data;
   const departments = useMemo(() => deriveDepartments(records, users), [records, users]);
   const withSpend = departments.filter((d) => d.totalSpend > 0 || d.headcount > 0);
   const heatmap = useMemo(
@@ -763,9 +804,8 @@ function RiskBadge({ risk }: { risk: number }) {
 
 /* ---------------------------- Employee --------------------------------- */
 
-function EmployeeAnalytics({ data, slug }: { data: LoadedData; slug: string }) {
-  const { records, users, overview } = data;
-  const currency = overview.currency;
+function EmployeeAnalytics({ data, currency, slug }: { data: LoadedData; currency: string; slug: string }) {
+  const { records, users } = data;
   const employees = useMemo(() => deriveEmployees(records, users), [records, users]);
   const spenders = employees.filter((e) => e.totalSpend > 0);
   const topRejected = [...employees].sort((a, b) => b.rejectedCount - a.rejectedCount)[0];
@@ -874,9 +914,8 @@ function EmployeeAnalytics({ data, slug }: { data: LoadedData; slug: string }) {
 
 /* -------------------------- Reimbursement ------------------------------ */
 
-function ReimbursementAnalytics({ data, slug }: { data: LoadedData; slug: string }) {
-  const { reimbursementRecords, users, overview } = data;
-  const currency = overview.currency;
+function ReimbursementAnalytics({ data, currency, slug }: { data: LoadedData; currency: string; slug: string }) {
+  const { reimbursementRecords, users } = data;
   const model = useMemo(() => deriveReimbursements(reimbursementRecords, users), [reimbursementRecords, users]);
 
   return (
@@ -988,9 +1027,8 @@ function ratioOf(amount: number, model: ReturnType<typeof deriveReimbursements>)
 
 /* ----------------------------- Audit ----------------------------------- */
 
-function AuditCompliance({ data, slug }: { data: LoadedData; slug: string }) {
-  const { records, users, overview } = data;
-  const currency = overview.currency;
+function AuditCompliance({ data, currency, slug }: { data: LoadedData; currency: string; slug: string }) {
+  const { records, users } = data;
   const audit = useMemo(() => deriveAudit(records, users), [records, users]);
   const processing = useMemo(() => deriveProcessing(records), [records]);
 

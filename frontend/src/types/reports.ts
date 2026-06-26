@@ -4,6 +4,13 @@ export interface StatusTotals {
   amount: number;
 }
 
+/** Per-currency count + summed amount (group-by-currency reporting). */
+export interface CurrencyTotal {
+  currency: string;
+  count: number;
+  amount: number;
+}
+
 export interface OverviewKpis {
   total: StatusTotals;
   approved: StatusTotals;
@@ -13,7 +20,10 @@ export interface OverviewKpis {
 
 export interface OverviewReport {
   generatedAt: string;
-  currency: string;
+  /** Currency the KPIs are scoped to (dominant or requested). */
+  activeCurrency: string;
+  /** Every currency present in range. */
+  currencies: CurrencyTotal[];
   kpis: OverviewKpis;
 }
 
@@ -38,6 +48,10 @@ export interface ScopeSplit {
 
 export interface ExpensesReport {
   range: { from: string; to: string; months: number };
+  /** Currency the breakdowns are scoped to. */
+  activeCurrency: string;
+  /** Every currency present among approved expenses in range. */
+  currencies: CurrencyTotal[];
   spendByCategory: CategorySpend[];
   monthlyTrend: MonthlySpend[];
   byScope: ScopeSplit;
@@ -59,7 +73,10 @@ export interface ProjectReportRow {
 
 export interface ProjectsReport {
   generatedAt: string;
-  currency: string;
+  /** Currency project spend/budget figures are scoped to. */
+  activeCurrency: string;
+  /** Every currency present among approved expenses in range. */
+  currencies: CurrencyTotal[];
   totals: {
     projectCount: number;
     budget: number;

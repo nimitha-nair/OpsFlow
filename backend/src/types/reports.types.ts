@@ -4,6 +4,13 @@ export interface StatusTotals {
   amount: number;
 }
 
+/** Per-currency count + summed amount (group-by-currency reporting). */
+export interface CurrencyTotal {
+  currency: string;
+  count: number;
+  amount: number;
+}
+
 /** Overview KPI block. DRAFT is excluded everywhere (private/unsubmitted). */
 export interface OverviewKpis {
   /** All non-DRAFT expenses (approved + pending + rejected). */
@@ -18,7 +25,10 @@ export interface OverviewKpis {
 
 export interface OverviewReport {
   generatedAt: string;
-  currency: "INR";
+  /** The currency the KPIs are scoped to (the dominant or requested currency). */
+  activeCurrency: string;
+  /** Every currency present in range, so the UI can offer a breakdown/selector. */
+  currencies: CurrencyTotal[];
   kpis: OverviewKpis;
 }
 
@@ -51,6 +61,10 @@ export interface ScopeSplit {
 
 export interface ExpensesReport {
   range: { from: string | null; to: string | null };
+  /** The currency the breakdowns below are scoped to. */
+  activeCurrency: string;
+  /** Every currency present among approved expenses in range. */
+  currencies: CurrencyTotal[];
   spendByCategory: CategorySpend[];
   monthlyTrend: MonthlySpend[];
   byScope: ScopeSplit;
@@ -82,7 +96,10 @@ export interface ProjectReportRow {
 
 export interface ProjectsReport {
   generatedAt: string;
-  currency: string;
+  /** The currency project spend/budget figures are scoped to. */
+  activeCurrency: string;
+  /** Every currency present among approved expenses in range. */
+  currencies: CurrencyTotal[];
   totals: {
     projectCount: number;
     budget: number;

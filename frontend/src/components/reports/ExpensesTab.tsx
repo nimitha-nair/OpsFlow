@@ -14,6 +14,7 @@ import { EmptyState } from "../common/EmptyState";
 import { ErrorState } from "../common/ErrorState";
 import { LoadingState } from "../common/LoadingState";
 import { BarList, ColumnChart } from "./charts";
+import { CurrencyScope } from "./CurrencyScope";
 import { paletteAt } from "./report-palette";
 import { formatDate, formatMoney } from "../../lib/format";
 import { monthsToParams } from "../../lib/date-range";
@@ -46,6 +47,8 @@ function monthLabel(key: string, year?: "2-digit" | "numeric"): string {
 
 export function ExpensesTab() {
   const [months, setMonths] = useState(12);
+  // Group-by-currency: undefined = auto (dominant currency in range).
+  const [currency, setCurrency] = useState<string | undefined>(undefined);
   const [data, setData] = useState<ExpensesReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -53,9 +56,9 @@ export function ExpensesTab() {
 
   // Used by the event handlers (range change / refresh / retry); sets data/error
   // only after the await.
-  const fetchExpenses = useCallback(async (m: number) => {
+  const fetchExpenses = useCallback(async (m: number, cur?: string) => {
     try {
-      setData(await getReportsExpenses(monthsToParams(m)));
+      setData(await getReportsExpenses({ ...monthsToParams(m), currency: cur }));
       setError(null);
     } catch {
       setError(ERROR_MSG);
@@ -86,15 +89,20 @@ export function ExpensesTab() {
   const changeMonths = (m: number) => {
     setMonths(m);
     setRefreshing(true);
-    void fetchExpenses(m).finally(() => setRefreshing(false));
+    void fetchExpenses(m, currency).finally(() => setRefreshing(false));
+  };
+  const changeCurrency = (cur: string) => {
+    setCurrency(cur);
+    setRefreshing(true);
+    void fetchExpenses(months, cur).finally(() => setRefreshing(false));
   };
   const onRefresh = () => {
     setRefreshing(true);
-    void fetchExpenses(months).finally(() => setRefreshing(false));
+    void fetchExpenses(months, currency).finally(() => setRefreshing(false));
   };
   const onRetry = () => {
     setLoading(true);
-    void fetchExpenses(months).finally(() => setLoading(false));
+    void fetchExpenses(months, currency).finally(() => setLoading(false));
   };
 
   if (loading) return <LoadingState label="Loading expense analytics…" />;
@@ -151,6 +159,12 @@ export function ExpensesTab() {
         </div>
       </div>
 
+      <CurrencyScope
+        totals={data.currencies}
+        active={data.activeCurrency}
+        onChange={changeCurrency}
+      />
+
       {isEmpty ? (
         <EmptyState
           icon={BarChart3}
@@ -163,11 +177,11 @@ export function ExpensesTab() {
             title="Spend by category"
             description="Approved spend, highest first"
           >
-            <CategoryBars data={data.spendByCategory} />
+            <CategoryBars data={data.spendByCategory} currency={data.activeCurrency} />
           </SectionCard>
 
           <SectionCard title="Project vs General" description="Approved spend split">
-            <ScopeBars data={data.byScope} />
+            <ScopeBars data={data.byScope} currency={data.activeCurrency} />
           </SectionCard>
 
           <SectionCard
@@ -175,7 +189,7 @@ export function ExpensesTab() {
             description="Approved spend per month"
             className="lg:col-span-2"
           >
-            <MonthlyColumns data={data.monthlyTrend} />
+            <MonthlyColumns data={data.monthlyTrend} currency={data.activeCurrency} />
           </SectionCard>
         </div>
       )}
@@ -183,13 +197,13 @@ export function ExpensesTab() {
   );
 }
 
-function CategoryBars({ data }: { data: CategorySpend[] }) {
+function CategoryBars({ data, currency }: { data: CategorySpend[]; currency: string }) {
   const max = Math.max(1, ...data.map((d) => d.amount));
   return (
     <BarList
       items={data.map((d, i) => ({
         label: categoryLabel(d.category),
-        valueText: `${formatMoney(d.amount)} · ${d.count}`,
+        valueText: `${formatMoney(d.amount, currency)} · ${d.count}`,
         ratio: d.amount / max,
         tone: paletteAt(i),
       }))}
@@ -197,7 +211,7 @@ function CategoryBars({ data }: { data: CategorySpend[] }) {
   );
 }
 
-function ScopeBars({ data }: { data: ScopeSplit }) {
+function ScopeBars({ data, currency }: { data: ScopeSplit; currency: string }) {
   const total = data.project + data.general;
   const max = Math.max(1, data.project, data.general);
   const pct = (amount: number) =>
@@ -207,13 +221,13 @@ function ScopeBars({ data }: { data: ScopeSplit }) {
       items={[
         {
           label: `Project · ${pct(data.project)}%`,
-          valueText: `${formatMoney(data.project)} · ${data.projectCount}`,
+          valueText: `${formatMoney(data.project, currency)} · ${data.projectCount}`,
           ratio: data.project / max,
           tone: "from-indigo-500 to-violet-500",
         },
         {
           label: `General · ${pct(data.general)}%`,
-          valueText: `${formatMoney(data.general)} · ${data.generalCount}`,
+          valueText: `${formatMoney(data.general, currency)} · ${data.generalCount}`,
           ratio: data.general / max,
           tone: "from-sky-500 to-blue-500",
         },
@@ -222,7 +236,7 @@ function ScopeBars({ data }: { data: ScopeSplit }) {
   );
 }
 
-function MonthlyColumns({ data }: { data: MonthlySpend[] }) {
+function MonthlyColumns({ data, currency }: { data: MonthlySpend[]; currency: string }) {
   const max = Math.max(1, ...data.map((d) => d.amount));
   // Show the year on axis labels only when the trend spans calendar years.
   const spansYears =
@@ -234,7 +248,7 @@ function MonthlyColumns({ data }: { data: MonthlySpend[] }) {
         key: m.month,
         ratio: m.amount / max,
         label: monthLabel(m.month, spansYears ? "2-digit" : undefined),
-        title: `${monthLabel(m.month, "numeric")} · ${formatMoney(m.amount)} · ${m.count} expense${m.count === 1 ? "" : "s"}`,
+        title: `${monthLabel(m.month, "numeric")} · ${formatMoney(m.amount, currency)} · ${m.count} expense${m.count === 1 ? "" : "s"}`,
       }))}
     />
   );

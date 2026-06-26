@@ -367,7 +367,7 @@ export function AdminDashboard() {
                         label: p.projectName,
                         valueText:
                           p.utilization === null
-                            ? formatMoney(p.totalSpent, projects.currency)
+                            ? formatMoney(p.totalSpent, projects.activeCurrency)
                             : `${p.utilization}%`,
                         ratio:
                           p.utilization === null

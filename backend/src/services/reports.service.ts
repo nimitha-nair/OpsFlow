@@ -19,9 +19,12 @@ import {
   buildProjectRows,
   composeOverviewKpis,
   groupByCategory,
+  normalizeCurrency,
+  pickActiveCurrency,
   splitByScope,
   summarizeProjects,
   tallyByStatus,
+  totalsByCurrency,
   type ProjectLike,
 } from "./reports.aggregate";
 import { hasCorrections } from "./ai/analysis-audit";
@@ -78,6 +81,7 @@ export async function getOverviewReport(
   from?: string,
   to?: string,
   dateField: "expenseDate" | "submittedAt" = "expenseDate",
+  currency?: string,
 ): Promise<OverviewReport> {
   const snap = await db.collection(EXPENSES_COLLECTION).get();
   const allRows = snap.docs.map(
@@ -85,20 +89,34 @@ export async function getOverviewReport(
       d.data() as {
         approvalStatus?: string;
         amount?: number;
+        currency?: string;
         expenseDate?: string;
         submittedAt?: unknown;
       },
   );
   // Apply the optional date window in memory (no composite index needed).
-  const rows = filterByDateWindow(
+  const windowed = filterByDateWindow(
     allRows,
     (r) => (dateField === "submittedAt" ? r.submittedAt : r.expenseDate),
     from,
     to,
   );
+  // Group-by-currency: list every currency among reported rows, then scope the
+  // KPIs to a single active currency so totals are never summed across them.
+  const reported = windowed.filter(
+    (r) =>
+      typeof r.approvalStatus === "string" &&
+      REPORTED_STATUSES.includes(r.approvalStatus as ApprovalStatus),
+  );
+  const currencies = totalsByCurrency(reported);
+  const activeCurrency = pickActiveCurrency(currencies, currency);
+  const rows = reported.filter(
+    (r) => normalizeCurrency(r.currency) === activeCurrency,
+  );
   return {
     generatedAt: new Date().toISOString(),
-    currency: "INR",
+    activeCurrency,
+    currencies,
     kpis: composeOverviewKpis(tallyByStatus(rows, REPORTED_STATUSES)),
   };
 }
@@ -117,6 +135,7 @@ export async function getExpensesReport(
   from?: string,
   to?: string,
   dateField: "expenseDate" | "submittedAt" = "expenseDate",
+  currency?: string,
 ): Promise<ExpensesReport> {
   const now = new Date();
   // The window drives both the filter and the monthly-trend bucket count.
@@ -128,10 +147,14 @@ export async function getExpensesReport(
     .where("approvalStatus", "==", "APPROVED")
     .get();
 
-  const allRows: (ApprovedExpenseRow & { submittedAt?: unknown })[] = snap.docs.map((d) => {
+  const allRows: (ApprovedExpenseRow & {
+    currency: string;
+    submittedAt?: unknown;
+  })[] = snap.docs.map((d) => {
     const x = d.data() as {
       category?: string;
       amount?: number;
+      currency?: string;
       scope?: string;
       expenseDate?: string;
       submittedAt?: unknown;
@@ -139,6 +162,7 @@ export async function getExpensesReport(
     return {
       category: typeof x.category === "string" ? x.category : "MISCELLANEOUS",
       amount: typeof x.amount === "number" ? x.amount : 0,
+      currency: normalizeCurrency(x.currency),
       scope: x.scope === "GENERAL" ? "GENERAL" : "PROJECT",
       expenseDate:
         typeof x.expenseDate === "string" ? x.expenseDate : fallbackDate,
@@ -149,15 +173,23 @@ export async function getExpensesReport(
   // Apply the optional date window in memory (avoids a composite-index range query).
   // When basis is submittedAt, window by that field; the monthly-trend still keys
   // by expenseDate (only the inclusion window changes).
-  const rows = filterByDateWindow(
+  const windowed = filterByDateWindow(
     allRows,
     (r) => (dateField === "submittedAt" ? r.submittedAt : r.expenseDate),
     from,
     to,
   );
 
+  // Group-by-currency: every breakdown is scoped to a single active currency so
+  // amounts are never summed across currencies. `currencies` lists what's present.
+  const currencies = totalsByCurrency(windowed);
+  const activeCurrency = pickActiveCurrency(currencies, currency);
+  const rows = windowed.filter((r) => r.currency === activeCurrency);
+
   return {
     range: { from: from ?? null, to: to ?? null },
+    activeCurrency,
+    currencies,
     spendByCategory: groupByCategory(rows),
     monthlyTrend: buildMonthlyTrend(rows, months, now),
     byScope: splitByScope(rows),
@@ -174,6 +206,7 @@ export async function getProjectsReport(
   from?: string,
   to?: string,
   dateField: "expenseDate" | "submittedAt" = "expenseDate",
+  currency?: string,
 ): Promise<ProjectsReport> {
   const [projectsPage, approvedSnap] = await Promise.all([
     listProjects({ page: 1, limit: 100000 }),
@@ -183,16 +216,23 @@ export async function getProjectsReport(
       .get(),
   ]);
 
-  const spentByProject = new Map<string, ProjectExpenseAgg>();
   // Apply the optional date window in memory before aggregating.
   const approvedDocs = filterByDateWindow(
     approvedSnap.docs.map((d) => d.data() as Record<string, unknown>),
     (x) => (dateField === "submittedAt" ? x.submittedAt : x.expenseDate),
     from,
     to,
-  );
-  for (const x of approvedDocs as { projectId?: string; amount?: number }[]) {
+  ) as { projectId?: string; amount?: number; currency?: string }[];
+
+  // Group-by-currency: project spend vs budget is only meaningful within one
+  // currency, so scope to the active currency before grouping by project.
+  const currencies = totalsByCurrency(approvedDocs);
+  const activeCurrency = pickActiveCurrency(currencies, currency);
+
+  const spentByProject = new Map<string, ProjectExpenseAgg>();
+  for (const x of approvedDocs) {
     if (!x.projectId) continue; // GENERAL expenses don't count toward a project
+    if (normalizeCurrency(x.currency) !== activeCurrency) continue;
     const agg = spentByProject.get(x.projectId) ?? { amount: 0, count: 0 };
     agg.amount += typeof x.amount === "number" ? x.amount : 0;
     agg.count += 1;
@@ -206,11 +246,12 @@ export async function getProjectsReport(
     budget: p.budget,
     archived: p.archived,
   }));
-  const rows = buildProjectRows(projects, spentByProject);
+  const rows = buildProjectRows(projects, spentByProject, activeCurrency);
 
   return {
     generatedAt: new Date().toISOString(),
-    currency: "INR",
+    activeCurrency,
+    currencies,
     totals: summarizeProjects(rows),
     projects: rows,
   };

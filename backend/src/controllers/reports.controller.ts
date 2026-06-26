@@ -31,8 +31,8 @@ export async function getOverview(
     return res.status(401).json({ error: "Authentication required" });
   }
   try {
-    const { from, to, basis } = (req.valid?.query ?? {}) as OverviewQuery;
-    const report = await getOverviewReport(from, to, basis);
+    const { from, to, basis, currency } = (req.valid?.query ?? {}) as OverviewQuery;
+    const report = await getOverviewReport(from, to, basis, currency);
     return res.status(200).json(report);
   } catch (err) {
     return handleError(res, err);
@@ -48,8 +48,8 @@ export async function getExpenses(
     return res.status(401).json({ error: "Authentication required" });
   }
   try {
-    const { from, to, basis } = (req.valid?.query ?? {}) as ExpensesQuery;
-    const report = await getExpensesReport(from, to, basis);
+    const { from, to, basis, currency } = (req.valid?.query ?? {}) as ExpensesQuery;
+    const report = await getExpensesReport(from, to, basis, currency);
     return res.status(200).json(report);
   } catch (err) {
     return handleError(res, err);
@@ -65,8 +65,8 @@ export async function getProjects(
     return res.status(401).json({ error: "Authentication required" });
   }
   try {
-    const { from, to, basis } = (req.valid?.query ?? {}) as ProjectsQuery;
-    const report = await getProjectsReport(from, to, basis);
+    const { from, to, basis, currency } = (req.valid?.query ?? {}) as ProjectsQuery;
+    const report = await getProjectsReport(from, to, basis, currency);
     return res.status(200).json(report);
   } catch (err) {
     return handleError(res, err);

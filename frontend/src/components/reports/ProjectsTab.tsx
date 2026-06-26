@@ -18,6 +18,7 @@ import {
 import { KpiCard } from "./report-ui";
 import { riseStyle } from "./report-palette";
 import { SectionCard } from "../common/SectionCard";
+import { CurrencyScope } from "./CurrencyScope";
 import { EmptyState } from "../common/EmptyState";
 import { ErrorState } from "../common/ErrorState";
 import { LoadingState } from "../common/LoadingState";
@@ -61,10 +62,13 @@ export function ProjectsTab() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sort, setSort] = useState<Sort>("spend");
+  // Group-by-currency: undefined = auto (dominant currency). Project spend vs
+  // budget is only meaningful within a single currency.
+  const [currency, setCurrency] = useState<string | undefined>(undefined);
 
-  const fetchProjects = useCallback(async () => {
+  const fetchProjects = useCallback(async (cur?: string) => {
     try {
-      setData(await getReportsProjects());
+      setData(await getReportsProjects({ currency: cur }));
       setError(null);
     } catch {
       setError(ERROR_MSG);
@@ -92,13 +96,18 @@ export function ProjectsTab() {
     };
   }, []);
 
+  const changeCurrency = (cur: string) => {
+    setCurrency(cur);
+    setRefreshing(true);
+    void fetchProjects(cur).finally(() => setRefreshing(false));
+  };
   const onRefresh = () => {
     setRefreshing(true);
-    void fetchProjects().finally(() => setRefreshing(false));
+    void fetchProjects(currency).finally(() => setRefreshing(false));
   };
   const onRetry = () => {
     setLoading(true);
-    void fetchProjects().finally(() => setLoading(false));
+    void fetchProjects(currency).finally(() => setLoading(false));
   };
 
   if (loading) return <LoadingState label="Loading project analytics…" />;
@@ -147,6 +156,12 @@ export function ProjectsTab() {
         </div>
       </div>
 
+      <CurrencyScope
+        totals={data.currencies}
+        active={data.activeCurrency}
+        onChange={changeCurrency}
+      />
+
       <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
         <KpiCard
           index={0}
@@ -159,16 +174,16 @@ export function ProjectsTab() {
           index={1}
           accent="sky"
           label="Total budget"
-          value={formatMoney(totals.budget, data.currency)}
+          value={formatMoney(totals.budget, data.activeCurrency)}
           icon={Wallet}
         />
         <KpiCard
           index={2}
           accent="violet"
           label="Total spent"
-          value={formatMoney(totals.spent, data.currency)}
+          value={formatMoney(totals.spent, data.activeCurrency)}
           icon={TrendingUp}
-          hint={`${formatMoney(totals.remaining, data.currency)} remaining`}
+          hint={`${formatMoney(totals.remaining, data.activeCurrency)} remaining`}
         />
         <KpiCard
           index={3}
@@ -196,7 +211,7 @@ export function ProjectsTab() {
               <ProjectRow
                 key={p.projectId}
                 project={p}
-                currency={data.currency}
+                currency={data.activeCurrency}
                 index={i}
                 maxSpent={maxSpent}
               />
