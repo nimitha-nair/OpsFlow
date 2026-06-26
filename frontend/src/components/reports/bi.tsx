@@ -539,15 +539,15 @@ export function KpiCard({
         className="pointer-events-none absolute -right-8 -top-8 size-24 rounded-full opacity-70 blur-2xl"
         style={{ background: `radial-gradient(circle, ${a.glow}, transparent 70%)` }}
       />
-      <div className="relative flex h-full flex-col gap-3 p-4">
+      <div className="relative flex h-full flex-col gap-2.5 p-3 sm:gap-3 sm:p-4">
         <div className="flex items-center justify-between gap-2">
           <span
             className={cn(
-              "flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm",
+              "flex size-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm sm:size-9",
               a.chip,
             )}
           >
-            <Icon className="size-[18px]" />
+            <Icon className="size-4 sm:size-[18px]" />
           </span>
           {trend !== undefined && <TrendBadge value={trend ?? null} invert={invertTrend} />}
         </div>
@@ -556,7 +556,7 @@ export function KpiCard({
             className={cn(
               "whitespace-nowrap font-bold leading-tight tracking-tight tabular-nums",
               a.value,
-              emphasize ? "text-3xl" : "text-2xl",
+              emphasize ? "text-2xl sm:text-3xl" : "text-xl sm:text-2xl",
             )}
           >
             {value}

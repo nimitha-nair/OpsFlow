@@ -22,6 +22,25 @@
           if (dark) document.documentElement.classList.add("dark");
         } catch (e) {}
       })();
+      // Block iOS Safari pinch-zoom gestures (it ignores user-scalable=no) and
+      // double-tap zoom, so the app behaves like a native shell.
+      (function () {
+        var stop = function (e) {
+          e.preventDefault();
+        };
+        document.addEventListener("gesturestart", stop, { passive: false });
+        document.addEventListener("gesturechange", stop, { passive: false });
+        var last = 0;
+        document.addEventListener(
+          "touchend",
+          function (e) {
+            var now = Date.now();
+            if (now - last <= 300) e.preventDefault();
+            last = now;
+          },
+          { passive: false },
+        );
+      })();
     </script>
   </head>
   <body>

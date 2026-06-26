@@ -106,21 +106,18 @@ export function ColumnChart({ items }: { items: ColumnItem[] }) {
     const it = items[0]!;
     return <SinglePeriodValue value={it.valueText ?? it.label} label={it.label} />;
   }
-  // With many buckets (e.g. 24 months) the columns would crush to a few pixels
-  // and the labels would overlap on narrow screens, so the track scrolls
-  // horizontally with a per-column minimum once there are more than a handful.
-  const many = items.length > 8;
-  // With only a few buckets, cap each column's width and center the row so the
-  // bars stay a sensible size instead of stretching into wide rectangles.
-  const colWidth = many ? "flex-1" : "w-full max-w-[72px] flex-1";
+  // Every column keeps a minimum width so it never crushes on a narrow phone;
+  // when the columns no longer fit, the track scrolls horizontally instead of
+  // shrinking into slivers. On wide screens they grow (capped) and center.
+  const col = "min-w-[44px] max-w-[88px] flex-1";
   return (
-    <div className={many ? "-mx-1 overflow-x-auto px-1" : ""}>
-      <div className={`flex flex-col gap-2 ${many ? "min-w-[480px]" : ""}`}>
-        <div className={`flex h-44 items-end gap-1.5 ${many ? "" : "justify-center"}`}>
+    <div className="-mx-1 overflow-x-auto px-1 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5">
+      <div className="flex min-w-full flex-col gap-2">
+        <div className="flex h-44 items-end justify-center gap-1.5">
           {items.map((it, i) => (
             <div
               key={it.key}
-              className={`group flex h-full items-end justify-center ${colWidth}`}
+              className={`group flex h-full items-end justify-center ${col}`}
               title={it.title}
             >
               <div
@@ -135,11 +132,11 @@ export function ColumnChart({ items }: { items: ColumnItem[] }) {
             </div>
           ))}
         </div>
-        <div className={`flex gap-1.5 ${many ? "" : "justify-center"}`}>
+        <div className="flex justify-center gap-1.5">
           {items.map((it) => (
             <div
               key={it.key}
-              className={`truncate text-center text-[10px] font-medium text-muted-foreground ${colWidth}`}
+              className={`truncate text-center text-[10px] font-medium text-muted-foreground ${col}`}
             >
               {it.label}
             </div>

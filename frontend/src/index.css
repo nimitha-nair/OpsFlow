@@ -156,6 +156,11 @@
   * {
     border-color: var(--color-border);
   }
+  html {
+    /* Native-app feel: allow scrolling but disable pinch + double-tap zoom
+       (the viewport meta's user-scalable=no is ignored by iOS Safari). */
+    touch-action: pan-x pan-y;
+  }
   body {
     margin: 0;
     background-color: var(--color-background);

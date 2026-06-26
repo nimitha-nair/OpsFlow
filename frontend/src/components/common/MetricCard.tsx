@@ -55,15 +55,15 @@ export function MetricCard({
         className="pointer-events-none absolute -right-8 -top-8 size-24 rounded-full opacity-70 blur-2xl"
         style={{ background: `radial-gradient(circle, ${a.glow}, transparent 70%)` }}
       />
-      <div className="relative flex items-center gap-3 p-4">
+      <div className="relative flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4">
         {/* Consistent icon chip across all cards (size doesn't change with emphasis). */}
         <span
           className={cn(
-            "flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm",
+            "flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm sm:size-10",
             a.chip,
           )}
         >
-          <Icon className="size-5" />
+          <Icon className="size-[18px] sm:size-5" />
         </span>
         <div className="min-w-0 flex-1">
           <div
