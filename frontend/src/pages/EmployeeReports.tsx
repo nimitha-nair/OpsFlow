@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, CheckCircle2, Clock, FileText, Wallet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -14,12 +14,9 @@ import { PageHeader } from "../components/layout/PageHeader";
 import { BarList, ColumnChart } from "../components/reports/charts";
 import { CurrencyScope } from "../components/reports/CurrencyScope";
 import { ExpenseDetailTable } from "../components/reports/ExpenseDetailTable";
+import { PerCurrencySections } from "../components/reports/PerCurrencySections";
 import { paletteAt } from "../components/reports/report-palette";
-import {
-  normalizeCurrency,
-  pickActiveCurrency,
-  totalsByCurrency,
-} from "../lib/currency";
+import { normalizeCurrency, totalsByCurrency } from "../lib/currency";
 import {
   makeRange,
   rangeLabel,
@@ -66,15 +63,15 @@ export function EmployeeReports() {
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
-  // Group-by-currency: undefined = auto (dominant currency among my expenses).
-  const [currency, setCurrency] = useState<string | undefined>(undefined);
+  // Multi-currency: `null` = default (all present); an array = explicit pick.
+  // One → current layout; several → one section per currency, never combined.
+  const [selectedCurrencies, setSelectedCurrencies] = useState<string[] | null>(null);
   const reportRef = useRef<HTMLDivElement>(null);
 
-  // Currencies present across my expenses in range, and the one the report is
-  // scoped to. Like the HR/Admin reports, amounts are never summed across
-  // currencies — the report below is computed from a single-currency slice.
   const currencyTotals = useMemo(() => totalsByCurrency(expenses), [expenses]);
-  const activeCurrency = pickActiveCurrency(currencyTotals, currency);
+  const allCurrencies = currencyTotals.map((t) => t.currency);
+  const picked = selectedCurrencies?.filter((c) => allCurrencies.includes(c)) ?? null;
+  const renderCurrencies = picked && picked.length > 0 ? picked : allCurrencies;
 
   useEffect(() => {
     let cancelled = false;
@@ -96,31 +93,27 @@ export function EmployeeReports() {
     };
   }, [reloadKey, range]);
 
-  const report = useMemo(() => {
-    // Counts are currency-agnostic (whole record set). Headline money is grouped
-    // per currency (never summed across). The category/trend charts are scoped
-    // to the active currency, which the picker controls.
+  // Build the report for ONE currency (each rendered section is single-currency).
+  const buildReport = useCallback(
+    (currency: string) => {
+    const inCur = expenses.filter((e) => normalizeCurrency(e.currency) === currency);
     const counts = { draft: 0, pending: 0, approved: 0, rejected: 0 };
-    for (const e of expenses) {
+    for (const e of inCur) {
       if (e.approvalStatus === "DRAFT") counts.draft += 1;
       else if (PENDING.includes(e.approvalStatus)) counts.pending += 1;
       else if (e.approvalStatus === "REJECTED") counts.rejected += 1;
       else if (e.approvalStatus === "APPROVED") counts.approved += 1;
     }
-    const approved = expenses.filter((e) => e.approvalStatus === "APPROVED");
+    const approved = inCur.filter((e) => e.approvalStatus === "APPROVED");
     const approvedByCurrency = totalsByCurrency(approved);
     const reimbursedByCurrency = totalsByCurrency(
       approved.filter((e) => e.reimbursementStatus === "PAID"),
     );
 
-    const currency = activeCurrency;
     let approvedSpend = 0;
     const byCategory = new Map<string, number>();
     const byMonth = new Map<string, number>();
-    // Charts scope to the active currency so a chart never mixes currencies.
-    const scoped = approved.filter(
-      (e) => normalizeCurrency(e.currency) === activeCurrency,
-    );
+    const scoped = approved;
     for (const e of scoped) {
       approvedSpend += e.amount;
       byCategory.set(e.category, (byCategory.get(e.category) ?? 0) + e.amount);
@@ -178,7 +171,9 @@ export function EmployeeReports() {
       catItems,
       trendItems,
     };
-  }, [expenses, activeCurrency, range]);
+    },
+    [expenses, range],
+  );
 
   function exportCsv() {
     downloadCsv(`my-expenses-${rangeSlug(range)}`, expenses, [
@@ -266,111 +261,111 @@ export function EmployeeReports() {
         <div className="flex flex-col gap-6">
           <CurrencyScope
             totals={currencyTotals}
-            active={activeCurrency}
-            onChange={setCurrency}
+            selected={renderCurrencies}
+            onChange={setSelectedCurrencies}
           />
-          <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
-            <MetricCard
-              index={0}
-              emphasize
-              accent="indigo"
-              icon={Wallet}
-              label="Approved Spend"
-              value={<MoneyTotals totals={report.approvedByCurrency} compact />}
-              hint={`${report.counts.approved} approved`}
-            />
-            <MetricCard
-              index={1}
-              accent="amber"
-              icon={Clock}
-              label="Pending Review"
-              value={report.counts.pending}
-            />
-            <MetricCard
-              index={2}
-              accent="emerald"
-              icon={CheckCircle2}
-              label="Reimbursed"
-              value={<MoneyTotals totals={report.reimbursedByCurrency} compact />}
-            />
-            <MetricCard
-              index={3}
-              accent="violet"
-              icon={FileText}
-              label="Drafts"
-              value={report.counts.draft}
-              hint={
-                report.counts.rejected > 0
-                  ? `${report.counts.rejected} rejected`
-                  : undefined
-              }
-            />
-          </div>
+          <PerCurrencySections currencies={renderCurrencies}>
+            {(c) => {
+              const report = buildReport(c);
+              return (
+                <div className="flex flex-col gap-6">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
+                    <MetricCard
+                      index={0}
+                      emphasize
+                      accent="indigo"
+                      icon={Wallet}
+                      label="Approved Spend"
+                      value={<MoneyTotals totals={report.approvedByCurrency} compact />}
+                      hint={`${report.counts.approved} approved`}
+                    />
+                    <MetricCard
+                      index={1}
+                      accent="amber"
+                      icon={Clock}
+                      label="Pending Review"
+                      value={report.counts.pending}
+                    />
+                    <MetricCard
+                      index={2}
+                      accent="emerald"
+                      icon={CheckCircle2}
+                      label="Reimbursed"
+                      value={<MoneyTotals totals={report.reimbursedByCurrency} compact />}
+                    />
+                    <MetricCard
+                      index={3}
+                      accent="violet"
+                      icon={FileText}
+                      label="Drafts"
+                      value={report.counts.draft}
+                      hint={
+                        report.counts.rejected > 0
+                          ? `${report.counts.rejected} rejected`
+                          : undefined
+                      }
+                    />
+                  </div>
 
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            <SectionCard
-              title="Approved spend by category"
-              description={rangeLabel(range)}
-            >
-              {report.catItems.length > 0 ? (
-                <BarList items={report.catItems} />
-              ) : (
-                <EmptyState
-                  compact
-                  icon={Wallet}
-                  title="No approved spend yet"
-                  description="Approved expenses appear here once reviewed."
-                />
-              )}
-            </SectionCard>
+                  <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                    <SectionCard
+                      title="Approved spend by category"
+                      description={rangeLabel(range)}
+                    >
+                      {report.catItems.length > 0 ? (
+                        <BarList items={report.catItems} />
+                      ) : (
+                        <EmptyState
+                          compact
+                          icon={Wallet}
+                          title="No approved spend yet"
+                          description="Approved expenses appear here once reviewed."
+                        />
+                      )}
+                    </SectionCard>
 
-            <SectionCard
-              title="Spend trend"
-              description="Approved spend by month"
-            >
-              {report.trendItems.length > 0 ? (
-                <ColumnChart items={report.trendItems} />
-              ) : (
-                <EmptyState
-                  compact
-                  icon={CheckCircle2}
-                  title="No trend yet"
-                  description="The trend builds as your expenses are approved."
-                />
-              )}
-            </SectionCard>
-          </div>
+                    <SectionCard title="Spend trend" description="Approved spend by month">
+                      {report.trendItems.length > 0 ? (
+                        <ColumnChart items={report.trendItems} />
+                      ) : (
+                        <EmptyState
+                          compact
+                          icon={CheckCircle2}
+                          title="No trend yet"
+                          description="The trend builds as your expenses are approved."
+                        />
+                      )}
+                    </SectionCard>
+                  </div>
 
-          {report.counts.rejected > 0 && (
-            <SectionCard title="Outcomes" description={rangeLabel(range)}>
-              <BarList
-                items={[
-                  {
-                    label: "Approved",
-                    valueText: String(report.counts.approved),
-                    ratio:
-                      report.counts.approved /
-                      Math.max(
-                        1,
-                        report.counts.approved + report.counts.rejected,
-                      ),
-                    tone: "from-emerald-500 to-teal-500",
-                  },
-                  {
-                    label: "Rejected",
-                    valueText: String(report.counts.rejected),
-                    ratio:
-                      report.counts.rejected /
-                      Math.max(
-                        1,
-                        report.counts.approved + report.counts.rejected,
-                      ),
-                    tone: "from-rose-500 to-pink-500",
-                  },
-                ]}
-              />
-            </SectionCard>
-          )}
+                  {report.counts.rejected > 0 && (
+                    <SectionCard title="Outcomes" description={rangeLabel(range)}>
+                      <BarList
+                        items={[
+                          {
+                            label: "Approved",
+                            valueText: String(report.counts.approved),
+                            ratio:
+                              report.counts.approved /
+                              Math.max(1, report.counts.approved + report.counts.rejected),
+                            tone: "from-emerald-500 to-teal-500",
+                          },
+                          {
+                            label: "Rejected",
+                            valueText: String(report.counts.rejected),
+                            ratio:
+                              report.counts.rejected /
+                              Math.max(1, report.counts.approved + report.counts.rejected),
+                            tone: "from-rose-500 to-pink-500",
+                          },
+                        ]}
+                      />
+                    </SectionCard>
+                  )}
+                </div>
+              );
+            }}
+          </PerCurrencySections>
 
           {/* Print-only: every expense by currency, included in the PDF export. */}
           <ExpenseDetailTable expenses={expenses} scope="employee" />

@@ -61,13 +61,10 @@ import { ProjectsTab } from "./ProjectsTab";
 import { AiAnalyticsTab } from "./AiAnalyticsTab";
 import { BarList, DonutChart } from "./charts";
 import { CurrencyScope } from "./CurrencyScope";
+import { PerCurrencySections } from "./PerCurrencySections";
 import { ExpenseDetailTable } from "./ExpenseDetailTable";
 import { MoneyTotals } from "../common/MoneyTotals";
-import {
-  formatCurrencyTotals,
-  pickActiveCurrency,
-  totalsByCurrency,
-} from "../../lib/currency";
+import { formatCurrencyTotals, totalsByCurrency } from "../../lib/currency";
 import { AreaTrend, DonutGauge, Heatmap, KpiCard, RankingList } from "./bi";
 import { paletteAt } from "../common/accent";
 import { formatDateTime, formatMoney } from "../../lib/format";
@@ -132,12 +129,44 @@ interface LoadedData {
   users: User[];
 }
 
+/** Re-scope a projects report to a single currency (spend/utilization for that
+ *  currency only — never combined across currencies). */
+function scopeProjectsTo(report: ProjectsReport, currency: string): ProjectsReport {
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const projects = report.projects.map((p) => {
+    const cur = p.spentByCurrency.find((t) => t.currency === currency);
+    const totalSpent = r2(cur?.amount ?? 0);
+    return {
+      ...p,
+      totalSpent,
+      spentByCurrency: cur ? [cur] : [],
+      remaining: p.hasBudget ? r2(p.budget - totalSpent) : null,
+      utilization: p.hasBudget ? r2((totalSpent / p.budget) * 100) : null,
+      currency,
+    };
+  });
+  const spent = r2(projects.reduce((s, p) => s + p.totalSpent, 0));
+  const curTotal = report.totals.spentByCurrency.find((t) => t.currency === currency);
+  return {
+    ...report,
+    activeCurrency: currency,
+    totals: {
+      ...report.totals,
+      spent,
+      spentByCurrency: curTotal ? [curTotal] : [],
+      remaining: r2(report.totals.budget - spent),
+    },
+    projects,
+  };
+}
+
 export function ReportsWorkspace() {
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
   const [basis, setBasis] = useState<"expenseDate" | "submittedAt">("expenseDate");
-  // Group-by-currency: undefined = auto (dominant currency in range). Selecting a
-  // currency refetches the currency-scoped backend reports (overview/projects).
-  const [currency, setCurrency] = useState<string | undefined>(undefined);
+  // Multi-currency: which currencies to render. `null` = default (all present);
+  // an array = the user's explicit pick. One → today's layout; several → one
+  // section per currency (never combined).
+  const [selectedCurrencies, setSelectedCurrencies] = useState<string[] | null>(null);
   const [data, setData] = useState<LoadedData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -168,12 +197,13 @@ export function ReportsWorkspace() {
   const exportAll = () => printElement(panelsRef.current, "opsflow-full-report", revealAll);
 
   const load = useCallback(async (signal?: { cancelled: boolean }) => {
-    const params = { ...rangeToParams(range), basis, currency };
+    const params = { ...rangeToParams(range), basis };
     const [overview, records, usersResp, projects, reimbursementRecords] = await Promise.all([
       getReportsOverview(params),
-      // The lifecycle list is fetched across all currencies; it's filtered to the
-      // active currency client-side so the picker switches without a refetch.
-      listReviewExpenses("ALL", { ...rangeToParams(range), basis }),
+      // Everything is fetched across all currencies; the report sections scope
+      // client-side per selected currency (the projects report already carries a
+      // per-currency breakdown), so switching currencies needs no refetch.
+      listReviewExpenses("ALL", params),
       listUsers({ limit: 1000 }),
       getReportsProjects(params).catch(() => null),
       listReimbursements(rangeToParams(range)),
@@ -181,7 +211,7 @@ export function ReportsWorkspace() {
     if (signal?.cancelled) return;
     setData({ overview, projects, records, reimbursementRecords, users: usersResp.data });
     setError(null);
-  }, [range, basis, currency]);
+  }, [range, basis]);
 
   useEffect(() => {
     const signal = { cancelled: false };
@@ -218,26 +248,29 @@ export function ReportsWorkspace() {
     () => new Map((data?.users ?? []).map((u) => [u.id, u.name] as const)),
     [data],
   );
-  const activeCurrency = pickActiveCurrency(currencyTotals, currency);
-  const scopedData = useMemo<LoadedData | null>(() => {
-    if (!data) return null;
+  // Currencies to render: the user's valid picks, else ALL present (default).
+  const allCurrencies = currencyTotals.map((t) => t.currency);
+  const picked = selectedCurrencies?.filter((c) => allCurrencies.includes(c)) ?? null;
+  const renderCurrencies = picked && picked.length > 0 ? picked : allCurrencies;
+
+  // A per-currency slice of the loaded data: records/reimbursements filtered and
+  // the projects report re-scoped to that currency (never combined).
+  const scopedFor = (c: string): LoadedData => {
+    const match = (r: Expense) => (r.currency || "INR").toUpperCase() === c;
     return {
-      ...data,
-      records: data.records.filter(
-        (r) => (r.currency || "INR").toUpperCase() === activeCurrency,
-      ),
-      reimbursementRecords: data.reimbursementRecords.filter(
-        (r) => (r.currency || "INR").toUpperCase() === activeCurrency,
-      ),
+      ...data!,
+      records: data!.records.filter(match),
+      reimbursementRecords: data!.reimbursementRecords.filter(match),
+      projects: data!.projects ? scopeProjectsTo(data!.projects, c) : null,
     };
-  }, [data, activeCurrency]);
+  };
 
   const currencyScope =
     currencyTotals.length > 0 ? (
       <CurrencyScope
         totals={currencyTotals}
-        active={activeCurrency}
-        onChange={(c) => setCurrency(c)}
+        selected={renderCurrencies}
+        onChange={setSelectedCurrencies}
       />
     ) : null;
 
@@ -357,16 +390,24 @@ export function ReportsWorkspace() {
               panels are revealed in the clone for the "Export all" PDF. */}
           <div ref={panelsRef} className="flex min-w-0 flex-col">
             <p className="mb-4 hidden text-xs text-muted-foreground print:block">
-              OpsFlow — generated {formatDateTime(data.overview.generatedAt)} · {activeCurrency}
+              OpsFlow — generated {formatDateTime(data.overview.generatedAt)} ·{" "}
+              {renderCurrencies.join(", ")}
             </p>
             <Panel id="overview" active={tab}>
-              <ExecutiveOverview
-                data={scopedData!}
-                allRecords={data.records}
-                currency={activeCurrency}
-                slug={rangeSlug(range)}
-                onOpenProjects={() => changeTab("projects")}
-              />
+              <PerCurrencySections currencies={renderCurrencies}>
+                {(c) => {
+                  const sd = scopedFor(c);
+                  return (
+                    <ExecutiveOverview
+                      data={sd}
+                      allRecords={sd.records}
+                      currency={c}
+                      slug={rangeSlug(range)}
+                      onOpenProjects={() => changeTab("projects")}
+                    />
+                  );
+                }}
+              </PerCurrencySections>
             </Panel>
             <Panel id="expense" active={tab}>
               <SectionFrame
@@ -374,7 +415,9 @@ export function ReportsWorkspace() {
                 title="Expense Analytics"
                 description="Category mix, scope split, and monthly spend trend."
               >
-                <ExpensesTab />
+                <PerCurrencySections currencies={renderCurrencies}>
+                  {(c) => <ExpensesTab currency={c} />}
+                </PerCurrencySections>
                 {/* Print-only: every expense by currency, included in tab + full prints. */}
                 <ExpenseDetailTable
                   expenses={data.records}
@@ -389,18 +432,33 @@ export function ReportsWorkspace() {
                 title="Project Spending"
                 description="Approved spend against each project's budget and utilization."
               >
-                <ProjectsTab />
+                <PerCurrencySections currencies={renderCurrencies}>
+                  {(c) => <ProjectsTab currency={c} />}
+                </PerCurrencySections>
               </SectionFrame>
             </Panel>
             <Panel id="department" active={tab}>
-              <DepartmentAnalytics data={scopedData!} currency={activeCurrency} slug={rangeSlug(range)} />
+              <PerCurrencySections currencies={renderCurrencies}>
+                {(c) => (
+                  <DepartmentAnalytics data={scopedFor(c)} currency={c} slug={rangeSlug(range)} />
+                )}
+              </PerCurrencySections>
             </Panel>
             <Panel id="employee" active={tab}>
-              <EmployeeAnalytics data={scopedData!} currency={activeCurrency} slug={rangeSlug(range)} />
+              <PerCurrencySections currencies={renderCurrencies}>
+                {(c) => (
+                  <EmployeeAnalytics data={scopedFor(c)} currency={c} slug={rangeSlug(range)} />
+                )}
+              </PerCurrencySections>
             </Panel>
             <Panel id="reimbursement" active={tab}>
-              <ReimbursementAnalytics data={scopedData!} currency={activeCurrency} slug={rangeSlug(range)} />
+              <PerCurrencySections currencies={renderCurrencies}>
+                {(c) => (
+                  <ReimbursementAnalytics data={scopedFor(c)} currency={c} slug={rangeSlug(range)} />
+                )}
+              </PerCurrencySections>
             </Panel>
+            {/* AI extraction metrics are about the engine, not money → shown once. */}
             <Panel id="ai" active={tab}>
               <SectionFrame
                 id="ai"
@@ -411,7 +469,11 @@ export function ReportsWorkspace() {
               </SectionFrame>
             </Panel>
             <Panel id="audit" active={tab}>
-              <AuditCompliance data={scopedData!} currency={activeCurrency} slug={rangeSlug(range)} />
+              <PerCurrencySections currencies={renderCurrencies}>
+                {(c) => (
+                  <AuditCompliance data={scopedFor(c)} currency={c} slug={rangeSlug(range)} />
+                )}
+              </PerCurrencySections>
             </Panel>
           </div>
         </div>

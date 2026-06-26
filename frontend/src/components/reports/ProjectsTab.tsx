@@ -57,7 +57,10 @@ function sortRows(rows: ProjectReportRow[], sort: Sort): ProjectReportRow[] {
   return copy;
 }
 
-export function ProjectsTab() {
+export function ProjectsTab({ currency: controlledCurrency }: { currency?: string } = {}) {
+  // Filter-controlled when `currency` is supplied (Reports currency filter drives
+  // it): scopes to that currency and hides its own picker + toolbar.
+  const controlled = controlledCurrency !== undefined;
   const [data, setData] = useState<ProjectsReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -65,7 +68,8 @@ export function ProjectsTab() {
   const [sort, setSort] = useState<Sort>("spend");
   // Group-by-currency: undefined = auto (dominant currency). Project spend vs
   // budget is only meaningful within a single currency.
-  const [currency, setCurrency] = useState<string | undefined>(undefined);
+  const [currency, setCurrency] = useState<string | undefined>(controlledCurrency);
+  const effectiveCurrency = controlled ? controlledCurrency : currency;
 
   const fetchProjects = useCallback(async (cur?: string) => {
     try {
@@ -80,7 +84,7 @@ export function ProjectsTab() {
     let cancelled = false;
     async function loadInitial() {
       try {
-        const r = await getReportsProjects();
+        const r = await getReportsProjects({ currency: effectiveCurrency });
         if (!cancelled) {
           setData(r);
           setError(null);
@@ -95,7 +99,8 @@ export function ProjectsTab() {
     return () => {
       cancelled = true;
     };
-  }, []);
+    // Controlled instances refetch when their assigned currency changes.
+  }, [effectiveCurrency]);
 
   const changeCurrency = (cur: string) => {
     setCurrency(cur);
@@ -145,23 +150,27 @@ export function ProjectsTab() {
               <SelectItem value="utilization">Highest utilization</SelectItem>
             </SelectContent>
           </Select>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRefresh}
-            disabled={refreshing}
-          >
-            <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+          {!controlled && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRefresh}
+              disabled={refreshing}
+            >
+              <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          )}
         </div>
       </div>
 
-      <CurrencyScope
-        totals={data.currencies}
-        active={data.activeCurrency}
-        onChange={changeCurrency}
-      />
+      {!controlled && (
+        <CurrencyScope
+          totals={data.currencies}
+          selected={[data.activeCurrency]}
+          onChange={(next) => changeCurrency(next[next.length - 1] ?? data.activeCurrency)}
+        />
+      )}
 
       <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
         <KpiCard

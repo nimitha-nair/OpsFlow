@@ -35,10 +35,15 @@ function categoryLabel(category: string): string {
   return CATEGORY_LABELS[category as ExpenseCategory] ?? category;
 }
 
-export function ExpensesTab() {
+export function ExpensesTab({ currency: controlledCurrency }: { currency?: string } = {}) {
+  // When `currency` is supplied the tab is filter-controlled (the Reports
+  // currency filter drives it): it scopes to that currency and hides its own
+  // currency picker + toolbar so one instance renders per selected currency.
+  const controlled = controlledCurrency !== undefined;
   const [months, setMonths] = useState(12);
   // Group-by-currency: undefined = auto (dominant currency in range).
-  const [currency, setCurrency] = useState<string | undefined>(undefined);
+  const [currency, setCurrency] = useState<string | undefined>(controlledCurrency);
+  const effectiveCurrency = controlled ? controlledCurrency : currency;
   const [data, setData] = useState<ExpensesReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -59,7 +64,10 @@ export function ExpensesTab() {
     let cancelled = false;
     async function loadInitial() {
       try {
-        const r = await getReportsExpenses(monthsToParams(12));
+        const r = await getReportsExpenses({
+          ...monthsToParams(12),
+          currency: effectiveCurrency,
+        });
         if (!cancelled) {
           setData(r);
           setError(null);
@@ -74,7 +82,8 @@ export function ExpensesTab() {
     return () => {
       cancelled = true;
     };
-  }, []);
+    // Controlled instances refetch when their assigned currency changes.
+  }, [effectiveCurrency]);
 
   const changeMonths = (m: number) => {
     setMonths(m);
@@ -120,40 +129,44 @@ export function ExpensesTab() {
         <p className="text-xs text-muted-foreground">
           Approved spend · {formatDate(data.range.from)} – {formatDate(data.range.to)}
         </p>
-        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-          <Select
-            value={String(months)}
-            onValueChange={(v) => v && changeMonths(Number(v))}
-            disabled={refreshing}
-          >
-            <SelectTrigger size="sm" className="w-full min-w-32 flex-1 sm:w-40 sm:flex-none" aria-label="Time range">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {MONTH_OPTIONS.map((m) => (
-                <SelectItem key={m} value={String(m)}>
-                  Last {m} months
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRefresh}
-            disabled={refreshing}
-          >
-            <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
-        </div>
+        {!controlled && (
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <Select
+              value={String(months)}
+              onValueChange={(v) => v && changeMonths(Number(v))}
+              disabled={refreshing}
+            >
+              <SelectTrigger size="sm" className="w-full min-w-32 flex-1 sm:w-40 sm:flex-none" aria-label="Time range">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MONTH_OPTIONS.map((m) => (
+                  <SelectItem key={m} value={String(m)}>
+                    Last {m} months
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRefresh}
+              disabled={refreshing}
+            >
+              <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
+        )}
       </div>
 
-      <CurrencyScope
-        totals={data.currencies}
-        active={data.activeCurrency}
-        onChange={changeCurrency}
-      />
+      {!controlled && (
+        <CurrencyScope
+          totals={data.currencies}
+          selected={[data.activeCurrency]}
+          onChange={(next) => changeCurrency(next[next.length - 1] ?? data.activeCurrency)}
+        />
+      )}
 
       {isEmpty ? (
         <EmptyState
