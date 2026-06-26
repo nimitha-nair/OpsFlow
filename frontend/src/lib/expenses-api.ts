@@ -190,16 +190,25 @@ export async function getExpenseDocument(
   return data;
 }
 
-/** POST /expenses/:id/documents — multipart upload of one or many files. */
+/** POST /expenses/:id/documents — multipart upload of one or many files.
+ *  `onProgress` (0–100) drives an upload progress bar on slow mobile networks. */
 export async function uploadExpenseDocuments(
   id: string,
   files: File[],
+  onProgress?: (percent: number) => void,
 ): Promise<ExpenseFileView[]> {
   const form = new FormData();
   files.forEach((f) => form.append("files", f));
   const { data } = await api.post<ExpenseFileView[]>(
     `/expenses/${id}/documents`,
     form,
+    onProgress
+      ? {
+          onUploadProgress: (e) => {
+            if (e.total) onProgress(Math.round((e.loaded / e.total) * 100));
+          },
+        }
+      : undefined,
   );
   return data;
 }
