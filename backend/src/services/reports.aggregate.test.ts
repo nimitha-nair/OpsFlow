@@ -19,7 +19,7 @@ import {
 import type {
   AiAnalysisRow,
   ApprovedExpenseRow,
-  ProjectExpenseAgg,
+  CurrencyTotal,
 } from "../types/reports.types";
 
 function row(over: Partial<ApprovedExpenseRow> = {}): ApprovedExpenseRow {
@@ -258,10 +258,10 @@ describe("buildProjectRows", () => {
     { id: "p2", name: "Helios", status: "ACTIVE", budget: 0, archived: false }, // no budget
     { id: "p3", name: "Zephyr", status: "ON_HOLD", budget: 500, archived: true },
   ];
-  const spent = new Map<string, ProjectExpenseAgg>([
-    ["p1", { amount: 850, count: 4 }],
-    ["p2", { amount: 200, count: 2 }],
-    ["p3", { amount: 600, count: 3 }], // over budget
+  const spent = new Map<string, CurrencyTotal[]>([
+    ["p1", [{ currency: "INR", amount: 850, count: 4 }]],
+    ["p2", [{ currency: "INR", amount: 200, count: 2 }]],
+    ["p3", [{ currency: "INR", amount: 600, count: 3 }]], // over budget
   ]);
 
   it("computes utilization + remaining and sorts by spend desc", () => {
@@ -302,9 +302,30 @@ describe("buildProjectRows", () => {
     expect(rows[0]).toMatchObject({ totalSpent: 0, utilization: 0, remaining: 100 });
   });
 
-  it("stamps rows with the active currency (defaults to INR)", () => {
+  it("stamps rows with the primary currency (defaults to INR)", () => {
     expect(buildProjectRows(projects, spent)[0]!.currency).toBe("INR");
-    expect(buildProjectRows(projects, spent, "USD")[0]!.currency).toBe("USD");
+  });
+
+  it("keeps the per-currency breakdown and measures utilization in the primary currency only", () => {
+    const multi = new Map<string, CurrencyTotal[]>([
+      [
+        "p1",
+        [
+          { currency: "INR", amount: 850, count: 4 },
+          { currency: "USD", amount: 600, count: 2 },
+        ],
+      ],
+    ]);
+    const apollo = buildProjectRows(projects, multi, "INR").find(
+      (r) => r.projectId === "p1",
+    )!;
+    expect(apollo.totalSpent).toBe(850); // INR portion only — USD never mixed in
+    expect(apollo.utilization).toBe(85); // 850 / 1000
+    expect(apollo.expenseCount).toBe(6); // count spans both currencies
+    expect(apollo.spentByCurrency).toEqual([
+      { currency: "INR", amount: 850, count: 4 },
+      { currency: "USD", amount: 600, count: 2 },
+    ]);
   });
 });
 
@@ -316,18 +337,37 @@ describe("summarizeProjects", () => {
         { id: "b", name: "B", status: "ACTIVE", budget: 1000, archived: false },
         { id: "c", name: "C", status: "ACTIVE", budget: 0, archived: false },
       ],
-      new Map<string, ProjectExpenseAgg>([
-        ["a", { amount: 850, count: 1 }], // 85% near-limit
-        ["b", { amount: 1200, count: 1 }], // 120% over-budget
-        ["c", { amount: 300, count: 1 }], // no budget — excluded from flags
+      new Map<string, CurrencyTotal[]>([
+        ["a", [{ currency: "INR", amount: 850, count: 1 }]], // 85% near-limit
+        ["b", [{ currency: "INR", amount: 1200, count: 1 }]], // 120% over-budget
+        ["c", [{ currency: "INR", amount: 300, count: 1 }]], // no budget — excluded from flags
       ]),
     );
     const totals = summarizeProjects(rows);
     expect(totals.projectCount).toBe(3);
     expect(totals.budget).toBe(2000);
     expect(totals.spent).toBe(2350);
+    expect(totals.spentByCurrency).toEqual([{ currency: "INR", amount: 2350, count: 3 }]);
     expect(totals.nearLimitCount).toBe(1);
     expect(totals.overBudgetCount).toBe(1);
+  });
+
+  it("keeps the per-currency breakdown across projects without combining", () => {
+    const rows = buildProjectRows(
+      [
+        { id: "a", name: "A", status: "ACTIVE", budget: 1000, archived: false },
+        { id: "b", name: "B", status: "ACTIVE", budget: 1000, archived: false },
+      ],
+      new Map<string, CurrencyTotal[]>([
+        ["a", [{ currency: "INR", amount: 800, count: 2 }, { currency: "USD", amount: 50, count: 1 }]],
+        ["b", [{ currency: "USD", amount: 600, count: 3 }]],
+      ]),
+      "INR",
+    );
+    expect(summarizeProjects(rows).spentByCurrency).toEqual([
+      { currency: "INR", amount: 800, count: 2 },
+      { currency: "USD", amount: 650, count: 4 },
+    ]);
   });
 });
 

@@ -9,7 +9,9 @@ import { LoadingState } from "../../components/common/LoadingState";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { StatCard } from "../../components/dashboard/StatCard";
 import { ProjectStatusBadge } from "../../components/projects/ProjectStatusBadge";
+import { MoneyTotals } from "../../components/common/MoneyTotals";
 import { formatMoney } from "../../lib/format";
+import { formatCurrencyTotals, totalsByCurrency } from "../../lib/currency";
 import { apiErrorMessage, listProjectsSpending } from "../../lib/expenses-api";
 import {
   utilizationState,
@@ -100,7 +102,10 @@ function ProjectSpendCard({
           <div>
             <dt className="text-xs text-muted-foreground">Spent</dt>
             <dd className="font-medium tabular-nums text-foreground">
-              {formatMoney(p.totalSpent, p.currency)}
+              <MoneyTotals
+                totals={p.spentByCurrency}
+                className="font-medium text-foreground"
+              />
             </dd>
           </div>
           <div>
@@ -146,16 +151,22 @@ export function ProjectExpensesPage() {
     };
   }, [reloadKey]);
 
-  const totals = useMemo(() => {
-    const currency = rows[0]?.currency ?? "INR";
-    return {
-      currency,
+  // Money is never summed across currencies: each total is grouped per currency
+  // (budget/remaining by each project's primary currency; spend from the full
+  // per-currency breakdown), then rendered as a breakdown string (₹50,000 · $600).
+  const totals = useMemo(
+    () => ({
       projects: rows.length,
-      budget: rows.reduce((s, p) => s + p.budget, 0),
-      spent: rows.reduce((s, p) => s + p.totalSpent, 0),
-      remaining: rows.reduce((s, p) => s + p.remaining, 0),
-    };
-  }, [rows]);
+      budget: totalsByCurrency(
+        rows.map((p) => ({ currency: p.currency, amount: p.budget })),
+      ),
+      spent: totalsByCurrency(rows.flatMap((p) => p.spentByCurrency)),
+      remaining: totalsByCurrency(
+        rows.map((p) => ({ currency: p.currency, amount: p.remaining })),
+      ),
+    }),
+    [rows],
+  );
 
   const maxSpent = Math.max(1, ...rows.map((r) => r.totalSpent));
 
@@ -197,17 +208,17 @@ export function ProjectExpensesPage() {
             <StatCard label="Total Projects" value={totals.projects} icon={Briefcase} />
             <StatCard
               label="Total Budget"
-              value={formatMoney(totals.budget, totals.currency)}
+              value={formatCurrencyTotals(totals.budget, formatMoney)}
               icon={Banknote}
             />
             <StatCard
               label="Total Approved Spend"
-              value={formatMoney(totals.spent, totals.currency)}
+              value={formatCurrencyTotals(totals.spent, formatMoney)}
               icon={Wallet}
             />
             <StatCard
               label="Total Remaining"
-              value={formatMoney(totals.remaining, totals.currency)}
+              value={formatCurrencyTotals(totals.remaining, formatMoney)}
               icon={TrendingUp}
             />
           </div>

@@ -9,7 +9,6 @@ import type {
   ApprovedExpenseRow,
   ExpensesReport,
   OverviewReport,
-  ProjectExpenseAgg,
   ProjectsReport,
   StatusTotals,
 } from "../types/reports.types";
@@ -224,19 +223,24 @@ export async function getProjectsReport(
     to,
   ) as { projectId?: string; amount?: number; currency?: string }[];
 
-  // Group-by-currency: project spend vs budget is only meaningful within one
-  // currency, so scope to the active currency before grouping by project.
-  const currencies = totalsByCurrency(approvedDocs);
+  // Spend that belongs to a project (GENERAL expenses don't count toward one).
+  const projectDocs = approvedDocs.filter((x) => x.projectId);
+  // Overall per-currency spend across projects, and the primary (budget)
+  // currency utilization is measured in (requested, else dominant).
+  const currencies = totalsByCurrency(projectDocs);
   const activeCurrency = pickActiveCurrency(currencies, currency);
 
-  const spentByProject = new Map<string, ProjectExpenseAgg>();
-  for (const x of approvedDocs) {
-    if (!x.projectId) continue; // GENERAL expenses don't count toward a project
-    if (normalizeCurrency(x.currency) !== activeCurrency) continue;
-    const agg = spentByProject.get(x.projectId) ?? { amount: 0, count: 0 };
-    agg.amount += typeof x.amount === "number" ? x.amount : 0;
-    agg.count += 1;
-    spentByProject.set(x.projectId, agg);
+  // Per-project, per-currency spend — the breakdown is kept whole and never
+  // summed across currencies.
+  const docsByProject = new Map<string, { currency?: string; amount?: number }[]>();
+  for (const x of projectDocs) {
+    const arr = docsByProject.get(x.projectId!) ?? [];
+    arr.push(x);
+    docsByProject.set(x.projectId!, arr);
+  }
+  const spentByProject = new Map<string, ReturnType<typeof totalsByCurrency>>();
+  for (const [pid, docs] of docsByProject) {
+    spentByProject.set(pid, totalsByCurrency(docs));
   }
 
   const projects: ProjectLike[] = projectsPage.data.map((p) => ({

@@ -7,7 +7,6 @@ import type {
   ConfidenceBucket,
   MonthlySpend,
   OverviewKpis,
-  ProjectExpenseAgg,
   ProjectReportRow,
   ProviderCount,
   ScopeSplit,
@@ -132,6 +131,22 @@ export function pickActiveCurrency(
   return totals[0]?.currency ?? "INR";
 }
 
+/** Merge several per-currency lists into one, summing by currency (desc by amount). */
+export function mergeCurrencyTotals(lists: CurrencyTotal[][]): CurrencyTotal[] {
+  const map = new Map<string, { count: number; amount: number }>();
+  for (const list of lists) {
+    for (const t of list) {
+      const b = map.get(t.currency) ?? { count: 0, amount: 0 };
+      b.count += t.count;
+      b.amount += t.amount;
+      map.set(t.currency, b);
+    }
+  }
+  return [...map.entries()]
+    .map(([currency, v]) => ({ currency, count: v.count, amount: round2(v.amount) }))
+    .sort((a, b) => b.amount - a.amount || a.currency.localeCompare(b.currency));
+}
+
 // ── Expenses analytics (Phase 2) ──────────────────────────────────────────────
 
 /** Clamp a requested month window to the supported 1–24 (default 12 for junk). */
@@ -234,15 +249,23 @@ export interface ProjectLike {
  * Projects without a budget (budget <= 0) get null remaining/utilization — never
  * a divide-by-zero or a misleading 0%. Sorted by spend desc (ties: name).
  */
+/**
+ * Compose per-project rows from per-currency approved spend. Each row keeps the
+ * full `spentByCurrency` breakdown (never combined); utilization/remaining are
+ * computed only against the `primaryCurrency` portion (the project budget's
+ * currency), so cross-currency spend is shown but never summed into the budget.
+ */
 export function buildProjectRows(
   projects: ProjectLike[],
-  spentByProject: Map<string, ProjectExpenseAgg>,
-  currency = "INR",
+  spentByProject: Map<string, CurrencyTotal[]>,
+  primaryCurrency = "INR",
 ): ProjectReportRow[] {
   return projects
     .map((p) => {
-      const agg = spentByProject.get(p.id) ?? { amount: 0, count: 0 };
-      const spent = round2(agg.amount);
+      const spentByCurrency = spentByProject.get(p.id) ?? [];
+      const primary = spentByCurrency.find((t) => t.currency === primaryCurrency);
+      const spent = round2(primary?.amount ?? 0);
+      const expenseCount = spentByCurrency.reduce((s, t) => s + t.count, 0);
       const hasBudget = p.budget > 0;
       return {
         projectId: p.id,
@@ -252,15 +275,20 @@ export function buildProjectRows(
         budget: p.budget,
         hasBudget,
         totalSpent: spent,
+        spentByCurrency,
         remaining: hasBudget ? round2(p.budget - spent) : null,
         utilization: hasBudget ? round2((spent / p.budget) * 100) : null,
-        currency,
-        expenseCount: agg.count,
+        currency: primaryCurrency,
+        expenseCount,
       };
     })
+    // Sort by primary-currency spend (single-currency key — never mixes), then
+    // by overall expense count, then name.
     .sort(
       (a, b) =>
-        b.totalSpent - a.totalSpent || a.projectName.localeCompare(b.projectName),
+        b.totalSpent - a.totalSpent ||
+        b.expenseCount - a.expenseCount ||
+        a.projectName.localeCompare(b.projectName),
     );
 }
 
@@ -284,6 +312,7 @@ export function summarizeProjects(
     projectCount: rows.length,
     budget: round2(budget),
     spent: round2(spent),
+    spentByCurrency: mergeCurrencyTotals(rows.map((r) => r.spentByCurrency)),
     remaining: round2(budget - spent),
     overBudgetCount,
     nearLimitCount,
@@ -294,6 +323,7 @@ interface ProjectsReportTotals {
   projectCount: number;
   budget: number;
   spent: number;
+  spentByCurrency: CurrencyTotal[];
   remaining: number;
   overBudgetCount: number;
   nearLimitCount: number;

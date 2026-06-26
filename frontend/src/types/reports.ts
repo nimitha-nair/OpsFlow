@@ -64,9 +64,13 @@ export interface ProjectReportRow {
   archived: boolean;
   budget: number;
   hasBudget: boolean;
+  /** Spend in the primary (budget) currency — drives utilization/remaining. */
   totalSpent: number;
+  /** Full per-currency spend on the project; never combined into one number. */
+  spentByCurrency: CurrencyTotal[];
   remaining: number | null;
   utilization: number | null;
+  /** The primary (budget) currency utilization is measured in. */
   currency: string;
   expenseCount: number;
 }
@@ -81,6 +85,8 @@ export interface ProjectsReport {
     projectCount: number;
     budget: number;
     spent: number;
+    /** Full per-currency spend across all projects; never combined. */
+    spentByCurrency: CurrencyTotal[];
     remaining: number;
     overBudgetCount: number;
     nearLimitCount: number;

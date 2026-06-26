@@ -24,6 +24,8 @@ import { getUserById } from "./user.service";
 import { assertSubmittable } from "./expense.submit-gate";
 import { isValidReimbursementTransition } from "./reimbursement";
 import { filterByDateWindow } from "../utils/date-window";
+import { pickActiveCurrency, totalsByCurrency } from "./reports.aggregate";
+import type { CurrencyTotal } from "../types/reports.types";
 
 const EXPENSES_COLLECTION = "expenses";
 const APPROVALS_COLLECTION = "expenseApprovals";
@@ -80,9 +82,13 @@ export interface ProjectSpending {
   projectId: string;
   projectName: string;
   budget: number;
+  /** Spend in the primary (dominant) currency only — never summed across currencies. */
   totalSpent: number;
   utilization: number;
+  /** The primary (dominant) currency that totalSpent/utilization are measured in. */
   currency: string;
+  /** Full per-currency breakdown of approved spend (group-by-currency, never combined). */
+  spentByCurrency: CurrencyTotal[];
   expenses: Expense[];
 }
 
@@ -687,6 +693,44 @@ export async function setReimbursementStatus(
   return toPublicExpense(updated);
 }
 
+/** Round to 2dp to avoid floating-point drift in currency math. */
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * Group a project's approved spend by currency and derive single-currency
+ * utilization. Mirrors the reports path: money is NEVER summed across
+ * currencies. `spentByCurrency` keeps the full per-currency breakdown, while
+ * `totalSpent`/`remaining`/`utilization` are measured against the primary
+ * (dominant) currency's portion only — so the project budget stays
+ * single-currency and cross-currency spend is shown but never mixed in.
+ * The primary currency is the dominant one (largest amount) via
+ * `pickActiveCurrency`, defaulting to INR when there is no spend.
+ */
+export function summarizeProjectSpend(
+  rows: Array<{ currency?: unknown; amount?: number }>,
+  budget: number,
+): {
+  spentByCurrency: CurrencyTotal[];
+  currency: string;
+  totalSpent: number;
+  remaining: number;
+  utilization: number;
+} {
+  const spentByCurrency = totalsByCurrency(rows);
+  const currency = pickActiveCurrency(spentByCurrency);
+  const totalSpent =
+    spentByCurrency.find((t) => t.currency === currency)?.amount ?? 0;
+  return {
+    spentByCurrency,
+    currency,
+    totalSpent,
+    remaining: round2(budget - totalSpent),
+    utilization: budget > 0 ? round2((totalSpent / budget) * 100) : 0,
+  };
+}
+
 /**
  * Approved expenses for a project plus computed spending/utilization.
  * Only PROJECT-scoped, APPROVED expenses contribute — the expenses collection
@@ -709,9 +753,8 @@ export async function getProjectSpending(
     .filter((e) => e.approvalStatus === "APPROVED")
     .sort((a, b) => tsMillis(b.createdAt) - tsMillis(a.createdAt));
 
-  const totalSpent = docs.reduce((sum, e) => sum + e.amount, 0);
-  const utilization =
-    project.budget > 0 ? (totalSpent / project.budget) * 100 : 0;
+  const { spentByCurrency, currency, totalSpent, utilization } =
+    summarizeProjectSpend(docs, project.budget);
 
   return {
     projectId: project.id,
@@ -719,7 +762,8 @@ export async function getProjectSpending(
     budget: project.budget,
     totalSpent,
     utilization,
-    currency: docs[0]?.currency ?? "INR",
+    currency,
+    spentByCurrency,
     expenses: docs.map(toPublicExpense),
   };
 }
@@ -729,15 +773,20 @@ export interface ProjectSpendingSummary {
   projectName: string;
   status: ProjectStatus;
   budget: number;
+  /** Spend in the primary (dominant) currency only — never summed across currencies. */
   totalSpent: number;
   remaining: number;
   utilization: number;
+  /** The primary (dominant) currency that totalSpent/remaining/utilization use. */
   currency: string;
+  /** Full per-currency breakdown of approved spend (group-by-currency, never combined). */
+  spentByCurrency: CurrencyTotal[];
 }
 
 /**
  * Spending summary across ALL projects (ADMIN overview). Only PROJECT-scoped,
  * APPROVED expenses contribute to spend — budget calculations stay approved-only.
+ * Each project's spend is grouped by currency and never summed across currencies.
  */
 export async function listProjectsSpending(): Promise<ProjectSpendingSummary[]> {
   const projects = (await listProjects({ page: 1, limit: 100000 })).data;
@@ -745,26 +794,27 @@ export async function listProjectsSpending(): Promise<ProjectSpendingSummary[]> 
     (e) => e.approvalStatus === "APPROVED" && e.projectId,
   );
 
-  const spentByProject = new Map<string, number>();
-  let currency = "INR";
+  const rowsByProject = new Map<string, ExpenseDocument[]>();
   for (const e of approved) {
     const pid = e.projectId as string;
-    spentByProject.set(pid, (spentByProject.get(pid) ?? 0) + e.amount);
-    currency = e.currency ?? currency;
+    const list = rowsByProject.get(pid) ?? [];
+    list.push(e);
+    rowsByProject.set(pid, list);
   }
 
   return projects.map((p) => {
-    const totalSpent = spentByProject.get(p.id) ?? 0;
-    const utilization = p.budget > 0 ? (totalSpent / p.budget) * 100 : 0;
+    const { spentByCurrency, currency, totalSpent, remaining, utilization } =
+      summarizeProjectSpend(rowsByProject.get(p.id) ?? [], p.budget);
     return {
       projectId: p.id,
       projectName: p.name,
       status: p.status,
       budget: p.budget,
       totalSpent,
-      remaining: p.budget - totalSpent,
+      remaining,
       utilization,
       currency,
+      spentByCurrency,
     };
   });
 }

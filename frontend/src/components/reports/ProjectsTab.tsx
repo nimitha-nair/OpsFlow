@@ -18,6 +18,7 @@ import {
 import { KpiCard } from "./report-ui";
 import { riseStyle } from "./report-palette";
 import { SectionCard } from "../common/SectionCard";
+import { MoneyTotals } from "../common/MoneyTotals";
 import { CurrencyScope } from "./CurrencyScope";
 import { EmptyState } from "../common/EmptyState";
 import { ErrorState } from "../common/ErrorState";
@@ -181,9 +182,9 @@ export function ProjectsTab() {
           index={2}
           accent="violet"
           label="Total spent"
-          value={formatMoney(totals.spent, data.activeCurrency)}
+          value={<MoneyTotals totals={totals.spentByCurrency} compact />}
           icon={TrendingUp}
-          hint={`${formatMoney(totals.remaining, data.activeCurrency)} remaining`}
+          hint={`${formatMoney(totals.remaining, data.activeCurrency)} remaining vs budget`}
         />
         <KpiCard
           index={3}
@@ -265,8 +266,13 @@ function ProjectRow({
             </span>
           )}
         </div>
-        <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
-          {formatMoney(p.totalSpent, currency)}
+        <span className="flex shrink-0 items-center gap-1 text-sm tabular-nums text-muted-foreground">
+          <MoneyTotals
+            totals={p.spentByCurrency}
+            compact
+            layout="inline"
+            className="font-medium text-foreground"
+          />
           {p.hasBudget ? ` / ${formatMoney(p.budget, currency)}` : " · no budget"}
         </span>
       </div>
@@ -276,11 +282,13 @@ function ProjectRow({
           style={{ width: `${barWidth}%`, ...riseStyle(index) }}
         />
       </div>
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
+      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <span>
           {p.utilization === null
             ? "Utilization n/a"
             : `${p.utilization}% utilized`}
+          {/* Budget comparison is single-currency; flag when there's more. */}
+          {p.spentByCurrency.length > 1 && ` · in ${currency}`}
         </span>
         <span>
           {p.remaining === null

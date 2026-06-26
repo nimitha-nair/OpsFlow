@@ -1,3 +1,5 @@
+import type { CurrencyTotal } from "../lib/currency";
+
 export const EXPENSE_TYPES = ["DOCUMENT", "CASH"] as const;
 export type ExpenseType = (typeof EXPENSE_TYPES)[number];
 
@@ -109,9 +111,13 @@ export interface ProjectSpending {
   projectId: string;
   projectName: string;
   budget: number;
+  /** Spend in the primary (dominant) currency only — never summed across currencies. */
   totalSpent: number;
   utilization: number;
+  /** The primary (dominant) currency that totalSpent/utilization are measured in. */
   currency: string;
+  /** Full per-currency breakdown of approved spend (group-by-currency, never combined). */
+  spentByCurrency: CurrencyTotal[];
   expenses: Expense[];
 }
 
@@ -121,10 +127,14 @@ export interface ProjectSpendingSummary {
   projectName: string;
   status: string;
   budget: number;
+  /** Spend in the primary (dominant) currency only — never summed across currencies. */
   totalSpent: number;
   remaining: number;
   utilization: number;
+  /** The primary (dominant) currency that totalSpent/remaining/utilization use. */
   currency: string;
+  /** Full per-currency breakdown of approved spend (group-by-currency, never combined). */
+  spentByCurrency: CurrencyTotal[];
 }
 
 /** Latest review decision, read from the expenseApprovals audit log. */
