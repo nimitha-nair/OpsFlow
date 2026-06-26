@@ -53,3 +53,23 @@ export function pickActiveCurrency(
   }
   return totals[0]?.currency ?? "INR";
 }
+
+/** True when a money aggregate spans more than one currency. */
+export function isMultiCurrency(totals: CurrencyTotal[]): boolean {
+  return totals.length > 1;
+}
+
+/**
+ * Render a per-currency aggregate as a readable string, e.g.
+ * "₹50,000 · $600 · €200". Pure presentation — analytics never sum across
+ * currencies, so this lists each currency rather than combining them. Pass a
+ * `format` (e.g. formatMoney or formatCompactMoney) to control each amount.
+ */
+export function formatCurrencyTotals(
+  totals: CurrencyTotal[],
+  format: (amount: number, currency: string) => string,
+  separator = " · ",
+): string {
+  if (totals.length === 0) return format(0, "INR");
+  return totals.map((t) => format(t.amount, t.currency)).join(separator);
+}

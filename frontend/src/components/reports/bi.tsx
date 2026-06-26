@@ -10,7 +10,7 @@
  * from `styles/motion.css`.
  */
 
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -479,7 +479,8 @@ function Row({
 
 interface KpiCardProps {
   label: string;
-  value: string | number;
+  /** A formatted value, or a node (e.g. a multi-currency breakdown). */
+  value: ReactNode;
   icon: LucideIcon;
   accent: Accent;
   hint?: string;
@@ -539,10 +540,10 @@ export function KpiCard({
           </span>
           {trend !== undefined && <TrendBadge value={trend ?? null} invert={invertTrend} />}
         </div>
-        <div>
+        <div className="min-w-0">
           <div
             className={cn(
-              "truncate font-bold tracking-tight tabular-nums",
+              "min-w-0 break-words font-bold tracking-tight tabular-nums",
               a.value,
               emphasize ? "text-3xl" : "text-2xl",
             )}

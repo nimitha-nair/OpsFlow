@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import { Card } from "@/components/ui/card";
@@ -7,7 +8,8 @@ import { ACCENTS, riseStyle, type Accent } from "./accent";
 
 interface MetricCardProps {
   label: string;
-  value: string | number;
+  /** A formatted value, or a node (e.g. a multi-currency breakdown). */
+  value: ReactNode;
   hint?: string;
   icon: LucideIcon;
   accent: Accent;

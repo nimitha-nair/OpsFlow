@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeCurrency, pickActiveCurrency, totalsByCurrency } from "./currency";
+import {
+  formatCurrencyTotals,
+  isMultiCurrency,
+  normalizeCurrency,
+  pickActiveCurrency,
+  totalsByCurrency,
+} from "./currency";
 
 describe("normalizeCurrency", () => {
   it("uppercases, trims, and defaults blank/non-string to INR", () => {
@@ -59,5 +65,38 @@ describe("pickActiveCurrency", () => {
 
   it("falls back to INR when there is no data at all", () => {
     expect(pickActiveCurrency([], "USD")).toBe("INR");
+  });
+});
+
+describe("isMultiCurrency", () => {
+  it("is true only with more than one currency", () => {
+    expect(isMultiCurrency([])).toBe(false);
+    expect(isMultiCurrency([{ currency: "INR", count: 1, amount: 1 }])).toBe(false);
+    expect(
+      isMultiCurrency([
+        { currency: "INR", count: 1, amount: 1 },
+        { currency: "USD", count: 1, amount: 1 },
+      ]),
+    ).toBe(true);
+  });
+});
+
+describe("formatCurrencyTotals", () => {
+  const fmt = (amount: number, currency: string) => `${currency} ${amount}`;
+
+  it("joins each currency rather than summing across them", () => {
+    expect(
+      formatCurrencyTotals(
+        [
+          { currency: "INR", count: 1, amount: 50000 },
+          { currency: "USD", count: 1, amount: 600 },
+        ],
+        fmt,
+      ),
+    ).toBe("INR 50000 · USD 600");
+  });
+
+  it("renders a zero in INR when empty", () => {
+    expect(formatCurrencyTotals([], fmt)).toBe("INR 0");
   });
 });
