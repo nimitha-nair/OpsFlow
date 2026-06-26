@@ -11,7 +11,13 @@ import { MetricCard } from "../components/common/MetricCard";
 import { SectionCard } from "../components/common/SectionCard";
 import { PageHeader } from "../components/layout/PageHeader";
 import { BarList, ColumnChart } from "../components/reports/charts";
+import { CurrencyScope } from "../components/reports/CurrencyScope";
 import { paletteAt } from "../components/reports/report-palette";
+import {
+  normalizeCurrency,
+  pickActiveCurrency,
+  totalsByCurrency,
+} from "../lib/currency";
 import {
   makeRange,
   rangeLabel,
@@ -58,7 +64,15 @@ export function EmployeeReports() {
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
+  // Group-by-currency: undefined = auto (dominant currency among my expenses).
+  const [currency, setCurrency] = useState<string | undefined>(undefined);
   const reportRef = useRef<HTMLDivElement>(null);
+
+  // Currencies present across my expenses in range, and the one the report is
+  // scoped to. Like the HR/Admin reports, amounts are never summed across
+  // currencies — the report below is computed from a single-currency slice.
+  const currencyTotals = useMemo(() => totalsByCurrency(expenses), [expenses]);
+  const activeCurrency = pickActiveCurrency(currencyTotals, currency);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,11 +98,15 @@ export function EmployeeReports() {
     const counts = { draft: 0, pending: 0, approved: 0, rejected: 0 };
     let approvedSpend = 0;
     let reimbursed = 0;
-    const currency = expenses[0]?.currency ?? "INR";
+    const currency = activeCurrency;
     const byCategory = new Map<string, number>();
     const byMonth = new Map<string, number>();
 
-    for (const e of expenses) {
+    // Scope to the active currency so amounts are never summed across currencies.
+    const scoped = expenses.filter(
+      (e) => normalizeCurrency(e.currency) === activeCurrency,
+    );
+    for (const e of scoped) {
       if (e.approvalStatus === "DRAFT") counts.draft += 1;
       else if (PENDING.includes(e.approvalStatus)) counts.pending += 1;
       else if (e.approvalStatus === "REJECTED") counts.rejected += 1;
@@ -138,7 +156,7 @@ export function EmployeeReports() {
     }
 
     return { counts, approvedSpend, reimbursed, currency, catItems, trendItems };
-  }, [expenses]);
+  }, [expenses, activeCurrency]);
 
   function exportCsv() {
     downloadCsv(`my-expenses-${rangeSlug(range)}`, expenses, [
@@ -224,6 +242,11 @@ export function EmployeeReports() {
         </SectionCard>
       ) : (
         <div className="flex flex-col gap-6">
+          <CurrencyScope
+            totals={currencyTotals}
+            active={activeCurrency}
+            onChange={setCurrency}
+          />
           <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
             <MetricCard
               index={0}
