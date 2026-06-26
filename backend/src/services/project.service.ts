@@ -3,6 +3,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { db } from "../config/firebase";
 import { ApiError } from "../utils/errors";
 import { filterByDateWindow } from "../utils/date-window";
+import { invalidateCollection, CACHE_NS } from "../utils/cache";
 import { generateCode } from "./code-generator";
 import type {
   Project,
@@ -253,6 +254,7 @@ export async function createProject(
   };
 
   const ref = await db.collection(PROJECTS_COLLECTION).add(data);
+  invalidateCollection(CACHE_NS.projects);
   const created = await getProjectDocById(ref.id);
   if (!created) {
     throw new ApiError(500, "Failed to load the created project");
@@ -293,6 +295,7 @@ export async function updateProject(
 
   updates.updatedAt = FieldValue.serverTimestamp();
   await db.collection(PROJECTS_COLLECTION).doc(id).update(updates);
+  invalidateCollection(CACHE_NS.projects);
 
   const updated = await getProjectDocById(id);
   if (!updated) {
@@ -322,6 +325,7 @@ export async function setProjectArchived(
       archivedAt: archived ? FieldValue.serverTimestamp() : FieldValue.delete(),
       updatedAt: FieldValue.serverTimestamp(),
     });
+  invalidateCollection(CACHE_NS.projects);
 
   const updated = await getProjectDocById(id);
   if (!updated) {

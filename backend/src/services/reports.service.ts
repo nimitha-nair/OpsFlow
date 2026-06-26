@@ -29,8 +29,70 @@ import {
 import { hasCorrections } from "./ai/analysis-audit";
 import { listProjects } from "./project.service";
 import { filterByDateWindow } from "../utils/date-window";
+import { analyticsCache, ANALYTICS_TTL_MS, CACHE_NS } from "../utils/cache";
+import { tracedGet } from "../utils/firestore";
 
 const ANALYSIS_COLLECTION = "expenseAnalysis";
+
+/**
+ * One row of the shared expenses dataset — only the fields the reports need,
+ * fetched once via `.select()` and cached so overview/expenses/projects/AI all
+ * reuse a single Firestore scan instead of issuing four full-collection reads.
+ */
+interface ExpenseDatasetRow {
+  approvalStatus?: string;
+  amount?: number;
+  currency?: string;
+  expenseDate?: string;
+  submittedAt?: unknown;
+  scope?: string;
+  projectId?: string;
+  category?: string;
+  creationMethod?: string;
+}
+
+const EXPENSE_DATASET_FIELDS = [
+  "approvalStatus",
+  "amount",
+  "currency",
+  "expenseDate",
+  "submittedAt",
+  "scope",
+  "projectId",
+  "category",
+  "creationMethod",
+] as const;
+
+/** Load (and cache) the projected expenses dataset shared by every report. */
+async function loadExpensesDataset(): Promise<ExpenseDatasetRow[]> {
+  return analyticsCache.getOrLoad(`${CACHE_NS.expenses}:dataset`, ANALYTICS_TTL_MS, async () => {
+    const snap = await tracedGet(
+      db.collection(EXPENSES_COLLECTION).select(...EXPENSE_DATASET_FIELDS),
+      "reports.expenses:dataset",
+    );
+    return snap.docs.map((d) => d.data() as ExpenseDatasetRow);
+  });
+}
+
+/** Load (and cache) the AI analysis dataset shared by the AI report. */
+async function loadAnalysisDataset(): Promise<
+  Array<Partial<ExpenseAnalysisDocument> & { createdAt?: unknown }>
+> {
+  return analyticsCache.getOrLoad(`${CACHE_NS.analysis}:dataset`, ANALYTICS_TTL_MS, async () => {
+    const snap = await tracedGet(
+      db.collection(ANALYSIS_COLLECTION),
+      "reports.analysis:dataset",
+    );
+    return snap.docs.map((d) => d.data() as Partial<ExpenseAnalysisDocument>);
+  });
+}
+
+/** Load (and cache) the projects list shared by the projects report. */
+async function loadProjectsList(): Promise<Awaited<ReturnType<typeof listProjects>>> {
+  return analyticsCache.getOrLoad(`${CACHE_NS.projects}:dataset`, ANALYTICS_TTL_MS, () =>
+    listProjects({ page: 1, limit: 100000 }),
+  );
+}
 
 /**
  * Derive the number of calendar months a monthly-trend chart should cover from
@@ -82,17 +144,7 @@ export async function getOverviewReport(
   dateField: "expenseDate" | "submittedAt" = "expenseDate",
   currency?: string,
 ): Promise<OverviewReport> {
-  const snap = await db.collection(EXPENSES_COLLECTION).get();
-  const allRows = snap.docs.map(
-    (d) =>
-      d.data() as {
-        approvalStatus?: string;
-        amount?: number;
-        currency?: string;
-        expenseDate?: string;
-        submittedAt?: unknown;
-      },
-  );
+  const allRows = await loadExpensesDataset();
   // Apply the optional date window in memory (no composite index needed).
   const windowed = filterByDateWindow(
     allRows,
@@ -141,24 +193,13 @@ export async function getExpensesReport(
   const months = monthsBetween(from, to);
   const fallbackDate = now.toISOString().slice(0, 10);
 
-  const snap = await db
-    .collection(EXPENSES_COLLECTION)
-    .where("approvalStatus", "==", "APPROVED")
-    .get();
-
+  const dataset = await loadExpensesDataset();
   const allRows: (ApprovedExpenseRow & {
     currency: string;
     submittedAt?: unknown;
-  })[] = snap.docs.map((d) => {
-    const x = d.data() as {
-      category?: string;
-      amount?: number;
-      currency?: string;
-      scope?: string;
-      expenseDate?: string;
-      submittedAt?: unknown;
-    };
-    return {
+  })[] = dataset
+    .filter((x) => x.approvalStatus === "APPROVED")
+    .map((x) => ({
       category: typeof x.category === "string" ? x.category : "MISCELLANEOUS",
       amount: typeof x.amount === "number" ? x.amount : 0,
       currency: normalizeCurrency(x.currency),
@@ -166,8 +207,7 @@ export async function getExpensesReport(
       expenseDate:
         typeof x.expenseDate === "string" ? x.expenseDate : fallbackDate,
       submittedAt: x.submittedAt,
-    };
-  });
+    }));
 
   // Apply the optional date window in memory (avoids a composite-index range query).
   // When basis is submittedAt, window by that field; the monthly-trend still keys
@@ -207,21 +247,18 @@ export async function getProjectsReport(
   dateField: "expenseDate" | "submittedAt" = "expenseDate",
   currency?: string,
 ): Promise<ProjectsReport> {
-  const [projectsPage, approvedSnap] = await Promise.all([
-    listProjects({ page: 1, limit: 100000 }),
-    db
-      .collection(EXPENSES_COLLECTION)
-      .where("approvalStatus", "==", "APPROVED")
-      .get(),
+  const [projectsPage, dataset] = await Promise.all([
+    loadProjectsList(),
+    loadExpensesDataset(),
   ]);
 
-  // Apply the optional date window in memory before aggregating.
+  // Apply the optional date window in memory before aggregating (APPROVED only).
   const approvedDocs = filterByDateWindow(
-    approvedSnap.docs.map((d) => d.data() as Record<string, unknown>),
+    dataset.filter((x) => x.approvalStatus === "APPROVED"),
     (x) => (dateField === "submittedAt" ? x.submittedAt : x.expenseDate),
     from,
     to,
-  ) as { projectId?: string; amount?: number; currency?: string }[];
+  );
 
   // Spend that belongs to a project (GENERAL expenses don't count toward one).
   const projectDocs = approvedDocs.filter((x) => x.projectId);
@@ -275,13 +312,12 @@ export async function getAiAnalyticsReport(
 ): Promise<AiAnalyticsReport> {
   const months = monthsBetween(from, to);
   const now = new Date();
-  const [snap, expensesSnap] = await Promise.all([
-    db.collection(ANALYSIS_COLLECTION).get(),
-    db.collection(EXPENSES_COLLECTION).get(),
+  const [analysisDocs, expenseDocs] = await Promise.all([
+    loadAnalysisDataset(),
+    loadExpensesDataset(),
   ]);
 
-  const allRows: AiAnalysisRow[] = snap.docs.map((d) => {
-    const x = d.data() as Partial<ExpenseAnalysisDocument>;
+  const allRows: AiAnalysisRow[] = analysisDocs.map((x) => {
     const confirmed = Boolean(x.confirmedAt);
     const row: AiAnalysisRow = {
       status: (x.status ?? "PENDING") as AiAnalysisRow["status"],
@@ -306,7 +342,7 @@ export async function getAiAnalyticsReport(
   // it). Forward-only: expenses without creationMethod count as "unknown". The
   // expenses are windowed by expenseDate so adoption matches the report range.
   const windowedExpenses = filterByDateWindow(
-    expensesSnap.docs.map((d) => d.data() as Record<string, unknown>),
+    expenseDocs,
     (x) => x.expenseDate,
     from,
     to,

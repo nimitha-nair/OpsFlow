@@ -2,6 +2,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { db } from "../config/firebase";
 import { ApiError } from "../utils/errors";
+import { invalidateCollection, CACHE_NS } from "../utils/cache";
 import { generateCode } from "./code-generator";
 import type {
   ApprovalStatus,
@@ -239,6 +240,7 @@ export async function createExpense(
   }
 
   const ref = await db.collection(EXPENSES_COLLECTION).add(data);
+  invalidateCollection(CACHE_NS.expenses);
   const created = await getExpenseDocById(ref.id);
   if (!created) {
     throw new ApiError(500, "Failed to load the created expense");
@@ -291,6 +293,7 @@ export async function updateExpense(
 
   updates.updatedAt = FieldValue.serverTimestamp();
   await db.collection(EXPENSES_COLLECTION).doc(id).update(updates);
+  invalidateCollection(CACHE_NS.expenses);
 
   const updated = await getExpenseDocById(id);
   if (!updated) {
@@ -350,6 +353,7 @@ export async function submitExpense(
     reviewedAt: FieldValue.delete(),
     updatedAt: FieldValue.serverTimestamp(),
   });
+  invalidateCollection(CACHE_NS.expenses);
   const updated = await getExpenseDocById(id);
   if (!updated) {
     throw new ApiError(500, "Failed to load the submitted expense");
@@ -373,6 +377,7 @@ export async function deleteDraftExpense(
     throw new ApiError(400, "Only draft expenses can be deleted");
   }
   await db.collection(EXPENSES_COLLECTION).doc(id).delete();
+  invalidateCollection(CACHE_NS.expenses);
   return expense.documentId !== undefined
     ? { documentId: expense.documentId }
     : {};
@@ -568,6 +573,7 @@ export async function startReview(
     approvalStatus: "PENDING_REVIEW" as ApprovalStatus,
     updatedAt: FieldValue.serverTimestamp(),
   });
+  invalidateCollection(CACHE_NS.expenses);
   const updated = await getExpenseDocById(id);
   if (!updated) {
     throw new ApiError(500, "Failed to load the expense");
@@ -631,6 +637,8 @@ async function reviewExpense(
     remarks,
     reviewedAt: now,
   });
+  // Approve/reject changes status + amount visibility in every report.
+  invalidateCollection(CACHE_NS.expenses);
 
   const updated = await getExpenseDocById(id);
   if (!updated) {
@@ -686,6 +694,7 @@ export async function setReimbursementStatus(
     update.reimbursedAt = FieldValue.serverTimestamp();
   }
   await db.collection(EXPENSES_COLLECTION).doc(id).update(update);
+  invalidateCollection(CACHE_NS.expenses);
   const updated = await getExpenseDocById(id);
   if (!updated) {
     throw new ApiError(500, "Failed to load the updated expense");

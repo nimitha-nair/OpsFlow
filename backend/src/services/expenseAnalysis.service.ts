@@ -3,6 +3,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { db } from "../config/firebase";
 import { getAiConfig } from "../config/ai";
 import { ApiError } from "../utils/errors";
+import { invalidateCollection, CACHE_NS } from "../utils/cache";
 import {
   requireExpense,
   updateExpense,
@@ -145,6 +146,7 @@ export async function deleteAnalysisForExpense(expenseId: string): Promise<void>
   const existing = await findDocByExpenseId(expenseId);
   if (existing) {
     await db.collection(ANALYSIS_COLLECTION).doc(existing.id).delete();
+    invalidateCollection(CACHE_NS.analysis);
   }
 }
 
@@ -453,6 +455,7 @@ export async function updateAnalysis(
   }
 
   await db.collection(ANALYSIS_COLLECTION).doc(doc.id).update(updates);
+  invalidateCollection(CACHE_NS.analysis);
   const fresh = await loadDocById(doc.id);
   return toView(fresh!);
 }
