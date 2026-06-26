@@ -6,6 +6,7 @@ import activityRoutes from "./routes/activity.routes";
 import authRoutes from "./routes/auth.routes";
 import exampleRoutes from "./routes/example.routes";
 import expenseRoutes from "./routes/expense.routes";
+import helpRoutes from "./routes/help.routes";
 import notificationRoutes from "./routes/notification.routes";
 import projectRoutes from "./routes/project.routes";
 import reportsRoutes from "./routes/reports.routes";
@@ -68,6 +69,7 @@ app.use("/search", searchRoutes);
 app.use("/notifications", notificationRoutes);
 app.use("/tickets", ticketRoutes);
 app.use("/activity", activityRoutes);
+app.use("/help", helpRoutes);
 app.use("/example", exampleRoutes);
 
 app.get("/test-protected", authenticate, (req, res) => {

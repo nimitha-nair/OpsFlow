@@ -1,3 +1,5 @@
+import { useState } from "react";
+import type { FormEvent } from "react";
 import {
   BarChart3,
   Bell,
@@ -7,6 +9,9 @@ import {
   ClipboardList,
   HandCoins,
   LifeBuoy,
+  Loader2,
+  Send,
+  Sparkles,
   SquareKanban,
   Users,
   Wallet,
@@ -14,9 +19,13 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "../components/layout/PageHeader";
 import { useAuth } from "../context/auth-context";
+import { askManual, type HelpAnswer } from "../lib/help-api";
+import { apiErrorMessage } from "../lib/users-api";
 import type { Role } from "../types/auth";
 
 interface HelpSection {
@@ -176,6 +185,159 @@ const SECTIONS_BY_ROLE: Record<Role, HelpSection[]> = {
   ],
 };
 
+/** Role-aware example prompts to seed the Ask box. */
+const SUGGESTIONS_BY_ROLE: Record<Role, string[]> = {
+  ADMIN: [
+    "How do I assign a task to a whole department?",
+    "Where do I mark an approved expense as paid?",
+    "How are departments created?",
+  ],
+  HR: [
+    "How do I approve or reject an expense?",
+    "What does the Review queue window by?",
+    "Which tasks show on my Kanban board?",
+  ],
+  EMPLOYEE: [
+    "How do I submit an expense from a receipt?",
+    "How do I change a task's status?",
+    "How do I raise a Help Desk ticket?",
+  ],
+};
+
+/** Grounded AI Q&A over the user manual, scoped to the current user's role. */
+function AskManualPanel() {
+  const [question, setQuestion] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [answer, setAnswer] = useState<HelpAnswer | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const suggestions = user ? SUGGESTIONS_BY_ROLE[user.role] : [];
+
+  async function ask(q: string) {
+    const trimmed = q.trim();
+    if (trimmed.length < 3 || loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await askManual(trimmed);
+      setAnswer(result);
+    } catch (err) {
+      setError(apiErrorMessage(err, "Couldn't get an answer. Please try again."));
+      setAnswer(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    void ask(question);
+  }
+
+  function handleSuggestion(s: string) {
+    setQuestion(s);
+    void ask(s);
+  }
+
+  return (
+    <Card className="flex flex-col gap-4 p-5">
+      <div className="flex items-center gap-2.5">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Sparkles className="size-[18px]" />
+        </span>
+        <div>
+          <h2 className="text-base font-semibold text-foreground">
+            Ask the manual
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Ask in your own words — answers come only from this manual, scoped to
+            your role.
+          </p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="flex flex-col gap-2.5">
+        <Textarea
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void ask(question);
+            }
+          }}
+          placeholder="e.g. How do I submit an expense?"
+          rows={2}
+          maxLength={500}
+          disabled={loading}
+          className="resize-none"
+        />
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs text-muted-foreground">
+            Press Enter to ask, Shift+Enter for a new line.
+          </span>
+          <Button
+            type="submit"
+            size="sm"
+            disabled={loading || question.trim().length < 3}
+          >
+            {loading ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Send className="size-4" />
+            )}
+            {loading ? "Asking…" : "Ask"}
+          </Button>
+        </div>
+      </form>
+
+      {suggestions.length > 0 && !answer && !loading && (
+        <div className="flex flex-wrap gap-2">
+          {suggestions.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => handleSuggestion(s)}
+              className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {error && (
+        <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </p>
+      )}
+
+      {answer && (
+        <div className="flex flex-col gap-2 rounded-lg bg-muted/50 p-4">
+          <p className="text-sm leading-relaxed whitespace-pre-line text-foreground">
+            {answer.answer}
+          </p>
+          {answer.sources.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-xs font-medium text-muted-foreground">
+                Sources:
+              </span>
+              {answer.sources.map((src) => (
+                <span
+                  key={src}
+                  className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+                >
+                  {src}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export function HelpPage() {
   const { user } = useAuth();
   const sections = [...COMMON, ...(user ? SECTIONS_BY_ROLE[user.role] : [])];
@@ -184,9 +346,13 @@ export function HelpPage() {
     <>
       <PageHeader
         title="Help & User Manual"
-        description="How OpsFlow works for your role — browse the guides below."
+        description="How OpsFlow works for your role — ask a question or browse the guides below."
         breadcrumbs={[{ label: "Help" }]}
       />
+
+      <div className="mb-4">
+        <AskManualPanel />
+      </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {sections.map((section) => {
