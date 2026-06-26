@@ -524,44 +524,53 @@ export function KpiCard({
     <Card
       style={riseStyle(index)}
       className={cn(
-        "r-card r-rise relative h-full overflow-hidden border-border/60",
+        "r-card r-rise relative h-full overflow-hidden border-border/60 transition-shadow duration-200 hover:shadow-md",
         to && "cursor-pointer",
       )}
     >
+      {/* Subtle accent: a soft corner glow + a hairline top edge in the accent. */}
       <span
         aria-hidden
-        className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full blur-2xl"
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r opacity-60"
+        style={{ backgroundImage: `linear-gradient(to right, transparent, ${a.glow}, transparent)` }}
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -right-8 -top-8 size-24 rounded-full opacity-70 blur-2xl"
         style={{ background: `radial-gradient(circle, ${a.glow}, transparent 70%)` }}
       />
-      <div className="relative flex flex-col gap-3 p-5">
-        <div className="flex items-start justify-between gap-3">
+      <div className="relative flex h-full flex-col gap-3 p-4">
+        <div className="flex items-center justify-between gap-2">
           <span
             className={cn(
-              "flex shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-sm",
+              "flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm",
               a.chip,
-              emphasize ? "size-13" : "size-11",
             )}
           >
-            <Icon className={emphasize ? "size-6" : "size-5"} />
+            <Icon className="size-[18px]" />
           </span>
           {trend !== undefined && <TrendBadge value={trend ?? null} invert={invertTrend} />}
         </div>
         <div className="min-w-0">
           <div
             className={cn(
-              "min-w-0 break-words font-bold tracking-tight tabular-nums",
+              "whitespace-nowrap font-bold leading-tight tracking-tight tabular-nums",
               a.value,
               emphasize ? "text-3xl" : "text-2xl",
             )}
           >
             {value}
           </div>
-          <div className="truncate text-xs font-medium text-muted-foreground">{label}</div>
-          {hint && <div className="mt-0.5 truncate text-xs text-muted-foreground/70">{hint}</div>}
+          <div className="mt-1 truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            {label}
+          </div>
+          {hint && (
+            <div className="mt-0.5 truncate text-xs text-muted-foreground/70">{hint}</div>
+          )}
         </div>
         {spark && spark.length > 1 && (
-          <div className={ACCENT_TEXT[accent]}>
-            <Sparkline points={spark} height={32} />
+          <div className={cn("mt-auto", ACCENT_TEXT[accent])}>
+            <Sparkline points={spark} height={28} />
           </div>
         )}
       </div>

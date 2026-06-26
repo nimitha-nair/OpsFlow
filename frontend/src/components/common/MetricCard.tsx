@@ -44,44 +44,42 @@ export function MetricCard({
         to && "cursor-pointer",
       )}
     >
-      {/* Soft accent corner glow. */}
+      {/* Subtle accent: a hairline top edge + a soft corner glow. */}
       <span
         aria-hidden
-        className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full blur-2xl"
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r opacity-60"
+        style={{ backgroundImage: `linear-gradient(to right, transparent, ${a.glow}, transparent)` }}
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -right-8 -top-8 size-24 rounded-full opacity-70 blur-2xl"
         style={{ background: `radial-gradient(circle, ${a.glow}, transparent 70%)` }}
       />
-      {/* Mobile: a denser, app-style KPI tile (smaller chrome, prominent value,
-          labels that wrap instead of truncate). Desktop (sm+) is unchanged. */}
-      <div className="relative flex items-start gap-3 p-3.5 sm:gap-4 sm:p-5">
+      <div className="relative flex items-center gap-3 p-4">
+        {/* Consistent icon chip across all cards (size doesn't change with emphasis). */}
         <span
           className={cn(
-            "flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm sm:rounded-2xl",
+            "flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm",
             a.chip,
-            emphasize ? "size-10 sm:size-14" : "size-9 sm:size-12",
           )}
         >
-          <Icon
-            className={
-              emphasize ? "size-5 sm:size-6" : "size-4 sm:size-5"
-            }
-          />
+          <Icon className="size-5" />
         </span>
         <div className="min-w-0 flex-1">
           <div
             className={cn(
-              "font-bold tracking-tight tabular-nums break-words",
+              "whitespace-nowrap font-bold leading-tight tracking-tight tabular-nums",
               a.value,
               emphasize ? "text-2xl sm:text-3xl" : "text-xl sm:text-2xl",
             )}
           >
             {value}
           </div>
-          {/* Label wraps (no truncate) so longer labels stay fully readable. */}
-          <div className="text-xs font-medium leading-tight text-muted-foreground">
+          <div className="mt-0.5 truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             {label}
           </div>
           {hint && (
-            <div className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground/70 sm:text-xs">
+            <div className="truncate text-[11px] leading-tight text-muted-foreground/70">
               {hint}
             </div>
           )}
