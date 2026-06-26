@@ -48,7 +48,8 @@ import { LoadingState } from "../../components/common/LoadingState";
 import { MetricCard } from "../../components/common/MetricCard";
 import { MultiSelectFilter } from "../../components/common/MultiSelectFilter";
 import { SectionCard } from "../../components/common/SectionCard";
-import { BarList } from "../../components/reports/charts";
+import { BarList, DonutChart, type DonutSegment } from "../../components/reports/charts";
+import type { Accent } from "../../components/common/accent";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { DueDate } from "../../components/tasks/DueDate";
 import { TaskPriorityBadge, TaskStatusBadge } from "../../components/tasks/TaskBadges";
@@ -335,18 +336,27 @@ function AnalyticsTab() {
     return () => { signal.cancelled = true; };
   }, [load]);
 
-  const { statusItems, priorityItems, projectItems } = useMemo(() => {
+  const { statusSegments, prioritySegments, projectItems } = useMemo(() => {
     const total = tasks.length || 1;
 
-    const statusItems = TASK_STATUSES.map((s) => {
-      const count = tasks.filter((t) => t.status === s).length;
-      return { label: TASK_STATUS_LABELS[s], valueText: String(count), ratio: count / total };
-    }).filter((it) => it.ratio > 0);
+    // Status & priority are parts-of-a-whole → donuts with semantic colours.
+    const statusAccent: Record<TaskStatus, Accent> = {
+      TODO: "slate",
+      IN_PROGRESS: "amber",
+      ON_HOLD: "rose",
+      REVIEW: "violet",
+      DONE: "emerald",
+    };
+    const statusSegments: DonutSegment[] = TASK_STATUSES.map((s) => ({
+      label: TASK_STATUS_LABELS[s],
+      value: tasks.filter((t) => t.status === s).length,
+      accent: statusAccent[s],
+    }));
 
-    const priorityItems = TASK_PRIORITIES.map((p) => {
-      const count = tasks.filter((t) => t.priority === p).length;
-      return { label: TASK_PRIORITY_LABELS[p], valueText: String(count), ratio: count / total };
-    }).filter((it) => it.ratio > 0);
+    const prioritySegments: DonutSegment[] = TASK_PRIORITIES.map((p) => ({
+      label: TASK_PRIORITY_LABELS[p],
+      value: tasks.filter((t) => t.priority === p).length,
+    }));
 
     // Per-project breakdown (top 8)
     const projectCounts = new Map<string, number>();
@@ -366,7 +376,7 @@ function AnalyticsTab() {
         ratio: count / total,
       }));
 
-    return { statusItems, priorityItems, projectItems };
+    return { statusSegments, prioritySegments, projectItems };
   }, [tasks, projectNames]);
 
   const onExport = () => {
@@ -422,14 +432,24 @@ function AnalyticsTab() {
             title="Status distribution"
             description={`${tasks.length} task${tasks.length === 1 ? "" : "s"} in range`}
           >
-            <BarList items={statusItems} />
+            <DonutChart
+              segments={statusSegments}
+              centerValue={String(tasks.length)}
+              centerLabel="tasks"
+              emptyLabel="No tasks in range."
+            />
           </SectionCard>
 
           <SectionCard
             title="Priority distribution"
             description="Breakdown by priority level"
           >
-            <BarList items={priorityItems} />
+            <DonutChart
+              segments={prioritySegments}
+              centerValue={String(tasks.length)}
+              centerLabel="tasks"
+              emptyLabel="No tasks in range."
+            />
           </SectionCard>
 
           {projectItems.length > 0 && (

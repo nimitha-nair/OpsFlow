@@ -13,10 +13,10 @@ import { SectionCard } from "../common/SectionCard";
 import { EmptyState } from "../common/EmptyState";
 import { ErrorState } from "../common/ErrorState";
 import { LoadingState } from "../common/LoadingState";
-import { BarList, ColumnChart } from "./charts";
+import { BarList, ColumnChart, DonutChart } from "./charts";
 import { CurrencyScope } from "./CurrencyScope";
 import { paletteAt } from "./report-palette";
-import { formatDate, formatMoney } from "../../lib/format";
+import { formatCompactMoney, formatDate, formatMoney } from "../../lib/format";
 import { monthsToParams } from "../../lib/date-range";
 import { monthAxisLabel, monthFull } from "../../lib/month-format";
 import { getReportsExpenses } from "../../lib/reports-api";
@@ -171,7 +171,7 @@ export function ExpensesTab() {
           </SectionCard>
 
           <SectionCard title="Project vs General" description="Approved spend split">
-            <ScopeBars data={data.byScope} currency={data.activeCurrency} />
+            <ScopeDonut data={data.byScope} currency={data.activeCurrency} />
           </SectionCard>
 
           <SectionCard
@@ -201,27 +201,18 @@ function CategoryBars({ data, currency }: { data: CategorySpend[]; currency: str
   );
 }
 
-function ScopeBars({ data, currency }: { data: ScopeSplit; currency: string }) {
+function ScopeDonut({ data, currency }: { data: ScopeSplit; currency: string }) {
   const total = data.project + data.general;
-  const max = Math.max(1, data.project, data.general);
-  const pct = (amount: number) =>
-    total > 0 ? Math.round((amount / total) * 100) : 0;
   return (
-    <BarList
-      items={[
-        {
-          label: `Project · ${pct(data.project)}%`,
-          valueText: `${formatMoney(data.project, currency)} · ${data.projectCount}`,
-          ratio: data.project / max,
-          tone: "from-indigo-500 to-violet-500",
-        },
-        {
-          label: `General · ${pct(data.general)}%`,
-          valueText: `${formatMoney(data.general, currency)} · ${data.generalCount}`,
-          ratio: data.general / max,
-          tone: "from-sky-500 to-blue-500",
-        },
+    <DonutChart
+      segments={[
+        { label: `Project · ${data.projectCount}`, value: data.project, accent: "indigo" },
+        { label: `General · ${data.generalCount}`, value: data.general, accent: "sky" },
       ]}
+      centerValue={formatCompactMoney(total, currency)}
+      centerLabel="approved"
+      formatValue={(v) => formatMoney(v, currency)}
+      emptyLabel="No approved spend to split yet."
     />
   );
 }

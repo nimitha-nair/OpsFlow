@@ -1,5 +1,7 @@
 /** Shared CSS-bar chart primitives for the Reports tabs (no chart library). */
 
+import { ACCENT_TEXT, type Accent } from "../common/accent";
+import { cn } from "@/lib/utils";
 import { paletteAt, riseStyle } from "./report-palette";
 
 export interface BarItem {
@@ -105,6 +107,165 @@ export function ColumnChart({ items }: { items: ColumnItem[] }) {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Default accent cycle for donut/pie segments (distinct, theme-aware colours). */
+const DONUT_ACCENTS: Accent[] = [
+  "indigo",
+  "emerald",
+  "amber",
+  "rose",
+  "sky",
+  "violet",
+];
+
+export interface DonutSegment {
+  label: string;
+  value: number;
+  /** Explicit accent; when omitted a stable palette colour is assigned by order. */
+  accent?: Accent;
+}
+
+export interface DonutArc extends DonutSegment {
+  accent: Accent;
+  /** Share of the whole, 0–100. */
+  percent: number;
+  /** Arc length along the circumference. */
+  dash: number;
+  /** strokeDashoffset that positions this arc after the preceding ones. */
+  offset: number;
+}
+
+/**
+ * Pure geometry for a donut/pie: turn raw segments into renderable arcs whose
+ * dash lengths/offsets lay out head-to-tail along `circumference`. Non-positive
+ * values are dropped; returns [] when nothing is positive. Tested in
+ * charts.test.ts.
+ */
+export function donutArcs(
+  segments: DonutSegment[],
+  circumference: number,
+): DonutArc[] {
+  const positives = segments.filter((s) => s.value > 0);
+  const total = positives.reduce((sum, s) => sum + s.value, 0);
+  if (total <= 0) return [];
+  let cumulative = 0;
+  return positives.map((s, i) => {
+    const fraction = s.value / total;
+    const dash = fraction * circumference;
+    const arc: DonutArc = {
+      ...s,
+      accent: s.accent ?? DONUT_ACCENTS[i % DONUT_ACCENTS.length]!,
+      percent: Math.round(fraction * 1000) / 10,
+      dash,
+      offset: -cumulative,
+    };
+    cumulative += dash;
+    return arc;
+  });
+}
+
+export interface DonutChartProps {
+  segments: DonutSegment[];
+  size?: number;
+  thickness?: number;
+  /** Big centre text (e.g. a total). */
+  centerValue?: string;
+  /** Small centre caption under the value. */
+  centerLabel?: string;
+  /** Format a segment value for the legend (defaults to the raw number). */
+  formatValue?: (value: number) => string;
+  /** Empty-state copy when there's nothing positive to chart. */
+  emptyLabel?: string;
+}
+
+/**
+ * A donut chart for compositional (parts-of-a-whole) data — approval/scope/
+ * reimbursement status splits, provider mix, etc. SVG arcs use `currentColor`
+ * via per-accent text classes so light/dark "just work"; a legend lists each
+ * slice with its value and share.
+ */
+export function DonutChart({
+  segments,
+  size = 150,
+  thickness = 16,
+  centerValue,
+  centerLabel,
+  formatValue = (v) => String(v),
+  emptyLabel = "No data in this range yet.",
+}: DonutChartProps) {
+  const r = (size - thickness) / 2;
+  const c = 2 * Math.PI * r;
+  const arcs = donutArcs(segments, c);
+  if (arcs.length === 0) return <ChartEmpty label={emptyLabel} />;
+
+  return (
+    <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-6">
+      <div
+        className="relative inline-flex shrink-0 items-center justify-center"
+        style={{ width: size, height: size }}
+      >
+        <svg width={size} height={size} className="-rotate-90">
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            strokeWidth={thickness}
+            className="stroke-muted"
+          />
+          {arcs.map((a, i) => (
+            <circle
+              key={a.label}
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={thickness}
+              strokeDasharray={`${a.dash} ${c - a.dash}`}
+              strokeDashoffset={a.offset}
+              className={cn(ACCENT_TEXT[a.accent], "r-rise")}
+              style={riseStyle(i)}
+            >
+              <title>{`${a.label}: ${formatValue(a.value)} (${a.percent}%)`}</title>
+            </circle>
+          ))}
+        </svg>
+        {(centerValue || centerLabel) && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+            {centerValue && (
+              <span className="text-xl font-bold tabular-nums text-foreground">
+                {centerValue}
+              </span>
+            )}
+            {centerLabel && (
+              <span className="px-2 text-[11px] font-medium leading-tight text-muted-foreground">
+                {centerLabel}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <ul className="flex w-full min-w-0 flex-col gap-2">
+        {arcs.map((a) => (
+          <li key={a.label} className="flex items-center gap-2 text-sm">
+            <span
+              className={cn("size-2.5 shrink-0 rounded-full bg-current", ACCENT_TEXT[a.accent])}
+            />
+            <span className="min-w-0 flex-1 truncate text-foreground">{a.label}</span>
+            <span className="shrink-0 tabular-nums font-medium text-muted-foreground">
+              {formatValue(a.value)}
+            </span>
+            <span className="w-10 shrink-0 text-right tabular-nums text-xs text-muted-foreground/70">
+              {a.percent}%
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

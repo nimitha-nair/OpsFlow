@@ -59,7 +59,7 @@ import { ErrorState } from "../common/ErrorState";
 import { ExpensesTab } from "./ExpensesTab";
 import { ProjectsTab } from "./ProjectsTab";
 import { AiAnalyticsTab } from "./AiAnalyticsTab";
-import { BarList } from "./charts";
+import { BarList, DonutChart } from "./charts";
 import { CurrencyScope } from "./CurrencyScope";
 import { pickActiveCurrency, totalsByCurrency } from "../../lib/currency";
 import { AreaTrend, DonutGauge, Heatmap, KpiCard, RankingList } from "./bi";
@@ -970,27 +970,21 @@ function ReimbursementAnalytics({ data, currency, slug }: { data: LoadedData; cu
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <SectionCard title="Status mix" description="Approved expenses by reimbursement status">
-          <BarList
-            items={[
-              {
-                label: "Pending",
-                valueText: compactMoney(model.byStatus.PENDING.amount, currency),
-                ratio: ratioOf(model.byStatus.PENDING.amount, model),
-                tone: "from-rose-500 to-pink-500",
-              },
-              {
-                label: "Processing",
-                valueText: compactMoney(model.byStatus.PROCESSING.amount, currency),
-                ratio: ratioOf(model.byStatus.PROCESSING.amount, model),
-                tone: "from-sky-500 to-blue-500",
-              },
-              {
-                label: "Paid",
-                valueText: compactMoney(model.byStatus.PAID.amount, currency),
-                ratio: ratioOf(model.byStatus.PAID.amount, model),
-                tone: "from-emerald-500 to-teal-500",
-              },
+          <DonutChart
+            segments={[
+              { label: "Pending", value: model.byStatus.PENDING.amount, accent: "rose" },
+              { label: "Processing", value: model.byStatus.PROCESSING.amount, accent: "sky" },
+              { label: "Paid", value: model.byStatus.PAID.amount, accent: "emerald" },
             ]}
+            centerValue={compactMoney(
+              model.byStatus.PENDING.amount +
+                model.byStatus.PROCESSING.amount +
+                model.byStatus.PAID.amount,
+              currency,
+            )}
+            centerLabel="approved"
+            formatValue={(v) => compactMoney(v, currency)}
+            emptyLabel="No approved expenses to reimburse yet."
           />
         </SectionCard>
         <SectionCard title="Outstanding by department" description="Where payouts are owed">
@@ -1013,16 +1007,6 @@ function ReimbursementAnalytics({ data, currency, slug }: { data: LoadedData; cu
       </div>
     </SectionFrame>
   );
-}
-
-function ratioOf(amount: number, model: ReturnType<typeof deriveReimbursements>): number {
-  const max = Math.max(
-    model.byStatus.PENDING.amount,
-    model.byStatus.PROCESSING.amount,
-    model.byStatus.PAID.amount,
-    1,
-  );
-  return amount / max;
 }
 
 /* ----------------------------- Audit ----------------------------------- */

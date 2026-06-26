@@ -22,7 +22,7 @@ import { SectionCard } from "../common/SectionCard";
 import { EmptyState } from "../common/EmptyState";
 import { ErrorState } from "../common/ErrorState";
 import { LoadingState } from "../common/LoadingState";
-import { BarList, ColumnChart } from "./charts";
+import { BarList, ColumnChart, DonutChart, type DonutSegment } from "./charts";
 import { monthsToParams } from "../../lib/date-range";
 import { monthAxisLabel, monthFull } from "../../lib/month-format";
 import { getReportsAiAnalytics } from "../../lib/reports-api";
@@ -116,19 +116,16 @@ export function AiAnalyticsTab() {
   }
 
   const sb = data.statusBreakdown;
-  const statusItems = [
-    { label: "Completed", count: sb.completed, tone: "from-emerald-500 to-teal-500" },
-    { label: "Low confidence", count: sb.lowConfidence, tone: "from-amber-500 to-orange-500" },
-    { label: "Failed", count: sb.failed, tone: "from-rose-500 to-red-500" },
-    { label: "Processing", count: sb.processing, tone: "from-sky-500 to-blue-500" },
-    { label: "Pending", count: sb.pending, tone: "from-slate-400 to-slate-500" },
-  ].map((s) => ({
-    label: s.label,
-    valueText: String(s.count),
-    ratio: t.total > 0 ? s.count / t.total : 0,
-    tone: s.tone,
-  }));
+  // Status is parts-of-a-whole → donut with semantic colours.
+  const statusSegments: DonutSegment[] = [
+    { label: "Completed", value: sb.completed, accent: "emerald" },
+    { label: "Low confidence", value: sb.lowConfidence, accent: "amber" },
+    { label: "Failed", value: sb.failed, accent: "rose" },
+    { label: "Processing", value: sb.processing, accent: "sky" },
+    { label: "Pending", value: sb.pending, accent: "slate" },
+  ];
 
+  // Confidence is an ordered distribution (a histogram) → keep bars.
   const maxBucket = Math.max(1, ...data.confidenceDistribution.map((b) => b.count));
   const confItems = data.confidenceDistribution.map((b) => ({
     label: b.label,
@@ -136,26 +133,15 @@ export function AiAnalyticsTab() {
     ratio: b.count / maxBucket,
   }));
 
-  const providerItems = data.providerDistribution.map((p) => ({
+  const providerSegments: DonutSegment[] = data.providerDistribution.map((p) => ({
     label: providerLabel(p.provider),
-    valueText: String(p.count),
-    ratio: t.total > 0 ? p.count / t.total : 0,
+    value: p.count,
   }));
 
   const conf = data.corrections;
-  const correctionItems = [
-    {
-      label: "Unchanged (AI accepted)",
-      valueText: String(conf.unchanged),
-      ratio: conf.confirmed > 0 ? conf.unchanged / conf.confirmed : 0,
-      tone: "from-emerald-500 to-teal-500",
-    },
-    {
-      label: "Corrected by employee",
-      valueText: String(conf.corrected),
-      ratio: conf.confirmed > 0 ? conf.corrected / conf.confirmed : 0,
-      tone: "from-amber-500 to-orange-500",
-    },
+  const correctionSegments: DonutSegment[] = [
+    { label: "Unchanged (AI accepted)", value: conf.unchanged, accent: "emerald" },
+    { label: "Corrected by employee", value: conf.corrected, accent: "amber" },
   ];
 
   const maxTrend = Math.max(1, ...data.lowConfidenceTrend.map((p) => p.total));
@@ -214,7 +200,12 @@ export function AiAnalyticsTab() {
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <SectionCard title="Analysis status breakdown" description="All-time">
-          <BarList items={statusItems} />
+          <DonutChart
+            segments={statusSegments}
+            centerValue={String(t.total)}
+            centerLabel="analyses"
+            emptyLabel="No analyses yet."
+          />
         </SectionCard>
 
         <SectionCard
@@ -233,12 +224,21 @@ export function AiAnalyticsTab() {
               No confirmed analyses yet.
             </p>
           ) : (
-            <BarList items={correctionItems} />
+            <DonutChart
+              segments={correctionSegments}
+              centerValue={String(conf.confirmed)}
+              centerLabel="confirmed"
+            />
           )}
         </SectionCard>
 
         <SectionCard title="Provider distribution" description="By extractor">
-          <BarList items={providerItems} />
+          <DonutChart
+            segments={providerSegments}
+            centerValue={String(t.total)}
+            centerLabel="analyses"
+            emptyLabel="No analyses yet."
+          />
         </SectionCard>
 
         <SectionCard
