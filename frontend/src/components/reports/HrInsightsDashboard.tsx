@@ -41,18 +41,17 @@ import { PageHeader } from "../layout/PageHeader";
 import { SectionCard } from "../common/SectionCard";
 import { LoadingState } from "../common/LoadingState";
 import { ErrorState } from "../common/ErrorState";
-import { BarList } from "./charts";
+import { BarList, CurrencyLegend } from "./charts";
 import { DonutGauge, KpiCard, RankingList } from "./bi";
 import { MoneyTotals } from "../common/MoneyTotals";
 import { CurrencyScope } from "./CurrencyScope";
-import { PerCurrencySections } from "./PerCurrencySections";
 import { formatCurrencyTotals, totalsByCurrency } from "../../lib/currency";
-import { paletteAt } from "../common/accent";
+import { ACCENT_TEXT, currencyAccents, paletteAt, type Accent } from "../common/accent";
 import { SectionFrame } from "./workspace/shell";
 import { type SectionDef } from "./workspace/report-sections";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { ExpensesTab } from "./ExpensesTab";
+import { ExpensesAnalytics } from "./ExpensesTab";
 import { ExpenseDetailTable } from "./ExpenseDetailTable";
 import { formatCompactMoney, formatMoney } from "../../lib/format";
 import { DateBasisToggle } from "../common/DateBasisToggle";
@@ -72,6 +71,7 @@ import {
   deriveAudit,
   deriveProcessing,
   deriveReimbursements,
+  type ReimbursementModel,
 } from "./workspace/derive";
 
 const TABS: SectionDef[] = [
@@ -124,15 +124,6 @@ export function HrInsightsDashboard() {
     : allCurrencies.slice(0, 1);
   const picked = selectedCurrencies?.filter((c) => allCurrencies.includes(c)) ?? null;
   const renderCurrencies = picked && picked.length > 0 ? picked : defaultCurrencies;
-  // Per-currency slice of the loaded data (records/reimbursements filtered).
-  const scopedFor = (c: string): LoadedData => {
-    const match = (r: Expense) => (r.currency || "INR").toUpperCase() === c;
-    return {
-      ...data!,
-      records: data!.records.filter(match),
-      reimbursementRecords: data!.reimbursementRecords.filter(match),
-    };
-  };
 
   const panelNode = (id: string) =>
     panelsRef.current?.querySelector<HTMLElement>(`[data-panel="${id}"]`) ?? null;
@@ -300,9 +291,7 @@ export function HrInsightsDashboard() {
                 title="Expense Analytics"
                 description="Category mix, scope split, and monthly spend trend."
               >
-                <PerCurrencySections currencies={renderCurrencies}>
-                  {(c) => <ExpensesTab currency={c} />}
-                </PerCurrencySections>
+                <ExpensesAnalytics currencies={renderCurrencies} />
                 {/* Print-only: every expense by currency, in tab + full prints. */}
                 <ExpenseDetailTable
                   expenses={data.records}
@@ -311,24 +300,28 @@ export function HrInsightsDashboard() {
                 />
               </SectionFrame>
             </HrPanel>
+            {/* Governance is count-based (approval/rejection/turnaround); money
+                is already grouped per currency, so it combines into one section. */}
             <HrPanel id="approvals" active={tab}>
-              <PerCurrencySections currencies={renderCurrencies}>
-                {(c) => <Governance data={scopedFor(c)} />}
-              </PerCurrencySections>
+              <Governance data={data} />
             </HrPanel>
             <HrPanel id="reimbursement" active={tab}>
-              <PerCurrencySections currencies={renderCurrencies}>
-                {(c) => <Reimbursement data={scopedFor(c)} slug={rangeSlug(range)} />}
-              </PerCurrencySections>
+              <Reimbursement
+                data={data}
+                slug={rangeSlug(range)}
+                currencies={renderCurrencies}
+              />
             </HrPanel>
             {/* AI extraction metrics are currency-agnostic → shown once. */}
             <HrPanel id="ai" active={tab}>
               <AiProcessing data={data} />
             </HrPanel>
             <HrPanel id="compliance" active={tab}>
-              <PerCurrencySections currencies={renderCurrencies}>
-                {(c) => <AuditRisk data={scopedFor(c)} slug={rangeSlug(range)} />}
-              </PerCurrencySections>
+              <AuditRisk
+                data={data}
+                slug={rangeSlug(range)}
+                currencies={renderCurrencies}
+              />
             </HrPanel>
           </div>
         </div>
@@ -568,11 +561,21 @@ function Governance({ data }: { data: LoadedData }) {
 
 /* --------------------------- Reimbursement ----------------------------- */
 
-function Reimbursement({ data, slug }: { data: LoadedData; slug: string }) {
-  const { reimbursementRecords, users, overview } = data;
-  // Per-currency section → use the scoped records' currency, not the dominant.
-  const currency = (reimbursementRecords[0]?.currency || overview.activeCurrency).toUpperCase();
-  const model = useMemo(() => deriveReimbursements(reimbursementRecords, users), [reimbursementRecords, users]);
+function Reimbursement({
+  data,
+  slug,
+  currencies,
+}: {
+  data: LoadedData;
+  slug: string;
+  currencies: string[];
+}) {
+  const { reimbursementRecords, users } = data;
+  // Status counts combine across currencies (counts, not money).
+  const model = useMemo(
+    () => deriveReimbursements(reimbursementRecords, users),
+    [reimbursementRecords, users],
+  );
   // Headline payouts grouped per currency (never summed across currencies).
   const pendingByCurrency = useMemo(
     () => totalsByCurrency(reimbursementRecords.filter((e) => e.reimbursementStatus !== "PAID")),
@@ -582,6 +585,23 @@ function Reimbursement({ data, slug }: { data: LoadedData; slug: string }) {
     () => totalsByCurrency(reimbursementRecords.filter((e) => e.reimbursementStatus === "PAID")),
     [reimbursementRecords],
   );
+  const accents = currencyAccents(currencies);
+  // "Outstanding by department" is money → derived per currency so amounts are
+  // never summed across currencies (shown as small multiples when multiple).
+  const perCurrency = useMemo(
+    () =>
+      currencies.map((cur) => ({
+        currency: cur,
+        model: deriveReimbursements(
+          reimbursementRecords.filter((e) => (e.currency || "").toUpperCase() === cur),
+          users,
+        ),
+      })),
+    [currencies, reimbursementRecords, users],
+  );
+  const nothingOutstanding = perCurrency.every(
+    ({ model: m }) => m.byDepartment.filter((d) => d.outstanding > 0).length === 0,
+  );
 
   return (
     <SectionFrame
@@ -589,11 +609,18 @@ function Reimbursement({ data, slug }: { data: LoadedData; slug: string }) {
       title="Reimbursement Operations"
       description="Outstanding payouts and departmental distribution."
       onCsv={() =>
-        downloadCsv(`opsflow-hr-reimbursement_${slug}`, model.byDepartment, [
-          { label: "Department", value: (d) => d.name },
-          { label: "Outstanding", value: (d) => d.outstanding },
-          { label: "Paid", value: (d) => d.paid },
-        ])
+        downloadCsv(
+          `opsflow-hr-reimbursement_${slug}`,
+          perCurrency.flatMap(({ currency, model: m }) =>
+            m.byDepartment.map((d) => ({ currency, ...d })),
+          ),
+          [
+            { label: "Currency", value: (d) => d.currency },
+            { label: "Department", value: (d) => d.name },
+            { label: "Outstanding", value: (d) => d.outstanding },
+            { label: "Paid", value: (d) => d.paid },
+          ],
+        )
       }
     >
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
@@ -619,22 +646,30 @@ function Reimbursement({ data, slug }: { data: LoadedData; slug: string }) {
         <KpiCard index={3} accent="rose" icon={AlertTriangle} label="Pending" value={model.byStatus.PENDING.count} invertTrend />
       </div>
 
+      {currencies.length > 1 && <CurrencyLegend currencies={currencies} />}
+
       <SectionCard title="Outstanding by department" description="Where payouts are owed">
-        {model.byDepartment.filter((d) => d.outstanding > 0).length === 0 ? (
+        {nothingOutstanding ? (
           <p className="text-sm text-muted-foreground">Nothing outstanding.</p>
-        ) : (
-          <RankingList
-            accent="amber"
-            items={model.byDepartment
-              .filter((d) => d.outstanding > 0)
-              .slice(0, 8)
-              .map((d) => ({
-                label: d.name,
-                valueText: formatCompactMoney(d.outstanding, currency),
-                ratio: d.outstanding / (model.byDepartment[0]?.outstanding || 1),
-                sub: `${formatMoney(d.paid, currency)} paid`,
-              }))}
+        ) : currencies.length === 1 ? (
+          <DeptRanking
+            model={perCurrency[0]!.model}
+            currency={perCurrency[0]!.currency}
+            accent={accents[perCurrency[0]!.currency]!}
           />
+        ) : (
+          <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
+            {perCurrency.map(({ currency, model: m }) => (
+              <div key={currency} className="flex flex-col gap-2">
+                <CurrencyTag currency={currency} accent={accents[currency]!} />
+                {m.byDepartment.some((d) => d.outstanding > 0) ? (
+                  <DeptRanking model={m} currency={currency} accent={accents[currency]!} />
+                ) : (
+                  <p className="text-sm text-muted-foreground">Nothing outstanding.</p>
+                )}
+              </div>
+            ))}
+          </div>
         )}
       </SectionCard>
       <p className="text-xs text-muted-foreground">
@@ -642,6 +677,42 @@ function Reimbursement({ data, slug }: { data: LoadedData; slug: string }) {
         settlement timestamp. Add one to enable cycle-time tracking.
       </p>
     </SectionFrame>
+  );
+}
+
+/** Currency identity chip (coloured dot + code) for combined section headers. */
+function CurrencyTag({ currency, accent }: { currency: string; accent: Accent }) {
+  return (
+    <span className="flex items-center gap-1.5 self-start text-xs font-bold tracking-wide text-foreground">
+      <span className={cn("size-2.5 rounded-full bg-current", ACCENT_TEXT[accent])} aria-hidden />
+      {currency}
+    </span>
+  );
+}
+
+/** Outstanding-by-department ranking, scoped to a single currency. */
+function DeptRanking({
+  model,
+  currency,
+  accent,
+}: {
+  model: ReimbursementModel;
+  currency: string;
+  accent: Accent;
+}) {
+  return (
+    <RankingList
+      accent={accent}
+      items={model.byDepartment
+        .filter((d) => d.outstanding > 0)
+        .slice(0, 8)
+        .map((d) => ({
+          label: d.name,
+          valueText: formatCompactMoney(d.outstanding, currency),
+          ratio: d.outstanding / (model.byDepartment[0]?.outstanding || 1),
+          sub: `${formatMoney(d.paid, currency)} paid`,
+        }))}
+    />
   );
 }
 
@@ -702,11 +773,44 @@ function AiProcessing({ data }: { data: LoadedData }) {
 
 /* ----------------------------- Audit & Risk ---------------------------- */
 
-function AuditRisk({ data, slug }: { data: LoadedData; slug: string }) {
-  const { records, users, overview } = data;
-  // Per-currency section → use the scoped records' currency, not the dominant.
-  const currency = (records[0]?.currency || overview.activeCurrency).toUpperCase();
-  const audit = useMemo(() => deriveAudit(records, users), [records, users]);
+function AuditRisk({
+  data,
+  slug,
+  currencies,
+}: {
+  data: LoadedData;
+  slug: string;
+  currencies: string[];
+}) {
+  const { records, users } = data;
+  // Derived per currency so the high-value threshold and flag amounts are never
+  // computed across currencies; counts are summed, flags concatenated (each
+  // flag carries its own currency).
+  const audits = useMemo(
+    () =>
+      currencies.map((cur) =>
+        deriveAudit(records.filter((e) => (e.currency || "").toUpperCase() === cur), users),
+      ),
+    [currencies, records, users],
+  );
+  const manualCount = audits.reduce((s, a) => s + a.manualCount, 0);
+  const missingDocCount = audits.reduce((s, a) => s + a.missingDocCount, 0);
+  const rejectedCount = audits.reduce((s, a) => s + a.rejectedCount, 0);
+  const manualPct = records.length > 0 ? (manualCount / records.length) * 100 : null;
+  const flags = useMemo(
+    () =>
+      audits
+        .flatMap((a) => a.flags)
+        // High severity first; then newest. Never sort by amount (cross-currency).
+        .sort((a, b) =>
+          a.severity === b.severity
+            ? b.date.localeCompare(a.date)
+            : a.severity === "high"
+              ? -1
+              : 1,
+        ),
+    [audits],
+  );
 
   return (
     <SectionFrame
@@ -714,12 +818,13 @@ function AuditRisk({ data, slug }: { data: LoadedData; slug: string }) {
       title="Audit & Risk"
       description="Manual entries, missing documents, and policy flags."
       onCsv={() =>
-        downloadCsv(`opsflow-hr-audit_${slug}`, audit.flags, [
+        downloadCsv(`opsflow-hr-audit_${slug}`, flags, [
           { label: "Employee", value: (f) => f.employee },
           { label: "Department", value: (f) => f.department },
           { label: "Reason", value: (f) => f.reason },
-          { label: "Severity", value: (f) => f.severity },
+          { label: "Currency", value: (f) => f.currency },
           { label: "Amount", value: (f) => f.amount },
+          { label: "Severity", value: (f) => f.severity },
           { label: "Date", value: (f) => f.date },
         ])
       }
@@ -730,17 +835,17 @@ function AuditRisk({ data, slug }: { data: LoadedData; slug: string }) {
           accent="amber"
           icon={Receipt}
           label="Manual-entry volume"
-          value={audit.manualCount}
-          hint={audit.manualPct === null ? undefined : `${pct(audit.manualPct)} of submissions`}
+          value={manualCount}
+          hint={manualPct === null ? undefined : `${pct(manualPct)} of submissions`}
           invertTrend
         />
-        <KpiCard index={1} accent="rose" icon={AlertTriangle} label="Missing documentation" value={audit.missingDocCount} invertTrend />
-        <KpiCard index={2} accent="violet" icon={ShieldCheck} label="Suspicious submissions" value={audit.flags.length} invertTrend />
-        <KpiCard index={3} accent="slate" icon={XCircle} label="Rejected" value={audit.rejectedCount} invertTrend />
+        <KpiCard index={1} accent="rose" icon={AlertTriangle} label="Missing documentation" value={missingDocCount} invertTrend />
+        <KpiCard index={2} accent="violet" icon={ShieldCheck} label="Suspicious submissions" value={flags.length} invertTrend />
+        <KpiCard index={3} accent="slate" icon={XCircle} label="Rejected" value={rejectedCount} invertTrend />
       </div>
 
       <SectionCard title="Flagged submissions" description="Prioritized compliance review">
-        {audit.flags.length === 0 ? (
+        {flags.length === 0 ? (
           <p className="text-sm text-muted-foreground">No policy flags. 🎉</p>
         ) : (
           <div className="overflow-x-auto">
@@ -755,12 +860,12 @@ function AuditRisk({ data, slug }: { data: LoadedData; slug: string }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {audit.flags.map((f) => (
+                {flags.map((f) => (
                   <TableRow key={f.id}>
                     <TableCell className="font-medium">{f.employee}</TableCell>
                     <TableCell className="text-muted-foreground">{f.department}</TableCell>
                     <TableCell>{f.reason}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatMoney(f.amount, currency)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatMoney(f.amount, f.currency)}</TableCell>
                     <TableCell>
                       <Badge variant={f.severity === "high" ? "destructive" : "secondary"}>
                         {f.severity === "high" ? "High" : "Medium"}

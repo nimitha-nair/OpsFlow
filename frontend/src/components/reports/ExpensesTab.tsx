@@ -13,8 +13,17 @@ import { SectionCard } from "../common/SectionCard";
 import { EmptyState } from "../common/EmptyState";
 import { ErrorState } from "../common/ErrorState";
 import { LoadingState } from "../common/LoadingState";
-import { BarList, ColumnChart, DonutChart } from "./charts";
+import {
+  BarList,
+  ColumnChart,
+  CurrencyLegend,
+  DonutChart,
+  GroupedBarList,
+  GroupedColumnChart,
+} from "./charts";
+import type { GroupedBarRow, GroupedColumnItem } from "./charts";
 import { CurrencyScope } from "./CurrencyScope";
+import { currencyAccents } from "../common/accent";
 import { paletteAt } from "./report-palette";
 import { formatCompactMoney, formatDate, formatMoney } from "../../lib/format";
 import { monthsToParams } from "../../lib/date-range";
@@ -243,5 +252,232 @@ function MonthlyColumns({ data, currency }: { data: MonthlySpend[]; currency: st
         title: `${monthFull(m.month)} · ${formatMoney(m.amount, currency)} · ${m.count} expense${m.count === 1 ? "" : "s"}`,
       }))}
     />
+  );
+}
+
+/* --------------------- Combined multi-currency analytics --------------------- */
+
+/**
+ * Expense analytics for the Reports currency filter. With one currency it
+ * renders the classic single-currency tab; with several it renders ONE combined
+ * view — colour-coded grouped bars/columns and a small-multiple donut per
+ * currency — instead of stacking a full tab per currency. Money is never summed
+ * across currencies; each currency keeps its own colour and scale.
+ */
+export function ExpensesAnalytics({ currencies }: { currencies: string[] }) {
+  if (currencies.length <= 1) {
+    return <ExpensesTab currency={currencies[0] ?? "INR"} />;
+  }
+  return <ExpensesTabCombined currencies={currencies} />;
+}
+
+function ExpensesTabCombined({ currencies }: { currencies: string[] }) {
+  const [months, setMonths] = useState(12);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [data, setData] = useState<Record<string, ExpensesReport> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchAll = useCallback(
+    async (m: number) => {
+      const entries = await Promise.all(
+        currencies.map(
+          async (cur) =>
+            [cur, await getReportsExpenses({ ...monthsToParams(m), currency: cur })] as const,
+        ),
+      );
+      return Object.fromEntries(entries) as Record<string, ExpensesReport>;
+    },
+    [currencies],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    setRefreshing(true);
+    fetchAll(months)
+      .then((d) => {
+        if (!cancelled) {
+          setData(d);
+          setError(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setError(ERROR_MSG);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchAll, months, reloadKey]);
+
+  if (loading) return <LoadingState label="Loading expense analytics…" />;
+  if (error)
+    return (
+      <ErrorState
+        title="Couldn't load analytics"
+        description={error}
+        onRetry={() => {
+          setLoading(true);
+          setReloadKey((k) => k + 1);
+        }}
+      />
+    );
+  if (!data) return null;
+
+  const accents = currencyAccents(currencies);
+  // Render only currencies whose data has actually loaded. When the selection
+  // changes (e.g. 2 → 3) the per-currency fetch resolves a tick later, so `data`
+  // may not yet hold every selected currency — filtering here avoids indexing an
+  // absent key (which previously crashed with "reading 'spendByCategory'"). This
+  // is also resilient to any new currency added to the selection later.
+  const present = currencies.filter((cur) => data[cur]);
+  if (present.length === 0) {
+    return <LoadingState label="Loading expense analytics…" />;
+  }
+
+  // Categories ordered by combined size (for row order only — never summed into
+  // a displayed total); each currency normalised to its own max bar.
+  const catTotals = new Map<string, number>();
+  for (const cur of present) {
+    for (const cs of data[cur]!.spendByCategory) {
+      catTotals.set(cs.category, (catTotals.get(cs.category) ?? 0) + cs.amount);
+    }
+  }
+  const orderedCats = [...catTotals.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([cat]) => cat);
+  const maxCatByCur: Record<string, number> = {};
+  for (const cur of present) {
+    maxCatByCur[cur] = Math.max(1, ...data[cur]!.spendByCategory.map((c) => c.amount));
+  }
+  const categoryRows: GroupedBarRow[] = orderedCats
+    .map((cat) => ({
+      label: categoryLabel(cat),
+      bars: present.flatMap((cur) => {
+        const cs = data[cur]!.spendByCategory.find((c) => c.category === cat);
+        const amount = cs?.amount ?? 0;
+        if (amount <= 0) return [];
+        return [
+          {
+            seriesKey: cur,
+            accent: accents[cur]!,
+            ratio: amount / maxCatByCur[cur]!,
+            valueText: formatMoney(amount, cur),
+          },
+        ];
+      }),
+    }))
+    .filter((r) => r.bars.length > 0);
+
+  // Monthly trend: shared month axis (same range), one column per currency.
+  const maxMonthByCur: Record<string, number> = {};
+  for (const cur of present) {
+    maxMonthByCur[cur] = Math.max(1, ...data[cur]!.monthlyTrend.map((m) => m.amount));
+  }
+  const axis = data[present[0]!]!.monthlyTrend;
+  const monthlyItems: GroupedColumnItem[] = axis.map((m, i) => ({
+    key: m.month,
+    label: monthAxisLabel(m.month, i > 0 ? axis[i - 1]!.month : undefined),
+    columns: present.map((cur) => {
+      const mm = data[cur]!.monthlyTrend.find((x) => x.month === m.month);
+      const amount = mm?.amount ?? 0;
+      return {
+        seriesKey: cur,
+        accent: accents[cur]!,
+        ratio: amount / maxMonthByCur[cur]!,
+        title: `${cur} · ${monthFull(m.month)} · ${formatMoney(amount, cur)}`,
+      };
+    }),
+  }));
+
+  const hasCategory = categoryRows.length > 0;
+  const hasMonthly = monthlyItems.some((it) => it.columns.some((c) => c.ratio > 0));
+  const isEmpty = !hasCategory && !hasMonthly;
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          Approved spend · last {months} months · each currency shown separately
+        </p>
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <Select
+            value={String(months)}
+            onValueChange={(v) => v && setMonths(Number(v))}
+            disabled={refreshing}
+          >
+            <SelectTrigger
+              size="sm"
+              className="w-full min-w-32 flex-1 sm:w-40 sm:flex-none"
+              aria-label="Time range"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MONTH_OPTIONS.map((m) => (
+                <SelectItem key={m} value={String(m)}>
+                  Last {m} months
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setReloadKey((k) => k + 1)}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      <CurrencyLegend currencies={present} />
+
+      {isEmpty ? (
+        <EmptyState
+          icon={BarChart3}
+          title="No approved expenses in this range"
+          description="Try a longer range, or check back once expenses are approved."
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <SectionCard
+            title="Spend by category"
+            description="Approved spend per currency, highest first"
+          >
+            <GroupedBarList rows={categoryRows} />
+          </SectionCard>
+
+          <SectionCard title="Project vs General" description="Approved spend split, per currency">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              {present.map((cur) => (
+                <div key={cur} className="flex flex-col gap-2">
+                  <span className="self-start rounded-md bg-primary/10 px-2 py-0.5 text-xs font-bold tracking-wide text-primary">
+                    {cur}
+                  </span>
+                  <ScopeDonut data={data[cur]!.byScope} currency={cur} />
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title={`Monthly trend · last ${months} months`}
+            description="Approved spend per month, per currency"
+            className="lg:col-span-2"
+          >
+            <GroupedColumnChart items={monthlyItems} />
+          </SectionCard>
+        </div>
+      )}
+    </div>
   );
 }

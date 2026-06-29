@@ -56,17 +56,16 @@ import { PageHeader } from "../layout/PageHeader";
 import { SectionCard } from "../common/SectionCard";
 import { LoadingState } from "../common/LoadingState";
 import { ErrorState } from "../common/ErrorState";
-import { ExpensesTab } from "./ExpensesTab";
-import { ProjectsTab } from "./ProjectsTab";
+import { ExpensesAnalytics } from "./ExpensesTab";
+import { ProjectsAnalytics } from "./ProjectsTab";
 import { AiAnalyticsTab } from "./AiAnalyticsTab";
-import { BarList, DonutChart } from "./charts";
+import { BarList, CurrencyLegend, CurrencyMultiples, DonutChart } from "./charts";
 import { CurrencyScope } from "./CurrencyScope";
-import { PerCurrencySections } from "./PerCurrencySections";
 import { ExpenseDetailTable } from "./ExpenseDetailTable";
 import { MoneyTotals } from "../common/MoneyTotals";
 import { formatCurrencyTotals, totalsByCurrency } from "../../lib/currency";
 import { AreaTrend, DonutGauge, Heatmap, KpiCard, RankingList } from "./bi";
-import { paletteAt } from "../common/accent";
+import { currencyGradient, paletteAt } from "../common/accent";
 import { formatDateTime, formatMoney } from "../../lib/format";
 import { downloadCsv, printElement } from "../../lib/export";
 import { getReportsOverview, getReportsProjects } from "../../lib/reports-api";
@@ -127,37 +126,6 @@ interface LoadedData {
   records: Expense[];
   reimbursementRecords: Expense[];
   users: User[];
-}
-
-/** Re-scope a projects report to a single currency (spend/utilization for that
- *  currency only — never combined across currencies). */
-function scopeProjectsTo(report: ProjectsReport, currency: string): ProjectsReport {
-  const r2 = (n: number) => Math.round(n * 100) / 100;
-  const projects = report.projects.map((p) => {
-    const cur = p.spentByCurrency.find((t) => t.currency === currency);
-    const totalSpent = r2(cur?.amount ?? 0);
-    return {
-      ...p,
-      totalSpent,
-      spentByCurrency: cur ? [cur] : [],
-      remaining: p.hasBudget ? r2(p.budget - totalSpent) : null,
-      utilization: p.hasBudget ? r2((totalSpent / p.budget) * 100) : null,
-      currency,
-    };
-  });
-  const spent = r2(projects.reduce((s, p) => s + p.totalSpent, 0));
-  const curTotal = report.totals.spentByCurrency.find((t) => t.currency === currency);
-  return {
-    ...report,
-    activeCurrency: currency,
-    totals: {
-      ...report.totals,
-      spent,
-      spentByCurrency: curTotal ? [curTotal] : [],
-      remaining: r2(report.totals.budget - spent),
-    },
-    projects,
-  };
 }
 
 export function ReportsWorkspace() {
@@ -256,18 +224,6 @@ export function ReportsWorkspace() {
     : allCurrencies.slice(0, 1);
   const picked = selectedCurrencies?.filter((c) => allCurrencies.includes(c)) ?? null;
   const renderCurrencies = picked && picked.length > 0 ? picked : defaultCurrencies;
-
-  // A per-currency slice of the loaded data: records/reimbursements filtered and
-  // the projects report re-scoped to that currency (never combined).
-  const scopedFor = (c: string): LoadedData => {
-    const match = (r: Expense) => (r.currency || "INR").toUpperCase() === c;
-    return {
-      ...data!,
-      records: data!.records.filter(match),
-      reimbursementRecords: data!.reimbursementRecords.filter(match),
-      projects: data!.projects ? scopeProjectsTo(data!.projects, c) : null,
-    };
-  };
 
   const currencyScope =
     currencyTotals.length > 0 ? (
@@ -398,20 +354,12 @@ export function ReportsWorkspace() {
               {renderCurrencies.join(", ")}
             </p>
             <Panel id="overview" active={tab}>
-              <PerCurrencySections currencies={renderCurrencies}>
-                {(c) => {
-                  const sd = scopedFor(c);
-                  return (
-                    <ExecutiveOverview
-                      data={sd}
-                      allRecords={sd.records}
-                      currency={c}
-                      slug={rangeSlug(range)}
-                      onOpenProjects={() => changeTab("projects")}
-                    />
-                  );
-                }}
-              </PerCurrencySections>
+              <ExecutiveOverview
+                data={data}
+                currencies={renderCurrencies}
+                slug={rangeSlug(range)}
+                onOpenProjects={() => changeTab("projects")}
+              />
             </Panel>
             <Panel id="expense" active={tab}>
               <SectionFrame
@@ -419,9 +367,7 @@ export function ReportsWorkspace() {
                 title="Expense Analytics"
                 description="Category mix, scope split, and monthly spend trend."
               >
-                <PerCurrencySections currencies={renderCurrencies}>
-                  {(c) => <ExpensesTab currency={c} />}
-                </PerCurrencySections>
+                <ExpensesAnalytics currencies={renderCurrencies} />
                 {/* Print-only: every expense by currency, included in tab + full prints. */}
                 <ExpenseDetailTable
                   expenses={data.records}
@@ -436,31 +382,29 @@ export function ReportsWorkspace() {
                 title="Project Spending"
                 description="Approved spend against each project's budget and utilization."
               >
-                <PerCurrencySections currencies={renderCurrencies}>
-                  {(c) => <ProjectsTab currency={c} />}
-                </PerCurrencySections>
+                <ProjectsAnalytics currencies={renderCurrencies} />
               </SectionFrame>
             </Panel>
             <Panel id="department" active={tab}>
-              <PerCurrencySections currencies={renderCurrencies}>
-                {(c) => (
-                  <DepartmentAnalytics data={scopedFor(c)} currency={c} slug={rangeSlug(range)} />
-                )}
-              </PerCurrencySections>
+              <DepartmentAnalytics
+                data={data}
+                currencies={renderCurrencies}
+                slug={rangeSlug(range)}
+              />
             </Panel>
             <Panel id="employee" active={tab}>
-              <PerCurrencySections currencies={renderCurrencies}>
-                {(c) => (
-                  <EmployeeAnalytics data={scopedFor(c)} currency={c} slug={rangeSlug(range)} />
-                )}
-              </PerCurrencySections>
+              <EmployeeAnalytics
+                data={data}
+                currencies={renderCurrencies}
+                slug={rangeSlug(range)}
+              />
             </Panel>
             <Panel id="reimbursement" active={tab}>
-              <PerCurrencySections currencies={renderCurrencies}>
-                {(c) => (
-                  <ReimbursementAnalytics data={scopedFor(c)} currency={c} slug={rangeSlug(range)} />
-                )}
-              </PerCurrencySections>
+              <ReimbursementAnalytics
+                data={data}
+                currencies={renderCurrencies}
+                slug={rangeSlug(range)}
+              />
             </Panel>
             {/* AI extraction metrics are about the engine, not money → shown once. */}
             <Panel id="ai" active={tab}>
@@ -473,11 +417,11 @@ export function ReportsWorkspace() {
               </SectionFrame>
             </Panel>
             <Panel id="audit" active={tab}>
-              <PerCurrencySections currencies={renderCurrencies}>
-                {(c) => (
-                  <AuditCompliance data={scopedFor(c)} currency={c} slug={rangeSlug(range)} />
-                )}
-              </PerCurrencySections>
+              <AuditCompliance
+                data={data}
+                currencies={renderCurrencies}
+                slug={rangeSlug(range)}
+              />
             </Panel>
           </div>
         </div>
@@ -523,58 +467,72 @@ function Panel({
 
 function ExecutiveOverview({
   data,
-  allRecords,
-  currency,
+  currencies,
   slug,
   onOpenProjects,
 }: {
   data: LoadedData;
-  /** Full (all-currency) records — counts + grouped money come from these. */
-  allRecords: Expense[];
-  currency: string;
+  currencies: string[];
   slug: string;
   onOpenProjects: () => void;
 }) {
   const { projects, records, users } = data;
   // Counts come from the full record set (currency-agnostic); money is grouped
-  // per currency (never summed across). The scoped `records` drive the charts.
-  const k = useMemo(() => deriveKpis(allRecords), [allRecords]);
+  // per currency (never summed across). Money charts are rendered per currency.
+  const k = useMemo(() => deriveKpis(records), [records]);
   const approvedByCurrency = useMemo(
-    () => totalsByCurrency(allRecords.filter((r) => r.approvalStatus === "APPROVED")),
-    [allRecords],
+    () => totalsByCurrency(records.filter((r) => r.approvalStatus === "APPROVED")),
+    [records],
   );
   const pendingByCurrency = useMemo(
     () =>
       totalsByCurrency(
-        allRecords.filter(
+        records.filter(
           (r) =>
             r.approvalStatus === "SUBMITTED" ||
             r.approvalStatus === "PENDING_REVIEW",
         ),
       ),
-    [allRecords],
+    [records],
   );
   const rejectedByCurrency = useMemo(
-    () => totalsByCurrency(allRecords.filter((r) => r.approvalStatus === "REJECTED")),
-    [allRecords],
+    () => totalsByCurrency(records.filter((r) => r.approvalStatus === "REJECTED")),
+    [records],
   );
   const decided = k.approved.count + k.rejected.count;
   const approvalRate = decided > 0 ? (k.approved.count / decided) * 100 : 0;
 
   const processing = useMemo(() => deriveProcessing(records), [records]);
-  const departments = useMemo(
-    () => deriveDepartments(records, users).filter((d) => d.totalSpend > 0),
-    [records, users],
+
+  // Money charts (trend + department spend) are per currency — never summed.
+  const perCur = useMemo(
+    () =>
+      Object.fromEntries(
+        currencies.map((cur) => {
+          const recs = records.filter((e) => (e.currency || "").toUpperCase() === cur);
+          return [
+            cur,
+            {
+              departments: deriveDepartments(recs, users).filter((d) => d.totalSpend > 0),
+              monthly: deriveMonthlyApproved(recs, 12),
+            },
+          ];
+        }),
+      ),
+    [currencies, records, users],
   );
 
-  const monthly = useMemo(() => deriveMonthlyApproved(records, 12), [records]);
-  const trend = monthly.map((m) => ({ label: m.label, value: m.amount }));
-  const lastTwo = monthly.slice(-2);
+  // Spark/MoM only make sense for a single currency (a summed-across-currency
+  // trend line would be meaningless), so they're omitted when several are shown.
+  const single = currencies.length === 1;
+  const soleMonthly = single ? perCur[currencies[0]!]!.monthly : [];
+  const lastTwo = soleMonthly.slice(-2);
   const momDelta =
-    lastTwo.length === 2 && lastTwo[0]!.amount > 0
+    single && lastTwo.length === 2 && lastTwo[0]!.amount > 0
       ? ((lastTwo[1]!.amount - lastTwo[0]!.amount) / lastTwo[0]!.amount) * 100
       : null;
 
+  const displayCurrency = currencies[0] ?? "INR";
   const budgetAtRisk = projects?.totals.overBudgetCount ?? 0;
 
   return (
@@ -591,7 +549,7 @@ function ExecutiveOverview({
             { metric: "Pending review", totals: pendingByCurrency },
             { metric: "Rejected", totals: rejectedByCurrency },
           ].flatMap(({ metric, totals }) =>
-            (totals.length > 0 ? totals : [{ currency, amount: 0, count: 0 }]).map(
+            (totals.length > 0 ? totals : [{ currency: displayCurrency, amount: 0, count: 0 }]).map(
               (t) => ({ metric, currency: t.currency, value: t.amount, count: t.count }),
             ),
           ),
@@ -613,8 +571,8 @@ function ExecutiveOverview({
           label="Approved spend"
           value={<MoneyTotals totals={approvedByCurrency} compact />}
           hint={`${k.approved.count} approved of ${k.total.count} submitted`}
-          trend={momDelta}
-          spark={monthly.slice(-8).map((m) => m.amount)}
+          trend={single ? momDelta : undefined}
+          spark={single ? soleMonthly.slice(-8).map((m) => m.amount) : undefined}
         />
         <KpiCard
           index={1}
@@ -650,13 +608,18 @@ function ExecutiveOverview({
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <SectionCard
           title="Monthly spend trend"
-          description="Approved expense value over time"
+          description="Approved expense value over time, per currency"
           className="lg:col-span-2"
         >
-          <AreaTrend
-            data={trend}
-            accent="indigo"
-            format={(v) => formatMoney(v, currency)}
+          <CurrencyMultiples
+            currencies={currencies}
+            render={(cur, accent) => (
+              <AreaTrend
+                data={perCur[cur]!.monthly.map((m) => ({ label: m.label, value: m.amount }))}
+                accent={accent}
+                format={(v) => formatMoney(v, cur)}
+              />
+            )}
           />
         </SectionCard>
         <SectionCard title="Approval rate" description="Share of reviewed expenses approved">
@@ -687,21 +650,28 @@ function ExecutiveOverview({
 
       <SectionCard
         title="Department spend comparison"
-        description="Top departments by approved spend"
+        description="Top departments by approved spend, per currency"
       >
-        {departments.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No approved spend yet.</p>
-        ) : (
-          <RankingList
-            accent="violet"
-            items={departments.slice(0, 6).map((d) => ({
-              label: d.name,
-              valueText: compactMoney(d.totalSpend, currency),
-              ratio: d.totalSpend / (departments[0]?.totalSpend || 1),
-              sub: `${d.headcount} people · ${pct(d.shareOfSpend * 100)} of spend`,
-            }))}
-          />
-        )}
+        <CurrencyMultiples
+          currencies={currencies}
+          render={(cur, accent) => {
+            const departments = perCur[cur]!.departments;
+            if (departments.length === 0) {
+              return <p className="text-sm text-muted-foreground">No approved spend yet.</p>;
+            }
+            return (
+              <RankingList
+                accent={accent}
+                items={departments.slice(0, 6).map((d) => ({
+                  label: d.name,
+                  valueText: compactMoney(d.totalSpend, cur),
+                  ratio: d.totalSpend / (departments[0]?.totalSpend || 1),
+                  sub: `${d.headcount} people · ${pct(d.shareOfSpend * 100)} of spend`,
+                }))}
+              />
+            );
+          }}
+        />
       </SectionCard>
 
       {projects && (
@@ -725,7 +695,7 @@ function ExecutiveOverview({
               accent="sky"
               icon={Wallet}
               label="Total budget"
-              value={compactMoney(projects.totals.budget, currency)}
+              value={compactMoney(projects.totals.budget, displayCurrency)}
             />
             <KpiCard
               index={2}
@@ -733,7 +703,7 @@ function ExecutiveOverview({
               icon={TrendingUp}
               label="Approved spend"
               value={<MoneyTotals totals={projects.totals.spentByCurrency} compact />}
-              hint={`${compactMoney(projects.totals.remaining, currency)} remaining vs budget`}
+              hint={`${compactMoney(projects.totals.remaining, displayCurrency)} remaining vs budget`}
             />
             <KpiCard
               index={3}
@@ -753,19 +723,39 @@ function ExecutiveOverview({
 
 /* --------------------------- Department -------------------------------- */
 
-function DepartmentAnalytics({ data, currency, slug }: { data: LoadedData; currency: string; slug: string }) {
+function DepartmentAnalytics({
+  data,
+  currencies,
+  slug,
+}: {
+  data: LoadedData;
+  currencies: string[];
+  slug: string;
+}) {
   const { records, users } = data;
-  const departments = useMemo(() => deriveDepartments(records, users), [records, users]);
-  const withSpend = departments.filter((d) => d.totalSpend > 0 || d.headcount > 0);
-  const heatmap = useMemo(
+  // Spend, share, risk and heatmap are all money → derived per currency so
+  // nothing is summed across currencies; shown as colour-coded small multiples.
+  const perCur = useMemo(
     () =>
-      deriveCategoryHeatmap(
-        records,
-        users,
-        departments.slice(0, 6).map((d) => d.name),
+      Object.fromEntries(
+        currencies.map((cur) => {
+          const recs = records.filter((e) => (e.currency || "").toUpperCase() === cur);
+          const departments = deriveDepartments(recs, users);
+          const withSpend = departments.filter((d) => d.totalSpend > 0 || d.headcount > 0);
+          const heatmap = deriveCategoryHeatmap(
+            recs,
+            users,
+            departments.slice(0, 6).map((d) => d.name),
+          );
+          return [cur, { withSpend, heatmap }];
+        }),
       ),
-    [records, users, departments],
+    [currencies, records, users],
   );
+  // Department/headcount counts are currency-agnostic → shown once.
+  const deptCount = new Set(
+    users.map((u) => (u.department || "").trim()).filter(Boolean),
+  ).size;
 
   return (
     <SectionFrame
@@ -773,21 +763,28 @@ function DepartmentAnalytics({ data, currency, slug }: { data: LoadedData; curre
       title="Department Analytics"
       description="Spend, headcount, throughput, and risk by department."
       onCsv={() =>
-        downloadCsv(`opsflow-department-analytics_${slug}`, withSpend, [
-          { label: "Department", value: (d) => d.name },
-          { label: "Headcount", value: (d) => d.headcount },
-          { label: "Active", value: (d) => d.activeHeadcount },
-          { label: "Approved spend", value: (d) => d.totalSpend },
-          { label: "Expenses", value: (d) => d.expenseCount },
-          { label: "Pending", value: (d) => d.pendingCount },
-          { label: "Reimb. outstanding", value: (d) => d.reimbursementPending },
-          { label: "Avg processing days", value: (d) => d.avgProcessingDays?.toFixed(2) ?? "" },
-          { label: "Risk", value: (d) => d.risk.toFixed(2) },
-        ])
+        downloadCsv(
+          `opsflow-department-analytics_${slug}`,
+          currencies.flatMap((cur) =>
+            perCur[cur]!.withSpend.map((d) => ({ currency: cur, ...d })),
+          ),
+          [
+            { label: "Currency", value: (d) => d.currency },
+            { label: "Department", value: (d) => d.name },
+            { label: "Headcount", value: (d) => d.headcount },
+            { label: "Active", value: (d) => d.activeHeadcount },
+            { label: "Approved spend", value: (d) => d.totalSpend },
+            { label: "Expenses", value: (d) => d.expenseCount },
+            { label: "Pending", value: (d) => d.pendingCount },
+            { label: "Reimb. outstanding", value: (d) => d.reimbursementPending },
+            { label: "Avg processing days", value: (d) => d.avgProcessingDays?.toFixed(2) ?? "" },
+            { label: "Risk", value: (d) => d.risk.toFixed(2) },
+          ],
+        )
       }
     >
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard index={0} accent="violet" icon={Building2} label="Departments" value={withSpend.length} />
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <KpiCard index={0} accent="violet" icon={Building2} label="Departments" value={deptCount} />
         <KpiCard
           index={1}
           accent="indigo"
@@ -796,60 +793,58 @@ function DepartmentAnalytics({ data, currency, slug }: { data: LoadedData; curre
           value={users.length}
           hint={`${users.filter((u) => u.isActive).length} active`}
         />
-        <KpiCard
-          index={2}
-          accent="amber"
-          icon={Receipt}
-          label="Top dept share"
-          value={withSpend[0] ? pct(withSpend[0].shareOfSpend * 100) : "—"}
-          hint={withSpend[0]?.name}
-        />
-        <KpiCard
-          index={3}
-          accent="rose"
-          icon={AlertTriangle}
-          label="Highest risk dept"
-          value={
-            [...withSpend].sort((a, b) => b.risk - a.risk)[0]
-              ? pct(([...withSpend].sort((a, b) => b.risk - a.risk)[0]!.risk) * 100)
-              : "—"
-          }
-          hint={[...withSpend].sort((a, b) => b.risk - a.risk)[0]?.name}
-          invertTrend
-        />
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <SectionCard title="Approved spend by department" description="Relative contribution">
-          <BarList
-            items={withSpend
-              .filter((d) => d.totalSpend > 0)
-              .slice(0, 8)
-              .map((d, i) => ({
-                label: d.name,
-                valueText: compactMoney(d.totalSpend, currency),
-                ratio: d.totalSpend / (withSpend[0]?.totalSpend || 1),
-                tone: paletteAt(i),
-              }))}
-          />
-        </SectionCard>
-        <SectionCard title="Spend distribution" description="Department × category heatmap">
-          {heatmap.yLabels.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No data.</p>
-          ) : (
-            <Heatmap
-              accent="indigo"
-              xLabels={heatmap.xLabels}
-              yLabels={heatmap.yLabels}
-              matrix={heatmap.matrix}
-              format={(v) => compactMoney(v, currency)}
-            />
-          )}
-        </SectionCard>
-      </div>
+      {currencies.length > 1 && <CurrencyLegend currencies={currencies} />}
+
+      <SectionCard title="Approved spend by department" description="Relative contribution, per currency">
+        <CurrencyMultiples
+          currencies={currencies}
+          render={(cur, accent) => {
+            const ws = perCur[cur]!.withSpend.filter((d) => d.totalSpend > 0).slice(0, 8);
+            if (ws.length === 0) {
+              return <p className="text-sm text-muted-foreground">No approved spend yet.</p>;
+            }
+            return (
+              <BarList
+                items={ws.map((d) => ({
+                  label: d.name,
+                  valueText: compactMoney(d.totalSpend, cur),
+                  ratio: d.totalSpend / (ws[0]?.totalSpend || 1),
+                  tone: currencyGradient(accent),
+                }))}
+              />
+            );
+          }}
+        />
+      </SectionCard>
+
+      <SectionCard title="Spend distribution" description="Department × category heatmap, per currency">
+        <CurrencyMultiples
+          currencies={currencies}
+          render={(cur, accent) => {
+            const heatmap = perCur[cur]!.heatmap;
+            if (heatmap.yLabels.length === 0) {
+              return <p className="text-sm text-muted-foreground">No data.</p>;
+            }
+            return (
+              <Heatmap
+                accent={accent}
+                xLabels={heatmap.xLabels}
+                yLabels={heatmap.yLabels}
+                matrix={heatmap.matrix}
+                format={(v) => compactMoney(v, cur)}
+              />
+            );
+          }}
+        />
+      </SectionCard>
 
       <SectionCard title="Department performance" description="Drill-down across every department">
-        <DepartmentTable rows={withSpend} currency={currency} />
+        <CurrencyMultiples
+          currencies={currencies}
+          render={(cur) => <DepartmentTable rows={perCur[cur]!.withSpend} currency={cur} />}
+        />
       </SectionCard>
     </SectionFrame>
   );
@@ -950,11 +945,32 @@ function RiskBadge({ risk }: { risk: number }) {
 
 /* ---------------------------- Employee --------------------------------- */
 
-function EmployeeAnalytics({ data, currency, slug }: { data: LoadedData; currency: string; slug: string }) {
+function EmployeeAnalytics({
+  data,
+  currencies,
+  slug,
+}: {
+  data: LoadedData;
+  currencies: string[];
+  slug: string;
+}) {
   const { records, users } = data;
-  const employees = useMemo(() => deriveEmployees(records, users), [records, users]);
-  const spenders = employees.filter((e) => e.totalSpend > 0);
-  const topRejected = [...employees].sort((a, b) => b.rejectedCount - a.rejectedCount)[0];
+  // Spend rankings/tables are money → per currency. Submitter/rejection counts
+  // are currency-agnostic and shown once.
+  const perCur = useMemo(
+    () =>
+      Object.fromEntries(
+        currencies.map((cur) => {
+          const recs = records.filter((e) => (e.currency || "").toUpperCase() === cur);
+          const employees = deriveEmployees(recs, users);
+          return [cur, employees.filter((e) => e.totalSpend > 0)];
+        }),
+      ),
+    [currencies, records, users],
+  );
+  const allEmployees = useMemo(() => deriveEmployees(records, users), [records, users]);
+  const activeSubmitters = allEmployees.filter((e) => e.totalSpend > 0).length;
+  const topRejected = [...allEmployees].sort((a, b) => b.rejectedCount - a.rejectedCount)[0];
 
   return (
     <SectionFrame
@@ -962,45 +978,27 @@ function EmployeeAnalytics({ data, currency, slug }: { data: LoadedData; currenc
       title="Employee Analytics"
       description="Who is spending, how much, and how clean their submissions are."
       onCsv={() =>
-        downloadCsv(`opsflow-employee-analytics_${slug}`, spenders, [
-          { label: "Employee", value: (e) => e.name },
-          { label: "Department", value: (e) => e.department },
-          { label: "Approved spend", value: (e) => e.totalSpend },
-          { label: "Submitted", value: (e) => e.submittedCount },
-          { label: "Approved", value: (e) => e.approvedCount },
-          { label: "Rejected", value: (e) => e.rejectedCount },
-          { label: "Manual entries", value: (e) => e.manualCount },
-          { label: "Avg amount", value: (e) => e.avgAmount.toFixed(2) },
-        ])
+        downloadCsv(
+          `opsflow-employee-analytics_${slug}`,
+          currencies.flatMap((cur) => perCur[cur]!.map((e) => ({ currency: cur, ...e }))),
+          [
+            { label: "Currency", value: (e) => e.currency },
+            { label: "Employee", value: (e) => e.name },
+            { label: "Department", value: (e) => e.department },
+            { label: "Approved spend", value: (e) => e.totalSpend },
+            { label: "Submitted", value: (e) => e.submittedCount },
+            { label: "Approved", value: (e) => e.approvedCount },
+            { label: "Rejected", value: (e) => e.rejectedCount },
+            { label: "Manual entries", value: (e) => e.manualCount },
+            { label: "Avg amount", value: (e) => e.avgAmount.toFixed(2) },
+          ],
+        )
       }
     >
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard index={0} accent="indigo" icon={Users} label="Active submitters" value={spenders.length} />
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <KpiCard index={0} accent="indigo" icon={Users} label="Active submitters" value={activeSubmitters} />
         <KpiCard
           index={1}
-          accent="emerald"
-          icon={TrendingUp}
-          label="Top spender"
-          value={spenders[0] ? compactMoney(spenders[0].totalSpend, currency) : "—"}
-          hint={spenders[0]?.name}
-        />
-        <KpiCard
-          index={2}
-          accent="amber"
-          icon={Receipt}
-          label="Avg per approved"
-          value={
-            spenders.length
-              ? compactMoney(
-                  spenders.reduce((s, e) => s + e.totalSpend, 0) /
-                    Math.max(1, spenders.reduce((s, e) => s + e.approvedCount, 0)),
-                  currency,
-                )
-              : "—"
-          }
-        />
-        <KpiCard
-          index={3}
           accent="rose"
           icon={XCircle}
           label="Most rejections"
@@ -1010,82 +1008,150 @@ function EmployeeAnalytics({ data, currency, slug }: { data: LoadedData; currenc
         />
       </div>
 
-      <SectionCard title="Top employees by spend" description="Approved spend, ranked">
-        <RankingList
-          accent="emerald"
-          items={spenders.slice(0, 8).map((e) => ({
-            label: e.name,
-            valueText: compactMoney(e.totalSpend, currency),
-            ratio: e.totalSpend / (spenders[0]?.totalSpend || 1),
-            sub: `${e.department} · ${e.approvedCount} approved`,
-          }))}
+      {currencies.length > 1 && <CurrencyLegend currencies={currencies} />}
+
+      <SectionCard title="Top employees by spend" description="Approved spend, ranked per currency">
+        <CurrencyMultiples
+          currencies={currencies}
+          render={(cur, accent) => {
+            const spenders = perCur[cur]!;
+            if (spenders.length === 0) {
+              return <p className="text-sm text-muted-foreground">No approved spend yet.</p>;
+            }
+            return (
+              <RankingList
+                accent={accent}
+                items={spenders.slice(0, 8).map((e) => ({
+                  label: e.name,
+                  valueText: compactMoney(e.totalSpend, cur),
+                  ratio: e.totalSpend / (spenders[0]?.totalSpend || 1),
+                  sub: `${e.department} · ${e.approvedCount} approved`,
+                }))}
+              />
+            );
+          }}
         />
       </SectionCard>
 
-      <SectionCard title="Employee breakdown" description="Full submission record">
-        {/* Mobile: a card per employee instead of a 7-column scrolling table. */}
-        <ul className="flex flex-col gap-2 md:hidden">
-          {spenders.slice(0, 25).map((e) => (
-            <li key={e.id} className="rounded-xl border border-border/60 p-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-foreground">{e.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">{e.department}</p>
-                </div>
-                <span className="shrink-0 tabular-nums font-semibold text-foreground">
-                  {formatMoney(e.totalSpend, currency)}
-                </span>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                <span>Submitted <b className="tabular-nums text-foreground">{e.submittedCount}</b></span>
-                <span>Approved <b className="tabular-nums text-foreground">{e.approvedCount}</b></span>
-                <span>Rejected <b className="tabular-nums text-foreground">{e.rejectedCount}</b></span>
-                <span>Manual <b className="tabular-nums text-foreground">{e.manualCount}</b></span>
-              </div>
-            </li>
-          ))}
-        </ul>
-
-        <div className="hidden overflow-x-auto md:block">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Employee</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead className="text-right">Approved spend</TableHead>
-                <TableHead className="text-right">Submitted</TableHead>
-                <TableHead className="text-right">Approved</TableHead>
-                <TableHead className="text-right">Rejected</TableHead>
-                <TableHead className="text-right">Manual</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {spenders.slice(0, 25).map((e) => (
-                <TableRow key={e.id}>
-                  <TableCell className="font-medium">{e.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{e.department}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatMoney(e.totalSpend, currency)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{e.submittedCount}</TableCell>
-                  <TableCell className="text-right tabular-nums">{e.approvedCount}</TableCell>
-                  <TableCell className="text-right tabular-nums">{e.rejectedCount}</TableCell>
-                  <TableCell className="text-right tabular-nums">{e.manualCount}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+      <SectionCard title="Employee breakdown" description="Full submission record, per currency">
+        <CurrencyMultiples
+          currencies={currencies}
+          render={(cur) => <EmployeeBreakdown rows={perCur[cur]!} currency={cur} />}
+        />
       </SectionCard>
     </SectionFrame>
   );
 }
 
+/** Employee submission breakdown (mobile cards + desktop table), one currency. */
+function EmployeeBreakdown({
+  rows,
+  currency,
+}: {
+  rows: ReturnType<typeof deriveEmployees>;
+  currency: string;
+}) {
+  if (rows.length === 0) {
+    return <p className="text-sm text-muted-foreground">No approved spend yet.</p>;
+  }
+  return (
+    <>
+      {/* Mobile: a card per employee instead of a 7-column scrolling table. */}
+      <ul className="flex flex-col gap-2 md:hidden">
+        {rows.slice(0, 25).map((e) => (
+          <li key={e.id} className="rounded-xl border border-border/60 p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate font-medium text-foreground">{e.name}</p>
+                <p className="truncate text-xs text-muted-foreground">{e.department}</p>
+              </div>
+              <span className="shrink-0 tabular-nums font-semibold text-foreground">
+                {formatMoney(e.totalSpend, currency)}
+              </span>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <span>Submitted <b className="tabular-nums text-foreground">{e.submittedCount}</b></span>
+              <span>Approved <b className="tabular-nums text-foreground">{e.approvedCount}</b></span>
+              <span>Rejected <b className="tabular-nums text-foreground">{e.rejectedCount}</b></span>
+              <span>Manual <b className="tabular-nums text-foreground">{e.manualCount}</b></span>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <div className="hidden overflow-x-auto md:block">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Employee</TableHead>
+              <TableHead>Department</TableHead>
+              <TableHead className="text-right">Approved spend</TableHead>
+              <TableHead className="text-right">Submitted</TableHead>
+              <TableHead className="text-right">Approved</TableHead>
+              <TableHead className="text-right">Rejected</TableHead>
+              <TableHead className="text-right">Manual</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.slice(0, 25).map((e) => (
+              <TableRow key={e.id}>
+                <TableCell className="font-medium">{e.name}</TableCell>
+                <TableCell className="text-muted-foreground">{e.department}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {formatMoney(e.totalSpend, currency)}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">{e.submittedCount}</TableCell>
+                <TableCell className="text-right tabular-nums">{e.approvedCount}</TableCell>
+                <TableCell className="text-right tabular-nums">{e.rejectedCount}</TableCell>
+                <TableCell className="text-right tabular-nums">{e.manualCount}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </>
+  );
+}
+
 /* -------------------------- Reimbursement ------------------------------ */
 
-function ReimbursementAnalytics({ data, currency, slug }: { data: LoadedData; currency: string; slug: string }) {
+function ReimbursementAnalytics({
+  data,
+  slug,
+  currencies,
+}: {
+  data: LoadedData;
+  slug: string;
+  currencies: string[];
+}) {
   const { reimbursementRecords, users } = data;
-  const model = useMemo(() => deriveReimbursements(reimbursementRecords, users), [reimbursementRecords, users]);
+  // Status counts combine across currencies (counts, not money).
+  const model = useMemo(
+    () => deriveReimbursements(reimbursementRecords, users),
+    [reimbursementRecords, users],
+  );
+  const pendingByCurrency = useMemo(
+    () => totalsByCurrency(reimbursementRecords.filter((e) => e.reimbursementStatus !== "PAID")),
+    [reimbursementRecords],
+  );
+  const paidByCurrency = useMemo(
+    () => totalsByCurrency(reimbursementRecords.filter((e) => e.reimbursementStatus === "PAID")),
+    [reimbursementRecords],
+  );
+  // Money charts are derived per currency so amounts are never summed across them.
+  const perCurrency = useMemo(
+    () =>
+      Object.fromEntries(
+        currencies.map((cur) => [
+          cur,
+          deriveReimbursements(
+            reimbursementRecords.filter((e) => (e.currency || "").toUpperCase() === cur),
+            users,
+          ),
+        ]),
+      ),
+    [currencies, reimbursementRecords, users],
+  );
 
   return (
     <SectionFrame
@@ -1093,11 +1159,18 @@ function ReimbursementAnalytics({ data, currency, slug }: { data: LoadedData; cu
       title="Reimbursement Analytics"
       description="Outstanding payouts and how they are distributed."
       onCsv={() =>
-        downloadCsv(`opsflow-reimbursement_${slug}`, model.byDepartment, [
-          { label: "Department", value: (d) => d.name },
-          { label: "Outstanding", value: (d) => d.outstanding },
-          { label: "Paid", value: (d) => d.paid },
-        ])
+        downloadCsv(
+          `opsflow-reimbursement_${slug}`,
+          currencies.flatMap((cur) =>
+            perCurrency[cur]!.byDepartment.map((d) => ({ currency: cur, ...d })),
+          ),
+          [
+            { label: "Currency", value: (d) => d.currency },
+            { label: "Department", value: (d) => d.name },
+            { label: "Outstanding", value: (d) => d.outstanding },
+            { label: "Paid", value: (d) => d.paid },
+          ],
+        )
       }
     >
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
@@ -1107,7 +1180,7 @@ function ReimbursementAnalytics({ data, currency, slug }: { data: LoadedData; cu
           accent="amber"
           icon={Banknote}
           label="Outstanding payouts"
-          value={compactMoney(model.pendingAmount, currency)}
+          value={<MoneyTotals totals={pendingByCurrency} compact />}
           hint={`${model.outstandingCount} approved expenses unpaid`}
         />
         <KpiCard
@@ -1115,7 +1188,7 @@ function ReimbursementAnalytics({ data, currency, slug }: { data: LoadedData; cu
           accent="emerald"
           icon={CheckCircle2}
           label="Paid out"
-          value={compactMoney(model.paidAmount, currency)}
+          value={<MoneyTotals totals={paidByCurrency} compact />}
           hint={`${model.byStatus.PAID.count} reimbursed`}
         />
         <KpiCard
@@ -1124,7 +1197,6 @@ function ReimbursementAnalytics({ data, currency, slug }: { data: LoadedData; cu
           icon={Clock}
           label="Processing"
           value={model.byStatus.PROCESSING.count}
-          hint={compactMoney(model.byStatus.PROCESSING.amount, currency)}
         />
         <KpiCard
           index={3}
@@ -1132,46 +1204,60 @@ function ReimbursementAnalytics({ data, currency, slug }: { data: LoadedData; cu
           icon={Gauge}
           label="Pending"
           value={model.byStatus.PENDING.count}
-          hint={compactMoney(model.byStatus.PENDING.amount, currency)}
           invertTrend
         />
       </div>
 
+      {currencies.length > 1 && <CurrencyLegend currencies={currencies} />}
+
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <SectionCard title="Status mix" description="Approved expenses by reimbursement status">
-          <DonutChart
-            segments={[
-              { label: "Pending", value: model.byStatus.PENDING.amount, accent: "rose" },
-              { label: "Processing", value: model.byStatus.PROCESSING.amount, accent: "sky" },
-              { label: "Paid", value: model.byStatus.PAID.amount, accent: "emerald" },
-            ]}
-            centerValue={compactMoney(
-              model.byStatus.PENDING.amount +
-                model.byStatus.PROCESSING.amount +
-                model.byStatus.PAID.amount,
-              currency,
-            )}
-            centerLabel="approved"
-            formatValue={(v) => compactMoney(v, currency)}
-            emptyLabel="No approved expenses to reimburse yet."
+          <CurrencyMultiples
+            currencies={currencies}
+            render={(cur) => {
+              const m = perCurrency[cur]!;
+              return (
+                <DonutChart
+                  segments={[
+                    { label: "Pending", value: m.byStatus.PENDING.amount, accent: "rose" },
+                    { label: "Processing", value: m.byStatus.PROCESSING.amount, accent: "sky" },
+                    { label: "Paid", value: m.byStatus.PAID.amount, accent: "emerald" },
+                  ]}
+                  centerValue={compactMoney(
+                    m.byStatus.PENDING.amount +
+                      m.byStatus.PROCESSING.amount +
+                      m.byStatus.PAID.amount,
+                    cur,
+                  )}
+                  centerLabel="approved"
+                  formatValue={(v) => compactMoney(v, cur)}
+                  emptyLabel="No approved expenses to reimburse yet."
+                />
+              );
+            }}
           />
         </SectionCard>
         <SectionCard title="Outstanding by department" description="Where payouts are owed">
-          {model.byDepartment.filter((d) => d.outstanding > 0).length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nothing outstanding.</p>
-          ) : (
-            <RankingList
-              accent="amber"
-              items={model.byDepartment
-                .filter((d) => d.outstanding > 0)
-                .slice(0, 6)
-                .map((d) => ({
-                  label: d.name,
-                  valueText: compactMoney(d.outstanding, currency),
-                  ratio: d.outstanding / (model.byDepartment[0]?.outstanding || 1),
-                }))}
-            />
-          )}
+          <CurrencyMultiples
+            currencies={currencies}
+            render={(cur, accent) => {
+              const m = perCurrency[cur]!;
+              const items = m.byDepartment.filter((d) => d.outstanding > 0).slice(0, 6);
+              if (items.length === 0) {
+                return <p className="text-sm text-muted-foreground">Nothing outstanding.</p>;
+              }
+              return (
+                <RankingList
+                  accent={accent}
+                  items={items.map((d) => ({
+                    label: d.name,
+                    valueText: compactMoney(d.outstanding, cur),
+                    ratio: d.outstanding / (m.byDepartment[0]?.outstanding || 1),
+                  }))}
+                />
+              );
+            }}
+          />
         </SectionCard>
       </div>
     </SectionFrame>
@@ -1180,10 +1266,42 @@ function ReimbursementAnalytics({ data, currency, slug }: { data: LoadedData; cu
 
 /* ----------------------------- Audit ----------------------------------- */
 
-function AuditCompliance({ data, currency, slug }: { data: LoadedData; currency: string; slug: string }) {
+function AuditCompliance({
+  data,
+  slug,
+  currencies,
+}: {
+  data: LoadedData;
+  slug: string;
+  currencies: string[];
+}) {
   const { records, users } = data;
-  const audit = useMemo(() => deriveAudit(records, users), [records, users]);
+  // Derived per currency so the high-value threshold and flag amounts are never
+  // computed across currencies; counts summed, flags concatenated.
+  const audits = useMemo(
+    () =>
+      currencies.map((cur) =>
+        deriveAudit(records.filter((e) => (e.currency || "").toUpperCase() === cur), users),
+      ),
+    [currencies, records, users],
+  );
   const processing = useMemo(() => deriveProcessing(records), [records]);
+  const manualCount = audits.reduce((s, a) => s + a.manualCount, 0);
+  const missingDocCount = audits.reduce((s, a) => s + a.missingDocCount, 0);
+  const manualPct = records.length > 0 ? (manualCount / records.length) * 100 : null;
+  const flags = useMemo(
+    () =>
+      audits
+        .flatMap((a) => a.flags)
+        .sort((a, b) =>
+          a.severity === b.severity
+            ? b.date.localeCompare(a.date)
+            : a.severity === "high"
+              ? -1
+              : 1,
+        ),
+    [audits],
+  );
 
   return (
     <SectionFrame
@@ -1191,12 +1309,13 @@ function AuditCompliance({ data, currency, slug }: { data: LoadedData; currency:
       title="Audit & Compliance"
       description="Policy signals: manual entries, missing documents, and high-value flags."
       onCsv={() =>
-        downloadCsv(`opsflow-audit-flags_${slug}`, audit.flags, [
+        downloadCsv(`opsflow-audit-flags_${slug}`, flags, [
           { label: "Employee", value: (f) => f.employee },
           { label: "Department", value: (f) => f.department },
           { label: "Reason", value: (f) => f.reason },
-          { label: "Severity", value: (f) => f.severity },
+          { label: "Currency", value: (f) => f.currency },
           { label: "Amount", value: (f) => f.amount },
+          { label: "Severity", value: (f) => f.severity },
           { label: "Date", value: (f) => f.date },
         ])
       }
@@ -1207,8 +1326,8 @@ function AuditCompliance({ data, currency, slug }: { data: LoadedData; currency:
           accent="amber"
           icon={Receipt}
           label="Manual-entry rate"
-          value={audit.manualPct === null ? "—" : pct(audit.manualPct)}
-          hint={`${audit.manualCount} entries without a receipt`}
+          value={manualPct === null ? "—" : pct(manualPct)}
+          hint={`${manualCount} entries without a receipt`}
           invertTrend
         />
         <KpiCard
@@ -1216,7 +1335,7 @@ function AuditCompliance({ data, currency, slug }: { data: LoadedData; currency:
           accent="rose"
           icon={AlertTriangle}
           label="Missing documentation"
-          value={audit.missingDocCount}
+          value={missingDocCount}
           hint="expenses with no attached document"
           invertTrend
         />
@@ -1225,8 +1344,8 @@ function AuditCompliance({ data, currency, slug }: { data: LoadedData; currency:
           accent="violet"
           icon={ShieldCheck}
           label="High-value flags"
-          value={audit.flags.length}
-          hint={`≥ ${compactMoney(audit.highValueThreshold, currency)} threshold`}
+          value={flags.length}
+          hint="manual & high-value policy flags"
           invertTrend
         />
         <KpiCard
@@ -1255,7 +1374,7 @@ function AuditCompliance({ data, currency, slug }: { data: LoadedData; currency:
       </SectionCard>
 
       <SectionCard title="Flagged submissions" description="Prioritized review queue">
-        {audit.flags.length === 0 ? (
+        {flags.length === 0 ? (
           <p className="text-sm text-muted-foreground">No policy flags. 🎉</p>
         ) : (
           <div className="overflow-x-auto">
@@ -1270,13 +1389,13 @@ function AuditCompliance({ data, currency, slug }: { data: LoadedData; currency:
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {audit.flags.map((f) => (
+                {flags.map((f) => (
                   <TableRow key={f.id}>
                     <TableCell className="font-medium">{f.employee}</TableCell>
                     <TableCell className="text-muted-foreground">{f.department}</TableCell>
                     <TableCell>{f.reason}</TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {formatMoney(f.amount, currency)}
+                      {formatMoney(f.amount, f.currency)}
                     </TableCell>
                     <TableCell>
                       <Badge variant={f.severity === "high" ? "destructive" : "secondary"}>

@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MultiSelectFilter } from "../../components/common/MultiSelectFilter";
 import {
   Table,
   TableBody,
@@ -79,7 +80,8 @@ export function MyTasksPage() {
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
   const [view, setView] = useState<View>("all");
   const [search, setSearch] = useState("");
-  const [versionFilter, setVersionFilter] = useState("all");
+  // Multi-select: empty = all; several = OR within field.
+  const [versionFilter, setVersionFilter] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<"due" | "version" | "priority">("due");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
@@ -177,7 +179,7 @@ export function MyTasksPage() {
           t.code?.toLowerCase().includes(q) ||
           t.description?.toLowerCase().includes(q),
       );
-    if (versionFilter !== "all") list = list.filter((t) => t.version === versionFilter);
+    if (versionFilter.length) list = list.filter((t) => versionFilter.includes(t.version ?? ""));
     const priorityRank: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
     list.sort((a, b) => {
       if (sortBy === "version")
@@ -223,19 +225,13 @@ export function MyTasksPage() {
               />
             </div>
             {versions.length > 0 && (
-              <Select value={versionFilter} onValueChange={(v) => setVersionFilter(v ?? "all")}>
-                <SelectTrigger size="sm" className="w-32">
-                  <SelectValue placeholder="Version" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All versions</SelectItem>
-                  {versions.map((ver) => (
-                    <SelectItem key={ver} value={ver}>
-                      v{ver}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                label="Version"
+                options={versions.map((ver) => ({ value: ver, label: `v${ver}` }))}
+                selected={versionFilter}
+                onChange={setVersionFilter}
+                className="w-32"
+              />
             )}
             <Select value={sortBy} onValueChange={(v) => setSortBy((v ?? "due") as typeof sortBy)}>
               <SelectTrigger size="sm" className="w-36">

@@ -244,6 +244,16 @@
     margin-top: 0 !important;
     break-before: avoid !important;
   }
+  /* Forcing the portal subtree to block flow (above) removes the grid/flex
+     parents that `h-full` cards size against — so KPI/section cards with
+     height:100% collapse to zero height and print blank. In print we want
+     natural, content-driven heights everywhere, so neutralise full-height. */
+  body.printing #print-portal .h-full,
+  body.printing #print-portal .r-card,
+  body.printing #print-portal [data-slot="card"] {
+    height: auto !important;
+    min-height: 0 !important;
+  }
 
   /* Avoid splitting an individual card/chart across a page break — but NOT the
      large section wrappers: a too-tall "avoid" block gets bumped to the next

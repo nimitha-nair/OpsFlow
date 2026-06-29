@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { GanttChart, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -44,6 +44,7 @@ import {
 } from "../lib/date-range";
 import { fuzzyMatchAny } from "../lib/fuzzy";
 import { useAuth } from "../context/auth-context";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import { listMyProjects, listProjects } from "../lib/projects-api";
 import {
   apiErrorMessage,
@@ -83,6 +84,8 @@ export function KanbanPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  // Skeleton shows only on the first load; later refreshes update in place.
+  const loadedOnce = useRef(false);
 
   const availableViews: SavedView[] =
     isEmployee || isHR
@@ -98,8 +101,9 @@ export function KanbanPage() {
   // field; different fields AND together.
   const [priority, setPriority] = useState<TaskPriority[]>([]);
   const [statusFilter, setStatusFilter] = useState<TaskStatus[]>([]);
-  const [versionFilter, setVersionFilter] = useState("all");
-  const [projectFilter, setProjectFilter] = useState("all");
+  // Multi-select: empty = all; several = OR within field.
+  const [versionFilter, setVersionFilter] = useState<string[]>([]);
+  const [projectFilter, setProjectFilter] = useState<string[]>([]);
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
   // Board is an activity view: default the range to the task's CREATED date so
@@ -158,7 +162,10 @@ export function KanbanPage() {
       } catch (err) {
         if (!cancelled) setError(apiErrorMessage(err, "Failed to load tasks."));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          loadedOnce.current = true;
+        }
       }
     }
 
@@ -167,6 +174,9 @@ export function KanbanPage() {
       cancelled = true;
     };
   }, [user, reloadKey, range, taskBasis]);
+
+  // Near-live: silently refetch on an interval + when the tab refocuses.
+  useAutoRefresh(() => setReloadKey((k) => k + 1));
 
   const projectNames = useMemo(
     () => new Map(projects.map((p) => [p.id, p.name])),
@@ -245,11 +255,11 @@ export function KanbanPage() {
 
   const filteredTasks = useMemo(() => {
     let list = applyView(tasks, savedView);
-    if (projectFilter !== "all") list = list.filter((t) => t.projectId === projectFilter);
+    if (projectFilter.length) list = list.filter((t) => projectFilter.includes(t.projectId ?? ""));
     if (priority.length) list = list.filter((t) => priority.includes(t.priority));
     if (statusFilter.length)
       list = list.filter((t) => statusFilter.includes(t.status));
-    if (versionFilter !== "all") list = list.filter((t) => t.version === versionFilter);
+    if (versionFilter.length) list = list.filter((t) => versionFilter.includes(t.version ?? ""));
     const q = search.trim();
     if (q) {
       // Fuzzy search across title, assignee, project, status, and version.
@@ -441,7 +451,7 @@ export function KanbanPage() {
         }
       />
 
-      {loading ? (
+      {loading && !loadedOnce.current ? (
         <LoadingState label="Loading tasks…" />
       ) : error ? (
         <ErrorState

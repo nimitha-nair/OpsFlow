@@ -529,6 +529,8 @@ export interface AuditFlag {
   department: string;
   reason: string;
   amount: number;
+  /** Currency of this expense — flags must never be shown in a mixed currency. */
+  currency: string;
   date: string;
   severity: "high" | "medium";
 }
@@ -574,6 +576,7 @@ export function deriveAudit(expenses: Expense[], users: User[]): AuditModel {
       employee: u?.name ?? "Unknown",
       department: u?.department?.trim() || NO_DEPT,
       amount: e.amount,
+      currency: (e.currency || "").toUpperCase(),
       date: e.expenseDate,
     };
     if (

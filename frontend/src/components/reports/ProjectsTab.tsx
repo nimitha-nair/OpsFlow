@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { KpiCard } from "./report-ui";
+import { CurrencyLegend, CurrencyMultiples } from "./charts";
 import { riseStyle } from "./report-palette";
 import { SectionCard } from "../common/SectionCard";
 import { MoneyTotals } from "../common/MoneyTotals";
@@ -55,6 +56,28 @@ function sortRows(rows: ProjectReportRow[], sort: Sort): ProjectReportRow[] {
     copy.sort((a, b) => b.totalSpent - a.totalSpent);
   }
   return copy;
+}
+
+/**
+ * Project analytics for the Reports currency filter. Spend-vs-budget is only
+ * meaningful within a single currency, so with several selected we render one
+ * per-currency section each (colour-tagged) rather than stacking unlabelled
+ * copies — never combining budgets across currencies.
+ */
+export function ProjectsAnalytics({ currencies }: { currencies: string[] }) {
+  if (currencies.length <= 1) {
+    return <ProjectsTab currency={currencies[0] ?? "INR"} />;
+  }
+  return (
+    <div className="flex flex-col gap-5">
+      <CurrencyLegend currencies={currencies} />
+      <CurrencyMultiples
+        currencies={currencies}
+        columns={1}
+        render={(cur) => <ProjectsTab currency={cur} />}
+      />
+    </div>
+  );
 }
 
 export function ProjectsTab({ currency: controlledCurrency }: { currency?: string } = {}) {

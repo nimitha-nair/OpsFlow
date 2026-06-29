@@ -79,12 +79,12 @@ interface KanbanToolbarProps {
   onStatus: (v: TaskStatus[]) => void;
 
   versions: string[];
-  versionFilter: string;
-  onVersion: (v: string) => void;
+  versionFilter: string[];
+  onVersion: (v: string[]) => void;
 
   projects: { id: string; name: string }[];
-  projectFilter: string;
-  onProject: (v: string) => void;
+  projectFilter: string[];
+  onProject: (v: string[]) => void;
 
   showDepartment: boolean;
   departments: string[];
@@ -124,19 +124,23 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
       label: TASK_STATUS_LABELS[s],
       onRemove: () => props.onStatus(props.status.filter((x) => x !== s)),
     });
-  if (props.versionFilter !== "all")
+  if (props.versionFilter.length)
     filterChips.push({
       key: "version",
-      label: `v${props.versionFilter}`,
-      onRemove: () => props.onVersion("all"),
+      label:
+        props.versionFilter.length === 1
+          ? `v${props.versionFilter[0]}`
+          : `${props.versionFilter.length} versions`,
+      onRemove: () => props.onVersion([]),
     });
-  if (props.projectFilter !== "all")
+  if (props.projectFilter.length)
     filterChips.push({
       key: "project",
       label:
-        props.projects.find((p) => p.id === props.projectFilter)?.name ??
-        "Project",
-      onRemove: () => props.onProject("all"),
+        props.projectFilter.length === 1
+          ? (props.projects.find((p) => p.id === props.projectFilter[0])?.name ?? "Project")
+          : `${props.projectFilter.length} projects`,
+      onRemove: () => props.onProject([]),
     });
   if (props.showDepartment && props.departmentFilter !== "all")
     filterChips.push({
@@ -154,8 +158,8 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
   function clearFilters() {
     props.onPriority([]);
     props.onStatus([]);
-    props.onVersion("all");
-    props.onProject("all");
+    props.onVersion([]);
+    props.onProject([]);
     props.onDepartment("all");
     props.onDateRange(makeRange("all"));
   }
@@ -257,38 +261,23 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
         />
 
         {props.versions.length > 0 && (
-          <Select
-            value={props.versionFilter}
-            onValueChange={(v) => props.onVersion(v ?? "all")}
-          >
-            <SelectTrigger size="sm" className="w-full sm:w-36">
-              <SelectValue placeholder="Version" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All versions</SelectItem>
-              {props.versions.map((ver) => (
-                <SelectItem key={ver} value={ver}>
-                  v{ver}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MultiSelectFilter
+            label="Version"
+            options={props.versions.map((ver) => ({ value: ver, label: `v${ver}` }))}
+            selected={props.versionFilter}
+            onChange={props.onVersion}
+            className="w-full sm:w-36"
+          />
         )}
 
         {props.projects.length > 0 && (
-          <Select value={props.projectFilter} onValueChange={(v) => props.onProject(v ?? "all")}>
-            <SelectTrigger size="sm" className="w-full sm:w-44">
-              <SelectValue placeholder="All projects" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All projects</SelectItem>
-              {props.projects.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MultiSelectFilter
+            label="Project"
+            options={props.projects.map((p) => ({ value: p.id, label: p.name }))}
+            selected={props.projectFilter}
+            onChange={props.onProject}
+            className="w-full sm:w-44"
+          />
         )}
 
         {props.showDepartment && props.departments.length > 0 && (
@@ -373,42 +362,24 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
             </FilterField>
             {props.versions.length > 0 && (
               <FilterField label="Version">
-                <Select
-                  value={props.versionFilter}
-                  onValueChange={(v) => props.onVersion(v ?? "all")}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Version" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All versions</SelectItem>
-                    {props.versions.map((ver) => (
-                      <SelectItem key={ver} value={ver}>
-                        v{ver}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  label="Version"
+                  options={props.versions.map((ver) => ({ value: ver, label: `v${ver}` }))}
+                  selected={props.versionFilter}
+                  onChange={props.onVersion}
+                  className="w-full"
+                />
               </FilterField>
             )}
             {props.projects.length > 0 && (
               <FilterField label="Project">
-                <Select
-                  value={props.projectFilter}
-                  onValueChange={(v) => props.onProject(v ?? "all")}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="All projects" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All projects</SelectItem>
-                    {props.projects.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  label="Project"
+                  options={props.projects.map((p) => ({ value: p.id, label: p.name }))}
+                  selected={props.projectFilter}
+                  onChange={props.onProject}
+                  className="w-full"
+                />
               </FilterField>
             )}
             {props.showDepartment && props.departments.length > 0 && (

@@ -24,6 +24,61 @@ export function paletteAt(index: number): string {
   return BAR_PALETTE[index % BAR_PALETTE.length]!;
 }
 
+/**
+ * Stable, theme-aware accent assigned to each currency so a currency reads as
+ * the SAME colour across every chart in the combined multi-currency reports.
+ * Well-known codes get a fixed, intuitive colour; the rest fill from the cycle
+ * in display order. Currencies are never summed — this is purely visual identity.
+ */
+const CURRENCY_ACCENT_CYCLE: Accent[] = [
+  "indigo",
+  "emerald",
+  "amber",
+  "rose",
+  "sky",
+  "violet",
+];
+
+const PREFERRED_CURRENCY_ACCENT: Partial<Record<string, Accent>> = {
+  INR: "indigo",
+  USD: "emerald",
+  EUR: "amber",
+  GBP: "rose",
+  AED: "sky",
+  JPY: "violet",
+};
+
+/** Map each currency (in display order) to a distinct accent. */
+export function currencyAccents(currencies: string[]): Record<string, Accent> {
+  const map: Record<string, Accent> = {};
+  const used = new Set<Accent>();
+  // First pass: honour preferred colours when still free.
+  for (const cur of currencies) {
+    const pref = PREFERRED_CURRENCY_ACCENT[cur];
+    if (pref && !used.has(pref)) {
+      map[cur] = pref;
+      used.add(pref);
+    }
+  }
+  // Second pass: fill the rest from the cycle, skipping taken accents.
+  const pool = CURRENCY_ACCENT_CYCLE.filter((a) => !used.has(a));
+  let pi = 0;
+  for (const cur of currencies) {
+    if (map[cur]) continue;
+    const accent =
+      pool[pi % pool.length] ??
+      CURRENCY_ACCENT_CYCLE[pi % CURRENCY_ACCENT_CYCLE.length]!;
+    map[cur] = accent;
+    pi += 1;
+  }
+  return map;
+}
+
+/** Gradient fill (from-…/to-…) for a currency's bars/columns. */
+export function currencyGradient(accent: Accent): string {
+  return ACCENTS[accent].chip;
+}
+
 /** Accent → SVG/text colour class (drives `currentColor` in the bi charts). */
 export const ACCENT_TEXT: Record<Accent, string> = {
   indigo: "text-indigo-500",

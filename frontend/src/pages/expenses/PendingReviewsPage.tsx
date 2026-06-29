@@ -1,15 +1,10 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ClipboardCheck, Search } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { MultiSelectFilter } from "../../components/common/MultiSelectFilter";
+import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ActiveRangeBadge } from "../../components/common/ActiveRangeBadge";
 import { DateBasisToggle } from "../../components/common/DateBasisToggle";
@@ -37,7 +32,6 @@ import {
   CATEGORY_LABELS,
   EXPENSE_CATEGORIES,
   type Expense,
-  type ExpenseCategory,
 } from "../../types/expense";
 
 type Tab = "PENDING" | "APPROVED" | "REJECTED" | "ALL";
@@ -63,11 +57,14 @@ export function PendingReviewsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  // Skeleton shows only on the first load; later refreshes update in place.
+  const loadedOnce = useRef(false);
 
   const [tab, setTab] = useState<Tab>("PENDING");
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState<ExpenseCategory | "ALL">("ALL");
-  const [method, setMethod] = useState<"ALL" | "AI" | "MANUAL">("ALL");
+  // Multi-select: empty = all; several = OR within field.
+  const [category, setCategory] = useState<string[]>([]);
+  const [method, setMethod] = useState<string[]>([]);
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
   const [basis, setBasis] = useState<"expenseDate" | "submittedAt">("submittedAt");
 
@@ -89,7 +86,10 @@ export function PendingReviewsPage() {
       } catch (err) {
         if (!cancelled) setError(apiErrorMessage(err, "Failed to load reviews."));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          loadedOnce.current = true;
+        }
       }
     }
     void load();
@@ -97,6 +97,9 @@ export function PendingReviewsPage() {
       cancelled = true;
     };
   }, [reloadKey, range, basis]);
+
+  // Near-live: silently refetch on an interval + when the tab refocuses.
+  useAutoRefresh(() => setReloadKey((k) => k + 1));
 
   const getEmployeeName = useMemo(
     () => (id: string) => userNames.get(id) ?? "Unknown",
@@ -121,8 +124,8 @@ export function PendingReviewsPage() {
     const needle = search.trim().toLowerCase();
     const rows = expenses.filter((e) => {
       if (!inTab(e, tab)) return false;
-      if (category !== "ALL" && e.category !== category) return false;
-      if (method !== "ALL" && (e.creationMethod ?? "AI") !== method) return false;
+      if (category.length && !category.includes(e.category)) return false;
+      if (method.length && !method.includes(e.creationMethod ?? "AI")) return false;
       if (!needle) return true;
       const haystack = [
         getEmployeeName(e.employeeId),
@@ -193,7 +196,7 @@ export function PendingReviewsPage() {
             onRetry={() => setReloadKey((k) => k + 1)}
           />
         </Card>
-      ) : loading ? (
+      ) : loading && !loadedOnce.current ? (
         <Card className="p-6">
           <LoadingState label="Loading expenses…" />
         </Card>
@@ -229,39 +232,23 @@ export function PendingReviewsPage() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-              <Select
-                value={category}
-                onValueChange={(v) =>
-                  setCategory((v ?? "ALL") as ExpenseCategory | "ALL")
-                }
-              >
-                <SelectTrigger className="sm:w-44">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All categories</SelectItem>
-                  {EXPENSE_CATEGORIES.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {CATEGORY_LABELS[c]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={method}
-                onValueChange={(v) =>
-                  setMethod((v ?? "ALL") as "ALL" | "AI" | "MANUAL")
-                }
-              >
-                <SelectTrigger className="sm:w-40" aria-label="Entry method">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All entries</SelectItem>
-                  <SelectItem value="AI">AI Extracted</SelectItem>
-                  <SelectItem value="MANUAL">Manual Entry</SelectItem>
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                label="Category"
+                options={EXPENSE_CATEGORIES.map((c) => ({ value: c, label: CATEGORY_LABELS[c] }))}
+                selected={category}
+                onChange={setCategory}
+                className="sm:w-44"
+              />
+              <MultiSelectFilter
+                label="Entry"
+                options={[
+                  { value: "AI", label: "AI Extracted" },
+                  { value: "MANUAL", label: "Manual Entry" },
+                ]}
+                selected={method}
+                onChange={setMethod}
+                className="sm:w-40"
+              />
             </div>
           </div>
 

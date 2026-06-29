@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Wallet } from "lucide-react";
 import { toast } from "sonner";
+
+import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -67,6 +69,8 @@ export function ReimbursementsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  // Skeleton shows only on the first load; later refreshes update in place.
+  const loadedOnce = useRef(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
 
@@ -89,7 +93,10 @@ export function ReimbursementsPage() {
         if (!cancelled)
           setError(apiErrorMessage(err, "Failed to load reimbursements."));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          loadedOnce.current = true;
+        }
       }
     }
     void load();
@@ -97,6 +104,9 @@ export function ReimbursementsPage() {
       cancelled = true;
     };
   }, [reloadKey, range]);
+
+  // Near-live: silently refetch on an interval + when the tab refocuses.
+  useAutoRefresh(() => setReloadKey((k) => k + 1));
 
   const getEmployeeName = useMemo(
     () => (id: string) => userNames.get(id) ?? "Unknown",
@@ -148,7 +158,7 @@ export function ReimbursementsPage() {
             onRetry={() => setReloadKey((k) => k + 1)}
           />
         </Card>
-      ) : loading ? (
+      ) : loading && !loadedOnce.current ? (
         <Card className="p-6">
           <LoadingState label="Loading reimbursements…" />
         </Card>

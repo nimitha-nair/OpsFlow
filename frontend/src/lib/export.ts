@@ -89,7 +89,7 @@ let printSeq = 0;
  * (a data/clone bug) or full-but-blank-only-in-print (a print-CSS bug).
  * Set back to false to restore normal printing.
  */
-const PRINT_DEBUG = true;
+const PRINT_DEBUG = false;
 
 function printDebugInspect(
   portal: HTMLElement,
@@ -238,5 +238,5 @@ export function printElement(
   // snapshotting. This matters most for "Export all", whose clone contains
   // panels just revealed from display:none — a synchronous print() can capture
   // them before layout, producing blank or partial pages.
-  window.setTimeout(() => window.print(), 50);
+  window.setTimeout(() => window.print(), 120);
 }

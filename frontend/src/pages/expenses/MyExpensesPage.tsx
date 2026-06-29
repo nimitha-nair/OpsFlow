@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+
+import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 import { Link } from "react-router-dom";
 import { Check, Eye, Pencil, Plus, Trash2, Wallet, X } from "lucide-react";
 import { toast } from "sonner";
@@ -83,6 +85,8 @@ export function MyExpensesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  // Skeleton shows only on the first load; later refreshes update in place.
+  const loadedOnce = useRef(false);
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
   // Default to submission date so "Today" shows what you submitted today.
   const [basis, setBasis] = useState<"expenseDate" | "submittedAt">(
@@ -109,7 +113,10 @@ export function MyExpensesPage() {
           setError(apiErrorMessage(err, "Failed to load expenses."));
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          loadedOnce.current = true;
+        }
       }
     }
     void load();
@@ -117,6 +124,9 @@ export function MyExpensesPage() {
       cancelled = true;
     };
   }, [reloadKey, range, basis]);
+
+  // Near-live: silently refetch on an interval + when the tab refocuses.
+  useAutoRefresh(() => setReloadKey((k) => k + 1));
 
   const projectLabel = useMemo(
     () => (expense: Expense) =>
@@ -253,7 +263,7 @@ export function MyExpensesPage() {
               onRetry={() => setReloadKey((k) => k + 1)}
             />
           </div>
-        ) : loading ? (
+        ) : loading && !loadedOnce.current ? (
           <LoadingState label="Loading expenses…" />
         ) : expenses.length === 0 ? (
           <div className="p-6">

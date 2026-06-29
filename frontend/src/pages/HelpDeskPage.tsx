@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { LifeBuoy, Loader2, Plus, Send } from "lucide-react";
 import { toast } from "sonner";
@@ -23,6 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MultiSelectFilter } from "../components/common/MultiSelectFilter";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import {
   Table,
   TableBody,
@@ -97,43 +99,57 @@ export function HelpDeskPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<TicketStatus | "all">("all");
+  // Multi-select status, filtered client-side (empty = all).
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
   const [createOpen, setCreateOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  // Skeleton shows only on the first load; later refreshes update in place.
+  const loadedOnce = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       setLoading(true);
       try {
-        const data = await listTickets(
-          statusFilter === "all" ? undefined : statusFilter,
-          rangeToParams(range),
-        );
+        const data = await listTickets(undefined, rangeToParams(range));
         if (!cancelled) setError(null);
         if (!cancelled) setTickets(data);
       } catch (err) {
         if (!cancelled) setError(apiErrorMessage(err, "Failed to load tickets."));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          loadedOnce.current = true;
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [statusFilter, range, reloadKey]);
+  }, [range, reloadKey]);
 
   const reload = () => setReloadKey((k) => k + 1);
 
+  // Near-live: silently refetch on an interval + when the tab refocuses.
+  useAutoRefresh(reload);
+
+  // Status is filtered client-side so several can be selected at once.
+  const visibleTickets = statusFilter.length
+    ? tickets.filter((t) => statusFilter.includes(t.status))
+    : tickets;
+
   // Active-filter summary, shared by the mobile Filters sheet + chips.
   const filterChips: FilterChip[] = [];
-  if (statusFilter !== "all")
+  if (statusFilter.length)
     filterChips.push({
       key: "status",
-      label: TICKET_STATUS_LABELS[statusFilter],
-      onRemove: () => setStatusFilter("all"),
+      label:
+        statusFilter.length === 1
+          ? TICKET_STATUS_LABELS[statusFilter[0] as TicketStatus]
+          : `${statusFilter.length} statuses`,
+      onRemove: () => setStatusFilter([]),
     });
   if (range.preset !== "all")
     filterChips.push({
@@ -143,7 +159,7 @@ export function HelpDeskPage() {
     });
   const activeFilterCount = filterChips.length;
   function clearFilters() {
-    setStatusFilter("all");
+    setStatusFilter([]);
     setRange(makeRange("all"));
   }
 
@@ -163,22 +179,13 @@ export function HelpDeskPage() {
             <div className="hidden flex-wrap items-center gap-2 md:flex">
               <ActiveRangeBadge range={range} />
               <DateRangeFilter value={range} onChange={setRange} hideIcon />
-              <Select
-                value={statusFilter}
-                onValueChange={(v) => setStatusFilter((v ?? "all") as TicketStatus | "all")}
-              >
-                <SelectTrigger size="sm" className="w-36">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
-                  {TICKET_STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {TICKET_STATUS_LABELS[s]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                label="Status"
+                options={TICKET_STATUSES.map((s) => ({ value: s, label: TICKET_STATUS_LABELS[s] }))}
+                selected={statusFilter}
+                onChange={setStatusFilter}
+                className="w-36"
+              />
             </div>
             {/* Mobile: Filters bottom sheet */}
             <MobileFiltersSheet
@@ -187,22 +194,13 @@ export function HelpDeskPage() {
               className="md:hidden"
             >
               <FilterField label="Status">
-                <Select
-                  value={statusFilter}
-                  onValueChange={(v) => setStatusFilter((v ?? "all") as TicketStatus | "all")}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All statuses</SelectItem>
-                    {TICKET_STATUSES.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {TICKET_STATUS_LABELS[s]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  label="Status"
+                  options={TICKET_STATUSES.map((s) => ({ value: s, label: TICKET_STATUS_LABELS[s] }))}
+                  selected={statusFilter}
+                  onChange={setStatusFilter}
+                  className="w-full"
+                />
               </FilterField>
               <FilterField label="Date">
                 <DateRangeFilter value={range} onChange={setRange} />
@@ -225,11 +223,11 @@ export function HelpDeskPage() {
         <Card className="p-6">
           <ErrorState title="Couldn't load tickets" description={error} onRetry={reload} />
         </Card>
-      ) : loading ? (
+      ) : loading && !loadedOnce.current ? (
         <Card className="p-6">
           <LoadingState label="Loading tickets…" />
         </Card>
-      ) : tickets.length === 0 ? (
+      ) : visibleTickets.length === 0 ? (
         <Card className="p-6">
           <EmptyState
             icon={LifeBuoy}
@@ -264,7 +262,7 @@ export function HelpDeskPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tickets.map((t) => (
+                {visibleTickets.map((t) => (
                   <TableRow
                     key={t.id}
                     className="cursor-pointer"
@@ -301,7 +299,7 @@ export function HelpDeskPage() {
 
           {/* Mobile cards */}
           <ul className="flex flex-col divide-y md:hidden">
-            {tickets.map((t) => (
+            {visibleTickets.map((t) => (
               <li
                 key={t.id}
                 role="button"

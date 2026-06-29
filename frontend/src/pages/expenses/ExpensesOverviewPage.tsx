@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
   CheckCircle2,
@@ -12,13 +12,8 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { MultiSelectFilter } from "../../components/common/MultiSelectFilter";
+import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 import { ActiveRangeBadge } from "../../components/common/ActiveRangeBadge";
 import { DateBasisToggle } from "../../components/common/DateBasisToggle";
 import { DateRangeFilter } from "../../components/common/DateRangeFilter";
@@ -64,6 +59,12 @@ function matchesStatus(e: Expense, f: StatusFilter): boolean {
   return e.approvalStatus === f;
 }
 
+const STATUS_OPTIONS = [
+  { value: "PENDING", label: "Pending" },
+  { value: "APPROVED", label: "Approved" },
+  { value: "REJECTED", label: "Rejected" },
+];
+
 export function ExpensesOverviewPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [userNames, setUserNames] = useState<Map<string, string>>(new Map());
@@ -71,10 +72,13 @@ export function ExpensesOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  // Skeleton shows only on the first load; later refreshes update in place.
+  const loadedOnce = useRef(false);
 
-  const [status, setStatus] = useState<StatusFilter>("ALL");
-  const [category, setCategory] = useState<ExpenseCategory | "ALL">("ALL");
-  const [projectId, setProjectId] = useState<string>("ALL");
+  // Multi-select filters: empty array = no filter (all); several = OR within field.
+  const [status, setStatus] = useState<string[]>([]);
+  const [category, setCategory] = useState<string[]>([]);
+  const [projectId, setProjectId] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
   const [basis, setBasis] = useState<"expenseDate" | "submittedAt">("submittedAt");
@@ -97,7 +101,10 @@ export function ExpensesOverviewPage() {
       } catch (err) {
         if (!cancelled) setError(apiErrorMessage(err, "Failed to load expenses."));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          loadedOnce.current = true;
+        }
       }
     }
     void load();
@@ -105,6 +112,9 @@ export function ExpensesOverviewPage() {
       cancelled = true;
     };
   }, [reloadKey, range, basis]);
+
+  // Near-live: silently refetch on an interval + when the tab refocuses.
+  useAutoRefresh(() => setReloadKey((k) => k + 1));
 
   const getEmployeeName = useMemo(
     () => (id: string) => userNames.get(id) ?? "Unknown",
@@ -132,9 +142,9 @@ export function ExpensesOverviewPage() {
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return expenses.filter((e) => {
-      if (!matchesStatus(e, status)) return false;
-      if (category !== "ALL" && e.category !== category) return false;
-      if (projectId !== "ALL" && e.projectId !== projectId) return false;
+      if (status.length && !status.some((s) => matchesStatus(e, s as StatusFilter))) return false;
+      if (category.length && !category.includes(e.category)) return false;
+      if (projectId.length && !projectId.includes(e.projectId ?? "")) return false;
       if (!needle) return true;
       const haystack = [
         getEmployeeName(e.employeeId),
@@ -166,19 +176,34 @@ export function ExpensesOverviewPage() {
 
   // Active-filter summary, shared by the mobile Filters sheet + chips.
   const filterChips: FilterChip[] = [];
-  if (status !== "ALL")
-    filterChips.push({ key: "status", label: statusLabel[status], onRemove: () => setStatus("ALL") });
-  if (category !== "ALL")
-    filterChips.push({ key: "category", label: CATEGORY_LABELS[category], onRemove: () => setCategory("ALL") });
-  if (projectId !== "ALL")
-    filterChips.push({ key: "project", label: getProjectName(projectId), onRemove: () => setProjectId("ALL") });
+  if (status.length)
+    filterChips.push({
+      key: "status",
+      label: status.length === 1 ? statusLabel[status[0] as StatusFilter] : `${status.length} statuses`,
+      onRemove: () => setStatus([]),
+    });
+  if (category.length)
+    filterChips.push({
+      key: "category",
+      label:
+        category.length === 1
+          ? CATEGORY_LABELS[category[0] as ExpenseCategory]
+          : `${category.length} categories`,
+      onRemove: () => setCategory([]),
+    });
+  if (projectId.length)
+    filterChips.push({
+      key: "project",
+      label: projectId.length === 1 ? getProjectName(projectId[0]!) : `${projectId.length} projects`,
+      onRemove: () => setProjectId([]),
+    });
   if (range.preset !== "all")
     filterChips.push({ key: "range", label: rangeLabel(range), onRemove: () => setRange(makeRange("all")) });
   const activeFilterCount = filterChips.length;
   function clearFilters() {
-    setStatus("ALL");
-    setCategory("ALL");
-    setProjectId("ALL");
+    setStatus([]);
+    setCategory([]);
+    setProjectId([]);
     setRange(makeRange("all"));
   }
 
@@ -217,7 +242,7 @@ export function ExpensesOverviewPage() {
             onRetry={() => setReloadKey((k) => k + 1)}
           />
         </StateCard>
-      ) : loading ? (
+      ) : loading && !loadedOnce.current ? (
         <StateCard>
           <LoadingState label="Loading expenses…" />
         </StateCard>
@@ -241,46 +266,27 @@ export function ExpensesOverviewPage() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <Select value={status} onValueChange={(v) => setStatus((v ?? "ALL") as StatusFilter)}>
-              <SelectTrigger className="w-full sm:w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All statuses</SelectItem>
-                <SelectItem value="PENDING">Pending</SelectItem>
-                <SelectItem value="APPROVED">Approved</SelectItem>
-                <SelectItem value="REJECTED">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={category}
-              onValueChange={(v) => setCategory((v ?? "ALL") as ExpenseCategory | "ALL")}
-            >
-              <SelectTrigger className="w-full sm:w-44">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All categories</SelectItem>
-                {EXPENSE_CATEGORIES.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {CATEGORY_LABELS[c]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={projectId} onValueChange={(v) => setProjectId(v ?? "ALL")}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All projects</SelectItem>
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <MultiSelectFilter
+              label="Status"
+              options={STATUS_OPTIONS}
+              selected={status}
+              onChange={setStatus}
+              className="w-full sm:w-40"
+            />
+            <MultiSelectFilter
+              label="Category"
+              options={EXPENSE_CATEGORIES.map((c) => ({ value: c, label: CATEGORY_LABELS[c] }))}
+              selected={category}
+              onChange={setCategory}
+              className="w-full sm:w-44"
+            />
+            <MultiSelectFilter
+              label="Project"
+              options={projects.map((p) => ({ value: p.id, label: p.name }))}
+              selected={projectId}
+              onChange={setProjectId}
+              className="w-full sm:w-48"
+            />
             <ActiveRangeBadge
               range={range}
               basisLabel={basis === "submittedAt" ? "Submitted" : "Expense date"}
@@ -304,50 +310,31 @@ export function ExpensesOverviewPage() {
                 className="shrink-0"
               >
                 <FilterField label="Status">
-                  <Select value={status} onValueChange={(v) => setStatus((v ?? "ALL") as StatusFilter)}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">All statuses</SelectItem>
-                      <SelectItem value="PENDING">Pending</SelectItem>
-                      <SelectItem value="APPROVED">Approved</SelectItem>
-                      <SelectItem value="REJECTED">Rejected</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <MultiSelectFilter
+                    label="Status"
+                    options={STATUS_OPTIONS}
+                    selected={status}
+                    onChange={setStatus}
+                    className="w-full"
+                  />
                 </FilterField>
                 <FilterField label="Category">
-                  <Select
-                    value={category}
-                    onValueChange={(v) => setCategory((v ?? "ALL") as ExpenseCategory | "ALL")}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">All categories</SelectItem>
-                      {EXPENSE_CATEGORIES.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {CATEGORY_LABELS[c]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <MultiSelectFilter
+                    label="Category"
+                    options={EXPENSE_CATEGORIES.map((c) => ({ value: c, label: CATEGORY_LABELS[c] }))}
+                    selected={category}
+                    onChange={setCategory}
+                    className="w-full"
+                  />
                 </FilterField>
                 <FilterField label="Project">
-                  <Select value={projectId} onValueChange={(v) => setProjectId(v ?? "ALL")}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">All projects</SelectItem>
-                      {projects.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <MultiSelectFilter
+                    label="Project"
+                    options={projects.map((p) => ({ value: p.id, label: p.name }))}
+                    selected={projectId}
+                    onChange={setProjectId}
+                    className="w-full"
+                  />
                 </FilterField>
                 <FilterField label="Date">
                   <div className="flex flex-col gap-2">
