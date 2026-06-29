@@ -286,21 +286,21 @@ export function ReportsWorkspace() {
         breadcrumbs={[{ label: "Reports" }]}
         actions={
           <>
-            {/* Desktop / tablet toolbar (unchanged) */}
+            {/* Desktop / tablet toolbar: filters on the left, actions on the
+                right, separated by a divider so the two zones read clearly. */}
             <div className="no-print hidden flex-wrap items-center gap-2 md:flex">
+              {/* Filters */}
               <ActiveRangeBadge
                 range={range}
                 basisLabel={basis === "submittedAt" ? "Submitted" : "Expense date"}
               />
               <DateBasisToggle value={basis} onChange={setBasis} />
               <DateRangeFilter value={range} onChange={setRange} />
+              <div className="mx-0.5 h-6 w-px self-center bg-border" aria-hidden />
+              {/* Actions */}
               <Button variant="outline" size="sm" onClick={onRefresh} disabled={refreshing}>
                 <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
                 Refresh
-              </Button>
-              <Button variant="outline" size="sm" onClick={exportCurrentTab}>
-                <FileText className="size-4" />
-                This tab
               </Button>
               <Button variant="outline" size="sm" onClick={exportSummary}>
                 Summary

@@ -83,6 +83,58 @@ function ensurePrintPortal(): HTMLElement {
 let printSeq = 0;
 
 /**
+ * TEMP DEBUG (remove once the blank-PDF root cause is found): when true,
+ * `printElement` shows the print-portal clone on screen instead of printing,
+ * and logs what landed in the portal. This reveals whether the clone is empty
+ * (a data/clone bug) or full-but-blank-only-in-print (a print-CSS bug).
+ * Set back to false to restore normal printing.
+ */
+const PRINT_DEBUG = true;
+
+function printDebugInspect(
+  portal: HTMLElement,
+  clone: HTMLElement,
+  title: string | undefined,
+  restore: () => void,
+): void {
+  // Force the portal visible on screen (base CSS sets display:none).
+  portal.setAttribute(
+    "style",
+    "display:block !important;position:fixed;inset:0;z-index:99999;overflow:auto;background:#fff;padding:16px;",
+  );
+  window.setTimeout(() => {
+    const rect = clone.getBoundingClientRect();
+    const text = (clone.textContent ?? "").trim();
+    const panels = Array.from(clone.querySelectorAll(".report-panel"));
+    // eslint-disable-next-line no-console
+    console.log("[printDebug]", {
+      title,
+      portalChildren: portal.childElementCount,
+      cloneTag: clone.tagName,
+      cloneClass: clone.className,
+      cloneSize: { w: Math.round(rect.width), h: Math.round(rect.height) },
+      reportPanels: panels.length,
+      visiblePanels: panels.filter((p) => !p.classList.contains("hidden")).length,
+      svgCount: clone.querySelectorAll("svg").length,
+      textLength: text.length,
+      textPreview: text.slice(0, 160),
+    });
+    // A close button so the overlay can be dismissed without reloading.
+    const close = document.createElement("button");
+    close.textContent = "✕ close print debug";
+    close.setAttribute(
+      "style",
+      "position:fixed;top:8px;right:8px;z-index:100000;padding:6px 12px;background:#111;color:#fff;border-radius:6px;font:600 12px sans-serif;cursor:pointer;",
+    );
+    close.onclick = () => {
+      portal.removeAttribute("style");
+      restore();
+    };
+    portal.appendChild(close);
+  }, 100);
+}
+
+/**
  * Suffix every `id` in the clone (and the references to it) so duplicate ids
  * between the live, hidden app and the clone don't make SVG paint servers
  * (gradients, clip paths) resolve to the hidden originals — which would render
@@ -167,11 +219,17 @@ export function printElement(
 
   const restore = () => {
     portal.replaceChildren();
+    portal.removeAttribute("style");
     document.body.classList.remove("printing");
     if (wasDark) docRoot.classList.add("dark");
     document.title = previousTitle;
     window.removeEventListener("afterprint", restore);
   };
+
+  if (PRINT_DEBUG) {
+    printDebugInspect(portal, clone, title, restore);
+    return;
+  }
 
   window.addEventListener("afterprint", restore);
   // Fallback for browsers that don't fire afterprint reliably.

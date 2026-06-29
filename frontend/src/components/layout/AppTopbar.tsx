@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "../../context/auth-context";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import {
   playNotificationChime,
   setSoundAlertsEnabled,
@@ -47,6 +48,7 @@ interface AppTopbarProps {
 export function AppTopbar({ onMenuClick }: AppTopbarProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [soundOn, setSoundOn] = useState(soundAlertsEnabled());
   const [mobileLoginOpen, setMobileLoginOpen] = useState(false);
 
@@ -127,10 +129,14 @@ export function AppTopbar({ onMenuClick }: AppTopbarProps) {
               )}
               Sound alerts: {soundOn ? "On" : "Off"}
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setMobileLoginOpen(true)}>
-              <Smartphone className="size-4" />
-              Log in on mobile
-            </DropdownMenuItem>
+            {/* QR "log in on mobile" is a desktop→phone handoff; pointless on a
+                phone, so hide it there. */}
+            {!isMobile && (
+              <DropdownMenuItem onClick={() => setMobileLoginOpen(true)}>
+                <Smartphone className="size-4" />
+                Log in on mobile
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={() => navigate("/profile")}>
               <User className="size-4" />
               My Profile
@@ -147,10 +153,12 @@ export function AppTopbar({ onMenuClick }: AppTopbarProps) {
         </DropdownMenu>
       </div>
 
-      <MobileLoginDialog
-        open={mobileLoginOpen}
-        onOpenChange={setMobileLoginOpen}
-      />
+      {!isMobile && (
+        <MobileLoginDialog
+          open={mobileLoginOpen}
+          onOpenChange={setMobileLoginOpen}
+        />
+      )}
     </header>
   );
 }
