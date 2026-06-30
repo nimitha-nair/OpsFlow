@@ -106,8 +106,8 @@ export const reviewExpensesQuery = z
     status: z.enum(["PENDING", "APPROVED", "REJECTED", "ALL"]).optional(),
     /** Which date the range filters on — submitted (admin queues) or incurred. */
     basis: z.enum(["expenseDate", "submittedAt"]).optional(),
-    page: pageQuery,
-    limit: limitQuery,
+    page: pageQuery.optional(),
+    limit: limitQuery.optional(),
     q: optionalSearch,
   })
   .merge(dateRangeQuery);
@@ -117,15 +117,15 @@ export const myExpensesQuery = z
   .object({
     /** Which date the range filters on — expense (incurred) or submission date. */
     basis: z.enum(["expenseDate", "submittedAt"]).optional(),
-    page: pageQuery,
-    limit: limitQuery,
+    page: pageQuery.optional(),
+    limit: limitQuery.optional(),
     q: optionalSearch,
   })
   .merge(dateRangeQuery);
 
 /** Pending + reimbursements lists — date window + paging + search. */
 export const paginatedDateRangeQuery = z
-  .object({ page: pageQuery, limit: limitQuery, q: optionalSearch })
+  .object({ page: pageQuery.optional(), limit: limitQuery.optional(), q: optionalSearch })
   .merge(dateRangeQuery);
 
 /** GET /expenses (ADMIN) — approved expenses, filterable. */

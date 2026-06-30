@@ -64,4 +64,22 @@ describe("getMyExpenses pagination", () => {
     expect(body.data).toHaveLength(1);
     expect(body.pagination.total).toBe(1);
   });
+
+  it("returns ALL items when no page/limit is supplied (opt-in pagination)", async () => {
+    listMyMock.mockResolvedValue(fakeExpenses(25) as never);
+    const req = {
+      user: { userId: "e1", role: "EMPLOYEE" },
+      // No page or limit — simulates a full-dataset consumer (dashboard, reports).
+      valid: { query: {} },
+    } as unknown as Request;
+    const res = mockRes();
+
+    await getMyExpenses(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const body = (res.json as ReturnType<typeof vi.fn>).mock.calls[0]![0];
+    expect(body.data).toHaveLength(25);
+    expect(body.pagination.total).toBe(25);
+    expect(body.pagination.totalPages).toBe(1);
+  });
 });

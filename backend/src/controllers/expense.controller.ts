@@ -80,6 +80,30 @@ function matchesQuery(e: Expense, q?: string): boolean {
     .some((v) => (v ?? "").toString().toLowerCase().includes(needle));
 }
 
+/**
+ * Opt-in pagination: when `limit` is undefined (caller sent no limit param),
+ * return ALL items so full-dataset consumers (dashboards, reports) are not
+ * silently truncated. When `limit` is provided, delegate to `paginate`.
+ */
+function pageOrAll<T>(
+  items: T[],
+  page: number | undefined,
+  limit: number | undefined,
+) {
+  if (limit === undefined) {
+    return {
+      data: items,
+      pagination: {
+        page: 1,
+        limit: items.length,
+        total: items.length,
+        totalPages: items.length ? 1 : 0,
+      },
+    };
+  }
+  return paginate(items, page ?? 1, limit);
+}
+
 /** Whether a user may view a given expense. */
 function canView(expense: ExpenseDocument, user: JwtPayload): boolean {
   // HR and ADMIN see everything except employees' private drafts. ADMIN needs
@@ -191,8 +215,8 @@ export async function getMyExpenses(
       from?: string;
       to?: string;
       basis?: "expenseDate" | "submittedAt";
-      page: number;
-      limit: number;
+      page?: number;
+      limit?: number;
       q?: string;
     };
     const data = await listMyExpenses(
@@ -202,7 +226,7 @@ export async function getMyExpenses(
       basis ?? "expenseDate",
     );
     const filtered = data.filter((e) => matchesQuery(e, q));
-    return res.status(200).json(paginate(filtered, page, limit));
+    return res.status(200).json(pageOrAll(filtered, page, limit));
   } catch (err) {
     return handleError(res, err);
   }
@@ -217,12 +241,12 @@ export async function getPendingExpenses(
     const { from, to, page, limit, q } = (req.valid?.query ?? {}) as {
       from?: string;
       to?: string;
-      page: number;
-      limit: number;
+      page?: number;
+      limit?: number;
       q?: string;
     };
     const data = await listPendingExpenses(from, to);
-    return res.status(200).json(paginate(data.filter((e) => matchesQuery(e, q)), page, limit));
+    return res.status(200).json(pageOrAll(data.filter((e) => matchesQuery(e, q)), page, limit));
   } catch (err) {
     return handleError(res, err);
   }
@@ -239,12 +263,12 @@ export async function getReimbursements(
     const { from, to, page, limit, q } = (req.valid?.query ?? {}) as {
       from?: string;
       to?: string;
-      page: number;
-      limit: number;
+      page?: number;
+      limit?: number;
       q?: string;
     };
     const data = await listReimbursements(from, to);
-    return res.status(200).json(paginate(data.filter((e) => matchesQuery(e, q)), page, limit));
+    return res.status(200).json(pageOrAll(data.filter((e) => matchesQuery(e, q)), page, limit));
   } catch (err) {
     return handleError(res, err);
   }
@@ -261,8 +285,8 @@ export async function getReviewExpenses(
       from?: string;
       to?: string;
       basis?: "expenseDate" | "submittedAt";
-      page: number;
-      limit: number;
+      page?: number;
+      limit?: number;
       q?: string;
     };
     const data = await listExpensesByStatus(
@@ -271,9 +295,9 @@ export async function getReviewExpenses(
       to,
       basis ?? "expenseDate",
     );
-    // Filter first, then paginate, then attach risk only on the page slice (cheaper).
+    // Filter first, then paginate-or-all, then attach risk only on the returned slice (cheaper).
     const filtered = data.filter((e) => matchesQuery(e, q));
-    const pageResult = paginate(filtered, page, limit);
+    const pageResult = pageOrAll(filtered, page, limit);
     const risks = await riskLevelsForExpenses(pageResult.data.map((e) => e.id));
     const withRisk = pageResult.data.map((e) => {
       const riskLevel = risks.get(e.id);
