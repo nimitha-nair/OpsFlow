@@ -114,3 +114,48 @@ export function uploadReceipts(
     next();
   });
 }
+
+/** Maximum receipts in one bulk batch (each becomes its own draft expense). */
+export const MAX_BULK_DOCS = 15;
+
+const multerBulk = multer({
+  storage,
+  limits: { fileSize: MAX_FILE_BYTES, files: MAX_BULK_DOCS },
+  fileFilter,
+}).fields([{ name: "files", maxCount: MAX_BULK_DOCS }]);
+
+/**
+ * Parse up to MAX_BULK_DOCS multipart files for the bulk-draft flow. Mirrors
+ * uploadReceipts but with the higher batch cap; merges into req.uploaded.
+ */
+export function uploadReceiptsBulk(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  multerBulk(req, res, (err: unknown) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          res.status(413).json({ error: "File too large (max 5 MB)" });
+          return;
+        }
+        if (err.code === "LIMIT_FILE_COUNT") {
+          res.status(400).json({ error: `Too many files (max ${MAX_BULK_DOCS})` });
+          return;
+        }
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      res
+        .status(400)
+        .json({ error: err instanceof Error ? err.message : "Invalid upload" });
+      return;
+    }
+    const grouped = (req.files ?? {}) as Record<string, Express.Multer.File[]>;
+    (req as Request & { uploaded?: Express.Multer.File[] }).uploaded = [
+      ...(grouped.files ?? []),
+    ];
+    next();
+  });
+}
