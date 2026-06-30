@@ -25,7 +25,7 @@ import {
   MobileFilterChips,
   type FilterChip,
 } from "../../components/mobile/MobileFilterChips";
-import { apiErrorMessage, listReviewExpensesPaged } from "../../lib/expenses-api";
+import { apiErrorMessage, listReviewExpenses } from "../../lib/expenses-api";
 import { Pagination } from "../../components/Pagination";
 import { listProjects } from "../../lib/projects-api";
 import { listUsers } from "../../lib/users-api";
@@ -62,9 +62,8 @@ export function PendingReviewsPage() {
   const loadedOnce = useRef(false);
 
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [tab, setTab] = useState<Tab>("PENDING");
-  // q is sent server-side; tab/category/method are filtered client-side on the current page.
+  // q, tab, category, method are all filtered client-side over the full dataset.
   const [q, setQ] = useState("");
   // Multi-select: empty = all; several = OR within field.
   const [category, setCategory] = useState<string[]>([]);
@@ -78,14 +77,13 @@ export function PendingReviewsPage() {
       setLoading(true);
       setError(null);
       try {
-        const [resp, users, projects] = await Promise.all([
-          listReviewExpensesPaged("ALL", { page, q, ...rangeToParams(range), basis }),
+        const [rows, users, projects] = await Promise.all([
+          listReviewExpenses("ALL", { ...rangeToParams(range), basis }),
           listUsers({ limit: 100 }),
           listProjects({ limit: 100 }),
         ]);
         if (cancelled) return;
-        setExpenses(resp.data);
-        setTotalPages(resp.pagination.totalPages);
+        setExpenses(rows);
         setUserNames(new Map(users.data.map((u) => [u.id, u.name])));
         setProjectNames(new Map(projects.data.map((p) => [p.id, p.name])));
       } catch (err) {
@@ -101,7 +99,7 @@ export function PendingReviewsPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey, range, basis, page, q]);
+  }, [reloadKey, range, basis]);
 
   // Near-live: silently refetch on an interval + when the tab refocuses.
   useAutoRefresh(() => setReloadKey((k) => k + 1));
@@ -125,17 +123,27 @@ export function PendingReviewsPage() {
     [expenses],
   );
 
-  // q is filtered server-side; tab/category/method are client-side on the current page.
+  const PAGE_SIZE = 20;
+
+  // All filters (q, tab, category, method) run client-side over the full dataset.
   const visible = useMemo(() => {
+    const qLower = q.toLowerCase();
     const rows = expenses.filter((e) => {
       if (!inTab(e, tab)) return false;
+      if (q && ![
+        getEmployeeName(e.employeeId),
+        CATEGORY_LABELS[e.category],
+      ].some((s) => s.toLowerCase().includes(qLower))) return false;
       if (category.length && !category.includes(e.category)) return false;
       if (method.length && !method.includes(e.creationMethod ?? "AI")) return false;
       return true;
     });
     // High-risk receipts first (stable within the same risk band).
     return rows.sort((a, b) => riskRank(a) - riskRank(b));
-  }, [expenses, tab, category, method]);
+  }, [expenses, tab, category, method, q, getEmployeeName]);
+
+  const totalPages = Math.ceil(visible.length / PAGE_SIZE);
+  const pageRows = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // Reset page whenever any filter changes.
   function handleRangeChange(r: DateRange) { setRange(r); setPage(1); }
@@ -274,17 +282,15 @@ export function PendingReviewsPage() {
                 />
               </div>
             ) : (
-              <>
-                <ExpensesTable
-                  expenses={visible}
-                  getEmployeeName={getEmployeeName}
-                  getProjectName={getProjectName}
-                  basePath="/hr/expenses"
-                />
-                <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-              </>
+              <ExpensesTable
+                expenses={pageRows}
+                getEmployeeName={getEmployeeName}
+                getProjectName={getProjectName}
+                basePath="/hr/expenses"
+              />
             )}
           </Card>
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </div>
       )}
     </>

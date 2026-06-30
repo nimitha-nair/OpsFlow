@@ -39,7 +39,7 @@ import {
   MobileFilterChips,
   type FilterChip,
 } from "../../components/mobile/MobileFilterChips";
-import { apiErrorMessage, listReviewExpensesPaged } from "../../lib/expenses-api";
+import { apiErrorMessage, listReviewExpenses } from "../../lib/expenses-api";
 import { Pagination } from "../../components/Pagination";
 import { downloadCsv, toExpensesCsv } from "../../lib/expenses-csv";
 import { listProjects } from "../../lib/projects-api";
@@ -81,12 +81,11 @@ export function ExpensesOverviewPage() {
   const loadedOnce = useRef(false);
 
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   // Multi-select filters: empty array = no filter (all); several = OR within field.
   const [status, setStatus] = useState<string[]>([]);
   const [category, setCategory] = useState<string[]>([]);
   const [projectId, setProjectId] = useState<string[]>([]);
-  // q is sent server-side; status/category/projectId are filtered client-side.
+  // q, status, category, projectId are all filtered client-side over the full dataset.
   const [q, setQ] = useState("");
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
   const [basis, setBasis] = useState<"expenseDate" | "submittedAt">("submittedAt");
@@ -97,14 +96,13 @@ export function ExpensesOverviewPage() {
       setLoading(true);
       setError(null);
       try {
-        const [resp, users, projs] = await Promise.all([
-          listReviewExpensesPaged("ALL", { page, q, ...rangeToParams(range), basis }),
+        const [rows, users, projs] = await Promise.all([
+          listReviewExpenses("ALL", { ...rangeToParams(range), basis }),
           listUsers({ limit: 100 }),
           listProjects({ limit: 100 }),
         ]);
         if (cancelled) return;
-        setExpenses(resp.data);
-        setTotalPages(resp.pagination.totalPages);
+        setExpenses(rows);
         setUserNames(new Map(users.data.map((u) => [u.id, u.name])));
         setProjects(projs.data);
       } catch (err) {
@@ -120,7 +118,7 @@ export function ExpensesOverviewPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey, range, basis, page, q]);
+  }, [reloadKey, range, basis]);
 
   // Near-live: silently refetch on an interval + when the tab refocuses.
   useAutoRefresh(() => setReloadKey((k) => k + 1));
@@ -148,15 +146,26 @@ export function ExpensesOverviewPage() {
     [expenses],
   );
 
-  // q is filtered server-side; status/category/projectId remain client-side on the current page.
+  const PAGE_SIZE = 20;
+
+  // All filters (q, status, category, projectId) run client-side over the full dataset.
   const visible = useMemo(() => {
+    const qLower = q.toLowerCase();
     return expenses.filter((e) => {
+      if (q && ![
+        getEmployeeName(e.employeeId),
+        CATEGORY_LABELS[e.category as ExpenseCategory],
+        e.description ?? "",
+      ].some((s) => s.toLowerCase().includes(qLower))) return false;
       if (status.length && !status.some((s) => matchesStatus(e, s as StatusFilter))) return false;
       if (category.length && !category.includes(e.category)) return false;
       if (projectId.length && !projectId.includes(e.projectId ?? "")) return false;
       return true;
     });
-  }, [expenses, status, category, projectId]);
+  }, [expenses, status, category, projectId, q, getEmployeeName]);
+
+  const totalPages = Math.ceil(visible.length / PAGE_SIZE);
+  const pageRows = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   function handleExport() {
     const csv = toExpensesCsv(visible, {
@@ -209,8 +218,8 @@ export function ExpensesOverviewPage() {
   const activeFilterCount = filterChips.length;
   function clearFilters() {
     handleStatusChange([]);
-    setCategory([]);
-    setProjectId([]);
+    handleCategoryChange([]);
+    handleProjectIdChange([]);
     handleRangeChange(makeRange("all"));
   }
 
@@ -380,18 +389,16 @@ export function ExpensesOverviewPage() {
                 />
               </div>
             ) : (
-              <>
-                <ExpensesTable
-                  expenses={visible}
-                  getEmployeeName={getEmployeeName}
-                  getProjectName={getProjectName}
-                  basePath="/admin/expenses"
-                  showReimbursement
-                />
-                <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-              </>
+              <ExpensesTable
+                expenses={pageRows}
+                getEmployeeName={getEmployeeName}
+                getProjectName={getProjectName}
+                basePath="/admin/expenses"
+                showReimbursement
+              />
             )}
           </Card>
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </div>
       )}
     </>

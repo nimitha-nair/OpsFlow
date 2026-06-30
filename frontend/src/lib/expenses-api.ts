@@ -118,40 +118,6 @@ export async function listMyExpensesPaged(params: {
   return data;
 }
 
-/** GET /expenses/review?status=…&page=…&limit=…&q=… (paged — LIST pages only) */
-export async function listReviewExpensesPaged(
-  status: ExpenseStatusFilter = "ALL",
-  params: {
-    page: number;
-    limit?: number;
-    q?: string;
-    from?: string;
-    to?: string;
-    basis?: "expenseDate" | "submittedAt";
-  } = { page: 1 },
-): Promise<PagedExpenses> {
-  const { data } = await api.get<PagedExpenses>("/expenses/review", {
-    params: { status, limit: 20, ...params },
-  });
-  return data;
-}
-
-/** GET /expenses/pending?page=…&limit=…&q=… (paged — LIST page only) */
-export async function listPendingExpensesPaged(
-  params: {
-    page: number;
-    limit?: number;
-    q?: string;
-    from?: string;
-    to?: string;
-  } = { page: 1 },
-): Promise<PagedExpenses> {
-  const { data } = await api.get<PagedExpenses>("/expenses/pending", {
-    params: { limit: 20, ...params },
-  });
-  return data;
-}
-
 /** GET /expenses/reimbursements?page=…&limit=…&q=… (paged — LIST page only) */
 export async function listReimbursementsPaged(
   params: {
