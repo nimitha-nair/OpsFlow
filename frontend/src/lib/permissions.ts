@@ -38,3 +38,10 @@ export function expensesBasePath(role: Role): string {
   if (role === "HR") return "/hr/expenses";
   return "/employee/expenses";
 }
+
+/** The route for a user's own expenses (including drafts). */
+export function myExpensesPath(role: Role): string {
+  if (role === "ADMIN") return "/admin/expenses/mine";
+  if (role === "HR") return "/hr/expenses/mine";
+  return "/employee/expenses";
+}

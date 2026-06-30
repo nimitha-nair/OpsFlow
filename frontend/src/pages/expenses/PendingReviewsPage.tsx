@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { ClipboardCheck, Search } from "lucide-react";
 
+import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "../../context/auth-context";
+import { can, myExpensesPath } from "../../lib/permissions";
 import { MultiSelectFilter } from "../../components/common/MultiSelectFilter";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -50,6 +54,7 @@ function inTab(e: Expense, tab: Tab): boolean {
 }
 
 export function PendingReviewsPage() {
+  const { user } = useAuth();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [userNames, setUserNames] = useState<Map<string, string>>(new Map());
   const [projectNames, setProjectNames] = useState<Map<string, string>>(
@@ -173,6 +178,14 @@ export function PendingReviewsPage() {
         breadcrumbs={[{ label: "Expenses" }]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {can(user?.role, "expense:view-own") && (
+              <Link
+                to={myExpensesPath(user!.role)}
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+              >
+                My Expenses
+              </Link>
+            )}
             {/* Desktop / tablet filter toolbar (unchanged) */}
             <div className="hidden flex-wrap items-center gap-2 md:flex">
               <ActiveRangeBadge

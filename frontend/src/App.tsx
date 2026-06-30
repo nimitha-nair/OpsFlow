@@ -116,6 +116,7 @@ function App() {
         <Route path="expenses/:id/analysis" element={<AnalysisReviewPage />} />
         <Route path="expenses/:id/verify" element={<ExpenseVerificationPage />} />
         <Route path="expenses/:id/report" element={<ExpenseReportPage />} />
+        <Route path="expenses/mine" element={<MyExpensesPage />} />
         <Route path="expenses/:id" element={<ExpenseDetailsPage />} />
         <Route path="departments" element={<DepartmentsPage />} />
         <Route path="departments/:name" element={<DepartmentDetailsPage />} />
@@ -154,6 +155,7 @@ function App() {
         <Route path="expenses/:id/analysis" element={<AnalysisReviewPage />} />
         <Route path="expenses/:id/verify" element={<ExpenseVerificationPage />} />
         <Route path="expenses/:id/report" element={<ExpenseReportPage />} />
+        <Route path="expenses/mine" element={<MyExpensesPage />} />
         <Route path="expenses/:id" element={<ExpenseDetailsPage />} />
         <Route path="employees" element={<EmployeesPage />} />
         <Route

@@ -7,7 +7,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useAuth } from "../../context/auth-context";
-import { expensesBasePath } from "../../lib/permissions";
+import { expensesBasePath, myExpensesPath } from "../../lib/permissions";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -122,6 +122,7 @@ export function BulkUploadPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const base = user ? expensesBasePath(user.role) : "/employee/expenses";
+  const myBase = user ? myExpensesPath(user.role) : "/employee/expenses";
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [scope, setScope] = useState<ExpenseScope>("GENERAL");
@@ -341,7 +342,7 @@ export function BulkUploadPage() {
               <Button
                 type="button"
                 className="btn-primary"
-                onClick={() => navigate(base)}
+                onClick={() => navigate(myBase)}
               >
                 Review drafts
               </Button>

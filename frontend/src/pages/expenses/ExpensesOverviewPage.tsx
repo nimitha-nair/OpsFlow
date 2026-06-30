@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/auth-context";
-import { can, expensesBasePath } from "../../lib/permissions";
+import { can, expensesBasePath, myExpensesPath } from "../../lib/permissions";
 import {
   CheckCircle2,
   Clock,
@@ -246,6 +246,14 @@ export function ExpensesOverviewPage() {
             >
               Project Spending
             </Link>
+            {can(user?.role, "expense:view-own") && (
+              <Link
+                to={myExpensesPath(user!.role)}
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+              >
+                My Expenses
+              </Link>
+            )}
             {can(user?.role, "expense:create") && (
               <Link
                 to={`${base}/new`}

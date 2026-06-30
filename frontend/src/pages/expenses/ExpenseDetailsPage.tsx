@@ -40,6 +40,7 @@ import { ReviewWorkbench } from "../../components/expenses/ReviewWorkbench";
 import { useAuth } from "../../context/auth-context";
 import { formatDate, formatMoney } from "../../lib/format";
 import { roleBasePath } from "../../lib/navigation";
+import { myExpensesPath } from "../../lib/permissions";
 import {
   apiErrorMessage,
   approveExpense,
@@ -157,7 +158,7 @@ export function ExpenseDetailsPage() {
     expense?.approvalStatus === "SUBMITTED" ||
     expense?.approvalStatus === "PENDING_REVIEW";
   const canReview = user?.role === "HR" && isPending;
-  const isOwner = user?.role === "EMPLOYEE" && expense?.employeeId === user.id;
+  const isOwner = !!expense && !!user && expense.employeeId === user.id;
   const isOwnerDraft = isOwner && expense?.approvalStatus === "DRAFT";
   const isOwnerRejected = isOwner && expense?.approvalStatus === "REJECTED";
   // Manual = entered without a receipt → no AI extraction, no receipt to review.
@@ -199,7 +200,7 @@ export function ExpenseDetailsPage() {
     try {
       await deleteExpense(expense.id);
       toast.success("Draft deleted.");
-      navigate("/employee/expenses");
+      navigate(myExpensesPath(user?.role ?? "EMPLOYEE"));
     } catch (err) {
       toast.error(apiErrorMessage(err, "Failed to delete draft."));
       setDeleting(false);

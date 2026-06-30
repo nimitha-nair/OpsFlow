@@ -106,13 +106,13 @@ function pageOrAll<T>(
 
 /** Whether a user may view a given expense. */
 function canView(expense: ExpenseDocument, user: JwtPayload): boolean {
-  // HR and ADMIN see everything except employees' private drafts. ADMIN needs
-  // this to audit the full lifecycle (e.g. rejection decisions), not just
-  // approved expenses.
-  if (user.role === UserRole.HR) return expense.approvalStatus !== "DRAFT";
-  if (user.role === UserRole.ADMIN) return expense.approvalStatus !== "DRAFT";
-  // EMPLOYEE — only their own (including drafts).
-  return expense.employeeId === user.userId;
+  // Own expense — any role including drafts.
+  if (expense.employeeId === user.userId) return true;
+  // HR and ADMIN can see others' non-draft expenses.
+  if (user.role === UserRole.HR || user.role === UserRole.ADMIN)
+    return expense.approvalStatus !== "DRAFT";
+  // EMPLOYEE: others' expenses are never visible.
+  return false;
 }
 
 /** POST /expenses — EMPLOYEE submits an expense. */

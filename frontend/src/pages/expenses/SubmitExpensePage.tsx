@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Loader2, Save, Send, Sparkles, Upload } from "lucide-react";
 import { useAuth } from "../../context/auth-context";
-import { expensesBasePath } from "../../lib/permissions";
+import { expensesBasePath, myExpensesPath } from "../../lib/permissions";
 import { toast } from "sonner";
 
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -53,6 +53,7 @@ export function SubmitExpensePage() {
   const isEdit = Boolean(id);
   const { user } = useAuth();
   const base = user ? expensesBasePath(user.role) : "/employee/expenses";
+  const myBase = user ? myExpensesPath(user.role) : "/employee/expenses";
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -343,8 +344,8 @@ export function SubmitExpensePage() {
         <ErrorState
           title="Couldn't open the form"
           description={loadError}
-          onRetry={() => navigate(base)}
-          retryLabel="Back to expenses"
+          onRetry={() => navigate(myBase)}
+          retryLabel="Back to my expenses"
         />
       ) : (
         <form onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-4">
@@ -416,7 +417,7 @@ export function SubmitExpensePage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate(base)}
+                onClick={() => navigate(myBase)}
                 disabled={busy}
               >
                 Cancel

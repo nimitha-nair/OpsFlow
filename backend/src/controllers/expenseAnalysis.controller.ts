@@ -23,10 +23,10 @@ function handleError(res: Response, err: unknown): Response {
 
 /** Owner, HR, and ADMIN may read analysis (not employees' private drafts of others). */
 function canViewAnalysis(expense: ExpenseDocument, user: JwtPayload): boolean {
-  if (user.role === UserRole.HR || user.role === UserRole.ADMIN) {
+  if (expense.employeeId === user.userId) return true;
+  if (user.role === UserRole.HR || user.role === UserRole.ADMIN)
     return expense.approvalStatus !== "DRAFT";
-  }
-  return expense.employeeId === user.userId;
+  return false;
 }
 
 /** POST /expenses/:id/analyze — EMPLOYEE owner triggers analysis. */
