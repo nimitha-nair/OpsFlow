@@ -39,7 +39,8 @@ import {
   MobileFilterChips,
   type FilterChip,
 } from "../../components/mobile/MobileFilterChips";
-import { apiErrorMessage, listReviewExpenses } from "../../lib/expenses-api";
+import { apiErrorMessage, listReviewExpensesPaged } from "../../lib/expenses-api";
+import { Pagination } from "../../components/Pagination";
 import { downloadCsv, toExpensesCsv } from "../../lib/expenses-csv";
 import { listProjects } from "../../lib/projects-api";
 import { listUsers } from "../../lib/users-api";
@@ -79,11 +80,14 @@ export function ExpensesOverviewPage() {
   // Skeleton shows only on the first load; later refreshes update in place.
   const loadedOnce = useRef(false);
 
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   // Multi-select filters: empty array = no filter (all); several = OR within field.
   const [status, setStatus] = useState<string[]>([]);
   const [category, setCategory] = useState<string[]>([]);
   const [projectId, setProjectId] = useState<string[]>([]);
-  const [search, setSearch] = useState("");
+  // q is sent server-side; status/category/projectId are filtered client-side.
+  const [q, setQ] = useState("");
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
   const [basis, setBasis] = useState<"expenseDate" | "submittedAt">("submittedAt");
 
@@ -93,13 +97,14 @@ export function ExpensesOverviewPage() {
       setLoading(true);
       setError(null);
       try {
-        const [all, users, projs] = await Promise.all([
-          listReviewExpenses("ALL", { ...rangeToParams(range), basis }),
+        const [resp, users, projs] = await Promise.all([
+          listReviewExpensesPaged("ALL", { page, q, ...rangeToParams(range), basis }),
           listUsers({ limit: 100 }),
           listProjects({ limit: 100 }),
         ]);
         if (cancelled) return;
-        setExpenses(all);
+        setExpenses(resp.data);
+        setTotalPages(resp.pagination.totalPages);
         setUserNames(new Map(users.data.map((u) => [u.id, u.name])));
         setProjects(projs.data);
       } catch (err) {
@@ -115,7 +120,7 @@ export function ExpensesOverviewPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey, range, basis]);
+  }, [reloadKey, range, basis, page, q]);
 
   // Near-live: silently refetch on an interval + when the tab refocuses.
   useAutoRefresh(() => setReloadKey((k) => k + 1));
@@ -143,24 +148,15 @@ export function ExpensesOverviewPage() {
     [expenses],
   );
 
+  // q is filtered server-side; status/category/projectId remain client-side on the current page.
   const visible = useMemo(() => {
-    const needle = search.trim().toLowerCase();
     return expenses.filter((e) => {
       if (status.length && !status.some((s) => matchesStatus(e, s as StatusFilter))) return false;
       if (category.length && !category.includes(e.category)) return false;
       if (projectId.length && !projectId.includes(e.projectId ?? "")) return false;
-      if (!needle) return true;
-      const haystack = [
-        getEmployeeName(e.employeeId),
-        CATEGORY_LABELS[e.category],
-        e.description,
-        e.projectId ? getProjectName(e.projectId) : "general",
-      ]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(needle);
+      return true;
     });
-  }, [expenses, status, category, projectId, search, getEmployeeName, getProjectName]);
+  }, [expenses, status, category, projectId]);
 
   function handleExport() {
     const csv = toExpensesCsv(visible, {
@@ -178,13 +174,20 @@ export function ExpensesOverviewPage() {
     REJECTED: "Rejected",
   };
 
+  // Reset page whenever any filter changes.
+  function handleStatusChange(s: string[]) { setStatus(s); setPage(1); }
+  function handleCategoryChange(c: string[]) { setCategory(c); setPage(1); }
+  function handleProjectIdChange(p: string[]) { setProjectId(p); setPage(1); }
+  function handleRangeChange(r: DateRange) { setRange(r); setPage(1); }
+  function handleBasisChange(b: "expenseDate" | "submittedAt") { setBasis(b); setPage(1); }
+
   // Active-filter summary, shared by the mobile Filters sheet + chips.
   const filterChips: FilterChip[] = [];
   if (status.length)
     filterChips.push({
       key: "status",
       label: status.length === 1 ? statusLabel[status[0] as StatusFilter] : `${status.length} statuses`,
-      onRemove: () => setStatus([]),
+      onRemove: () => handleStatusChange([]),
     });
   if (category.length)
     filterChips.push({
@@ -193,22 +196,22 @@ export function ExpensesOverviewPage() {
         category.length === 1
           ? CATEGORY_LABELS[category[0] as ExpenseCategory]
           : `${category.length} categories`,
-      onRemove: () => setCategory([]),
+      onRemove: () => handleCategoryChange([]),
     });
   if (projectId.length)
     filterChips.push({
       key: "project",
       label: projectId.length === 1 ? getProjectName(projectId[0]!) : `${projectId.length} projects`,
-      onRemove: () => setProjectId([]),
+      onRemove: () => handleProjectIdChange([]),
     });
   if (range.preset !== "all")
-    filterChips.push({ key: "range", label: rangeLabel(range), onRemove: () => setRange(makeRange("all")) });
+    filterChips.push({ key: "range", label: rangeLabel(range), onRemove: () => handleRangeChange(makeRange("all")) });
   const activeFilterCount = filterChips.length;
   function clearFilters() {
-    setStatus([]);
+    handleStatusChange([]);
     setCategory([]);
     setProjectId([]);
-    setRange(makeRange("all"));
+    handleRangeChange(makeRange("all"));
   }
 
   return (
@@ -282,45 +285,45 @@ export function ExpensesOverviewPage() {
               <Input
                 className="pl-8"
                 placeholder="Search employee, category, description…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                value={q}
+                onChange={(e) => { setQ(e.target.value); setPage(1); }}
               />
             </div>
             <MultiSelectFilter
               label="Status"
               options={STATUS_OPTIONS}
               selected={status}
-              onChange={setStatus}
+              onChange={handleStatusChange}
               className="w-full sm:w-40"
             />
             <MultiSelectFilter
               label="Category"
               options={EXPENSE_CATEGORIES.map((c) => ({ value: c, label: CATEGORY_LABELS[c] }))}
               selected={category}
-              onChange={setCategory}
+              onChange={handleCategoryChange}
               className="w-full sm:w-44"
             />
             <MultiSelectFilter
               label="Project"
               options={projects.map((p) => ({ value: p.id, label: p.name }))}
               selected={projectId}
-              onChange={setProjectId}
+              onChange={handleProjectIdChange}
               className="w-full sm:w-48"
             />
             <ActiveRangeBadge
               range={range}
               basisLabel={basis === "submittedAt" ? "Submitted" : "Expense date"}
             />
-            <DateBasisToggle value={basis} onChange={setBasis} />
-            <DateRangeFilter value={range} onChange={setRange} />
+            <DateBasisToggle value={basis} onChange={handleBasisChange} />
+            <DateRangeFilter value={range} onChange={handleRangeChange} />
           </div>
 
           {/* Mobile: native search + Filters bottom sheet + active-filter chips */}
           <div className="flex flex-col gap-2 md:hidden">
             <div className="flex items-center gap-2">
               <MobileSearch
-                value={search}
-                onChange={setSearch}
+                value={q}
+                onChange={(v) => { setQ(v); setPage(1); }}
                 placeholder="Search expenses…"
                 className="flex-1"
               />
@@ -334,7 +337,7 @@ export function ExpensesOverviewPage() {
                     label="Status"
                     options={STATUS_OPTIONS}
                     selected={status}
-                    onChange={setStatus}
+                    onChange={handleStatusChange}
                     className="w-full"
                   />
                 </FilterField>
@@ -343,7 +346,7 @@ export function ExpensesOverviewPage() {
                     label="Category"
                     options={EXPENSE_CATEGORIES.map((c) => ({ value: c, label: CATEGORY_LABELS[c] }))}
                     selected={category}
-                    onChange={setCategory}
+                    onChange={handleCategoryChange}
                     className="w-full"
                   />
                 </FilterField>
@@ -352,14 +355,14 @@ export function ExpensesOverviewPage() {
                     label="Project"
                     options={projects.map((p) => ({ value: p.id, label: p.name }))}
                     selected={projectId}
-                    onChange={setProjectId}
+                    onChange={handleProjectIdChange}
                     className="w-full"
                   />
                 </FilterField>
                 <FilterField label="Date">
                   <div className="flex flex-col gap-2">
-                    <DateBasisToggle value={basis} onChange={setBasis} />
-                    <DateRangeFilter value={range} onChange={setRange} />
+                    <DateBasisToggle value={basis} onChange={handleBasisChange} />
+                    <DateRangeFilter value={range} onChange={handleRangeChange} />
                   </div>
                 </FilterField>
               </MobileFiltersSheet>
@@ -377,13 +380,16 @@ export function ExpensesOverviewPage() {
                 />
               </div>
             ) : (
-              <ExpensesTable
-                expenses={visible}
-                getEmployeeName={getEmployeeName}
-                getProjectName={getProjectName}
-                basePath="/admin/expenses"
-                showReimbursement
-              />
+              <>
+                <ExpensesTable
+                  expenses={visible}
+                  getEmployeeName={getEmployeeName}
+                  getProjectName={getProjectName}
+                  basePath="/admin/expenses"
+                  showReimbursement
+                />
+                <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+              </>
             )}
           </Card>
         </div>

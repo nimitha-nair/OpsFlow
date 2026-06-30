@@ -30,9 +30,13 @@ const adminExpense = {
   updatedAt: "2026-06-19T00:00:00Z",
 };
 
+const emptyPaged = { data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } };
+
 vi.mock("../../lib/expenses-api", () => ({
   apiErrorMessage: (_e: unknown, f: string) => f,
   listReviewExpenses: vi.fn(async () => []),
+  listReviewExpensesPaged: vi.fn(async () => emptyPaged),
+  listReimbursementsPaged: vi.fn(async () => emptyPaged),
   updateReimbursementStatus: vi.fn(async () => ({})),
   getExpense: vi.fn(async () => adminExpense),
   getExpenseReviewInfo: vi.fn(async () => null),

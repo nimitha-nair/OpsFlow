@@ -25,7 +25,8 @@ import {
   MobileFilterChips,
   type FilterChip,
 } from "../../components/mobile/MobileFilterChips";
-import { apiErrorMessage, listReviewExpenses } from "../../lib/expenses-api";
+import { apiErrorMessage, listReviewExpensesPaged } from "../../lib/expenses-api";
+import { Pagination } from "../../components/Pagination";
 import { listProjects } from "../../lib/projects-api";
 import { listUsers } from "../../lib/users-api";
 import {
@@ -60,8 +61,11 @@ export function PendingReviewsPage() {
   // Skeleton shows only on the first load; later refreshes update in place.
   const loadedOnce = useRef(false);
 
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [tab, setTab] = useState<Tab>("PENDING");
-  const [search, setSearch] = useState("");
+  // q is sent server-side; tab/category/method are filtered client-side on the current page.
+  const [q, setQ] = useState("");
   // Multi-select: empty = all; several = OR within field.
   const [category, setCategory] = useState<string[]>([]);
   const [method, setMethod] = useState<string[]>([]);
@@ -74,13 +78,14 @@ export function PendingReviewsPage() {
       setLoading(true);
       setError(null);
       try {
-        const [all, users, projects] = await Promise.all([
-          listReviewExpenses("ALL", { ...rangeToParams(range), basis }),
+        const [resp, users, projects] = await Promise.all([
+          listReviewExpensesPaged("ALL", { page, q, ...rangeToParams(range), basis }),
           listUsers({ limit: 100 }),
           listProjects({ limit: 100 }),
         ]);
         if (cancelled) return;
-        setExpenses(all);
+        setExpenses(resp.data);
+        setTotalPages(resp.pagination.totalPages);
         setUserNames(new Map(users.data.map((u) => [u.id, u.name])));
         setProjectNames(new Map(projects.data.map((p) => [p.id, p.name])));
       } catch (err) {
@@ -96,7 +101,7 @@ export function PendingReviewsPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey, range, basis]);
+  }, [reloadKey, range, basis, page, q]);
 
   // Near-live: silently refetch on an interval + when the tab refocuses.
   useAutoRefresh(() => setReloadKey((k) => k + 1));
@@ -120,26 +125,24 @@ export function PendingReviewsPage() {
     [expenses],
   );
 
+  // q is filtered server-side; tab/category/method are client-side on the current page.
   const visible = useMemo(() => {
-    const needle = search.trim().toLowerCase();
     const rows = expenses.filter((e) => {
       if (!inTab(e, tab)) return false;
       if (category.length && !category.includes(e.category)) return false;
       if (method.length && !method.includes(e.creationMethod ?? "AI")) return false;
-      if (!needle) return true;
-      const haystack = [
-        getEmployeeName(e.employeeId),
-        CATEGORY_LABELS[e.category],
-        e.description,
-        e.projectId ? getProjectName(e.projectId) : "general",
-      ]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(needle);
+      return true;
     });
     // High-risk receipts first (stable within the same risk band).
     return rows.sort((a, b) => riskRank(a) - riskRank(b));
-  }, [expenses, tab, category, method, search, getEmployeeName, getProjectName]);
+  }, [expenses, tab, category, method]);
+
+  // Reset page whenever any filter changes.
+  function handleRangeChange(r: DateRange) { setRange(r); setPage(1); }
+  function handleBasisChange(b: "expenseDate" | "submittedAt") { setBasis(b); setPage(1); }
+  function handleTabChange(t: Tab) { setTab(t); setPage(1); }
+  function handleCategoryChange(c: string[]) { setCategory(c); setPage(1); }
+  function handleMethodChange(m: string[]) { setMethod(m); setPage(1); }
 
   // Active-filter summary for the mobile Filters sheet + chips (date controls).
   const filterChips: FilterChip[] = [];
@@ -147,11 +150,11 @@ export function PendingReviewsPage() {
     filterChips.push({
       key: "range",
       label: rangeLabel(range),
-      onRemove: () => setRange(makeRange("all")),
+      onRemove: () => handleRangeChange(makeRange("all")),
     });
   const activeFilterCount = filterChips.length;
   function clearFilters() {
-    setRange(makeRange("all"));
+    handleRangeChange(makeRange("all"));
   }
 
   return (
@@ -168,8 +171,8 @@ export function PendingReviewsPage() {
                 range={range}
                 basisLabel={basis === "submittedAt" ? "Submitted" : "Expense date"}
               />
-              <DateBasisToggle value={basis} onChange={setBasis} />
-              <DateRangeFilter value={range} onChange={setRange} />
+              <DateBasisToggle value={basis} onChange={handleBasisChange} />
+              <DateRangeFilter value={range} onChange={handleRangeChange} />
             </div>
             {/* Mobile: Filters bottom sheet */}
             <MobileFiltersSheet
@@ -178,10 +181,10 @@ export function PendingReviewsPage() {
               className="md:hidden"
             >
               <FilterField label="Date basis">
-                <DateBasisToggle value={basis} onChange={setBasis} />
+                <DateBasisToggle value={basis} onChange={handleBasisChange} />
               </FilterField>
               <FilterField label="Date">
-                <DateRangeFilter value={range} onChange={setRange} />
+                <DateRangeFilter value={range} onChange={handleRangeChange} />
               </FilterField>
             </MobileFiltersSheet>
           </div>
@@ -205,7 +208,7 @@ export function PendingReviewsPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Tabs
               value={tab}
-              onValueChange={(v) => setTab(v as Tab)}
+              onValueChange={(v) => handleTabChange(v as Tab)}
               className="-mx-1 max-w-full overflow-x-auto px-1"
             >
               <TabsList className="w-max">
@@ -228,15 +231,15 @@ export function PendingReviewsPage() {
                 <Input
                   className="pl-8"
                   placeholder="Search employee, category…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  value={q}
+                  onChange={(e) => { setQ(e.target.value); setPage(1); }}
                 />
               </div>
               <MultiSelectFilter
                 label="Category"
                 options={EXPENSE_CATEGORIES.map((c) => ({ value: c, label: CATEGORY_LABELS[c] }))}
                 selected={category}
-                onChange={setCategory}
+                onChange={handleCategoryChange}
                 className="sm:w-44"
               />
               <MultiSelectFilter
@@ -246,7 +249,7 @@ export function PendingReviewsPage() {
                   { value: "MANUAL", label: "Manual Entry" },
                 ]}
                 selected={method}
-                onChange={setMethod}
+                onChange={handleMethodChange}
                 className="sm:w-40"
               />
             </div>
@@ -271,12 +274,15 @@ export function PendingReviewsPage() {
                 />
               </div>
             ) : (
-              <ExpensesTable
-                expenses={visible}
-                getEmployeeName={getEmployeeName}
-                getProjectName={getProjectName}
-                basePath="/hr/expenses"
-              />
+              <>
+                <ExpensesTable
+                  expenses={visible}
+                  getEmployeeName={getEmployeeName}
+                  getProjectName={getProjectName}
+                  basePath="/hr/expenses"
+                />
+                <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+              </>
             )}
           </Card>
         </div>

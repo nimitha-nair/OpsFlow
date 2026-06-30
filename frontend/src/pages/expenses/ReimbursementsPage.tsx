@@ -25,9 +25,10 @@ import { ReimbursementBadge } from "../../components/expenses/ExpenseBadges";
 import { makeRange, rangeToParams, type DateRange } from "../../lib/date-range";
 import {
   apiErrorMessage,
-  listReimbursements,
+  listReimbursementsPaged,
   updateReimbursementStatus,
 } from "../../lib/expenses-api";
+import { Pagination } from "../../components/Pagination";
 import { listProjects } from "../../lib/projects-api";
 import { listUsers } from "../../lib/users-api";
 import { formatMoney } from "../../lib/format";
@@ -71,6 +72,8 @@ export function ReimbursementsPage() {
   const [reloadKey, setReloadKey] = useState(0);
   // Skeleton shows only on the first load; later refreshes update in place.
   const loadedOnce = useRef(false);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [range, setRange] = useState<DateRange>(() => makeRange("all"));
 
@@ -80,13 +83,14 @@ export function ReimbursementsPage() {
       setLoading(true);
       setError(null);
       try {
-        const [approved, users, projects] = await Promise.all([
-          listReimbursements(rangeToParams(range)),
+        const [resp, users, projects] = await Promise.all([
+          listReimbursementsPaged({ page, ...rangeToParams(range) }),
           listUsers({ limit: 100 }),
           listProjects({ limit: 100 }),
         ]);
         if (cancelled) return;
-        setExpenses(approved);
+        setExpenses(resp.data);
+        setTotalPages(resp.pagination.totalPages);
         setUserNames(new Map(users.data.map((u) => [u.id, u.name])));
         setProjectNames(new Map(projects.data.map((p) => [p.id, p.name])));
       } catch (err) {
@@ -103,7 +107,7 @@ export function ReimbursementsPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey, range]);
+  }, [reloadKey, range, page]);
 
   // Near-live: silently refetch on an interval + when the tab refocuses.
   useAutoRefresh(() => setReloadKey((k) => k + 1));
@@ -116,6 +120,8 @@ export function ReimbursementsPage() {
     () => (id?: string) => (id ? (projectNames.get(id) ?? "—") : "General"),
     [projectNames],
   );
+
+  function handleRangeChange(r: DateRange) { setRange(r); setPage(1); }
 
   async function changeStatus(expense: Expense, status: ReimbursementStatus) {
     if (status === expense.reimbursementStatus) return;
@@ -145,7 +151,7 @@ export function ReimbursementsPage() {
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <ActiveRangeBadge range={range} />
-            <DateRangeFilter value={range} onChange={setRange} />
+            <DateRangeFilter value={range} onChange={handleRangeChange} />
           </div>
         }
       />
@@ -292,6 +298,7 @@ export function ReimbursementsPage() {
               </TableBody>
             </Table>
           </div>
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </Card>
       )}
     </>

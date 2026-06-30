@@ -85,6 +85,89 @@ export async function listReimbursements(
   return data.data;
 }
 
+// ---------------------------------------------------------------------------
+// Paged variants — used by the four LIST pages only.
+// DO NOT change the return types of the array-returning functions above; those
+// are consumed by dashboards and reports that must keep getting all rows.
+// ---------------------------------------------------------------------------
+
+export interface PageMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface PagedExpenses {
+  data: Expense[];
+  pagination: PageMeta;
+}
+
+/** GET /expenses/my-expenses?page=…&limit=…&q=… (paged — LIST page only) */
+export async function listMyExpensesPaged(params: {
+  page: number;
+  limit?: number;
+  q?: string;
+  from?: string;
+  to?: string;
+  basis?: "expenseDate" | "submittedAt";
+}): Promise<PagedExpenses> {
+  const { data } = await api.get<PagedExpenses>("/expenses/my-expenses", {
+    params: { limit: 20, ...params },
+  });
+  return data;
+}
+
+/** GET /expenses/review?status=…&page=…&limit=…&q=… (paged — LIST pages only) */
+export async function listReviewExpensesPaged(
+  status: ExpenseStatusFilter = "ALL",
+  params: {
+    page: number;
+    limit?: number;
+    q?: string;
+    from?: string;
+    to?: string;
+    basis?: "expenseDate" | "submittedAt";
+  } = { page: 1 },
+): Promise<PagedExpenses> {
+  const { data } = await api.get<PagedExpenses>("/expenses/review", {
+    params: { status, limit: 20, ...params },
+  });
+  return data;
+}
+
+/** GET /expenses/pending?page=…&limit=…&q=… (paged — LIST page only) */
+export async function listPendingExpensesPaged(
+  params: {
+    page: number;
+    limit?: number;
+    q?: string;
+    from?: string;
+    to?: string;
+  } = { page: 1 },
+): Promise<PagedExpenses> {
+  const { data } = await api.get<PagedExpenses>("/expenses/pending", {
+    params: { limit: 20, ...params },
+  });
+  return data;
+}
+
+/** GET /expenses/reimbursements?page=…&limit=…&q=… (paged — LIST page only) */
+export async function listReimbursementsPaged(
+  params: {
+    page: number;
+    limit?: number;
+    q?: string;
+    from?: string;
+    to?: string;
+  } = { page: 1 },
+): Promise<PagedExpenses> {
+  const { data } = await api.get<PagedExpenses>("/expenses/reimbursements", {
+    params: { limit: 20, ...params },
+  });
+  return data;
+}
+
 /** PATCH /expenses/:id/review (HR) — SUBMITTED → PENDING_REVIEW. */
 export async function startExpenseReview(id: string): Promise<Expense> {
   const { data } = await api.patch<Expense>(`/expenses/${id}/review`, {});

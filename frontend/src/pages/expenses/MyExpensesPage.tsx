@@ -46,8 +46,9 @@ import { formatDate, formatMoney } from "../../lib/format";
 import {
   apiErrorMessage,
   deleteExpense,
-  listMyExpenses,
+  listMyExpensesPaged,
 } from "../../lib/expenses-api";
+import { Pagination } from "../../components/Pagination";
 import { listMyProjects } from "../../lib/projects-api";
 import { CATEGORY_LABELS, type Expense } from "../../types/expense";
 
@@ -96,6 +97,8 @@ export function MyExpensesPage() {
   const [basis, setBasis] = useState<"expenseDate" | "submittedAt">(
     "submittedAt",
   );
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
 
@@ -105,12 +108,13 @@ export function MyExpensesPage() {
       setLoading(true);
       setError(null);
       try {
-        const [mine, projects] = await Promise.all([
-          listMyExpenses({ ...rangeToParams(range), basis }),
+        const [resp, projects] = await Promise.all([
+          listMyExpensesPaged({ page, ...rangeToParams(range), basis }),
           listMyProjects(),
         ]);
         if (cancelled) return;
-        setExpenses(mine);
+        setExpenses(resp.data);
+        setTotalPages(resp.pagination.totalPages);
         setProjectNames(new Map(projects.map((p) => [p.id, p.name])));
       } catch (err) {
         if (!cancelled) {
@@ -127,7 +131,7 @@ export function MyExpensesPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey, range, basis]);
+  }, [reloadKey, range, basis, page]);
 
   // Near-live: silently refetch on an interval + when the tab refocuses.
   useAutoRefresh(() => setReloadKey((k) => k + 1));
@@ -199,17 +203,21 @@ export function MyExpensesPage() {
     }
   }
 
+  // Reset page whenever date filters change so we never land on a ghost page.
+  function handleRangeChange(r: DateRange) { setRange(r); setPage(1); }
+  function handleBasisChange(b: "expenseDate" | "submittedAt") { setBasis(b); setPage(1); }
+
   // Active-filter summary, shared by the mobile Filters sheet + chips.
   const filterChips: FilterChip[] = [];
   if (range.preset !== "all")
     filterChips.push({
       key: "range",
       label: rangeLabel(range),
-      onRemove: () => setRange(makeRange("all")),
+      onRemove: () => handleRangeChange(makeRange("all")),
     });
   const activeFilterCount = filterChips.length;
   function clearFilters() {
-    setRange(makeRange("all"));
+    handleRangeChange(makeRange("all"));
   }
 
   return (
@@ -226,8 +234,8 @@ export function MyExpensesPage() {
                 range={range}
                 basisLabel={basis === "submittedAt" ? "Submitted" : "Expense date"}
               />
-              <DateBasisToggle value={basis} onChange={setBasis} />
-              <DateRangeFilter value={range} onChange={setRange} />
+              <DateBasisToggle value={basis} onChange={handleBasisChange} />
+              <DateRangeFilter value={range} onChange={handleRangeChange} />
             </div>
             {/* Mobile: Filters bottom sheet */}
             <MobileFiltersSheet
@@ -236,10 +244,10 @@ export function MyExpensesPage() {
               className="md:hidden"
             >
               <FilterField label="Date basis">
-                <DateBasisToggle value={basis} onChange={setBasis} />
+                <DateBasisToggle value={basis} onChange={handleBasisChange} />
               </FilterField>
               <FilterField label="Date">
-                <DateRangeFilter value={range} onChange={setRange} />
+                <DateRangeFilter value={range} onChange={handleRangeChange} />
               </FilterField>
             </MobileFiltersSheet>
             {can(user?.role, "expense:create") && (
@@ -483,6 +491,7 @@ export function MyExpensesPage() {
                 );
               })}
             </ul>
+            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
           </>
         )}
       </Card>
