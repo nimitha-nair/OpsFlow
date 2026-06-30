@@ -286,4 +286,22 @@ export async function downloadExpenseDocument(
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
 }
 
+/** POST /expenses/bulk-drafts — create one DOCUMENT draft per file (EMPLOYEE).
+ *  Returns created drafts (ready for per-expense analysis) and any per-file failures. */
+export async function bulkCreateDrafts(
+  files: File[],
+  opts: { scope: "PROJECT" | "GENERAL"; projectId?: string; currency?: string },
+): Promise<{ created: Expense[]; failed: { fileName: string; error: string }[] }> {
+  const form = new FormData();
+  files.forEach((f) => form.append("files", f));
+  form.append("scope", opts.scope);
+  if (opts.projectId) form.append("projectId", opts.projectId);
+  form.append("currency", opts.currency ?? "INR");
+  const { data } = await api.post<{
+    created: Expense[];
+    failed: { fileName: string; error: string }[];
+  }>("/expenses/bulk-drafts", form);
+  return data;
+}
+
 export { apiErrorMessage };

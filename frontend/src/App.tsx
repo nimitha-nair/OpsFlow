@@ -29,6 +29,7 @@ import { PendingReviewsPage } from "./pages/expenses/PendingReviewsPage";
 import { ProjectExpensesPage } from "./pages/expenses/ProjectExpensesPage";
 import { ReimbursementsPage } from "./pages/expenses/ReimbursementsPage";
 import { ExpenseReportPage } from "./pages/expenses/ExpenseReportPage";
+import { BulkUploadPage } from "./pages/expenses/BulkUploadPage";
 import { SubmitExpensePage } from "./pages/expenses/SubmitExpensePage";
 import { CreateProjectPage } from "./pages/projects/CreateProjectPage";
 import { EditProjectPage } from "./pages/projects/EditProjectPage";
@@ -104,6 +105,7 @@ function App() {
         <Route path="kanban" element={<KanbanPage />} />
         <Route path="tasks" element={<AdminTasksPage />} />
         <Route path="expenses" element={<ExpensesOverviewPage />} />
+        <Route path="expenses/bulk" element={<BulkUploadPage />} />
         <Route path="expenses/new" element={<SubmitExpensePage />} />
         <Route path="expenses/projects" element={<ProjectExpensesPage />} />
         <Route
@@ -142,6 +144,7 @@ function App() {
         <Route path="tasks" element={<MyTasksPage />} />
         <Route path="kanban" element={<KanbanPage />} />
         <Route path="expenses" element={<PendingReviewsPage />} />
+        <Route path="expenses/bulk" element={<BulkUploadPage />} />
         <Route path="expenses/new" element={<SubmitExpensePage />} />
         <Route
           path="expenses/reimbursements"
@@ -178,6 +181,7 @@ function App() {
         <Route path="tasks" element={<MyTasksPage />} />
         <Route path="kanban" element={<KanbanPage />} />
         <Route path="expenses" element={<MyExpensesPage />} />
+        <Route path="expenses/bulk" element={<BulkUploadPage />} />
         <Route path="expenses/new" element={<SubmitExpensePage />} />
         <Route path="expenses/:id/edit" element={<SubmitExpensePage />} />
         <Route path="expenses/:id/analysis" element={<AnalysisReviewPage />} />
