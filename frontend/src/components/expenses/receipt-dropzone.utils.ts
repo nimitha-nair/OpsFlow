@@ -89,14 +89,18 @@ export interface ValidationResult {
  * Validate a batch of incoming files against the MIME allow-list, the per-file
  * size cap, and the total-file cap (accounting for files already attached).
  * Returns the accepted subset plus human-readable error messages for the rest.
+ *
+ * @param maxFiles - overrides the default MAX_FILES cap; existing callers that
+ *   omit this argument retain the current 5-file limit unchanged.
  */
 export function validateFiles(
   incoming: File[],
   existingCount: number,
+  maxFiles = MAX_FILES,
 ): ValidationResult {
   const accepted: File[] = [];
   const errors: string[] = [];
-  let slots = MAX_FILES - existingCount;
+  let slots = maxFiles - existingCount;
 
   for (const f of incoming) {
     if (!ACCEPTED_MIME.includes(f.type)) {
@@ -108,7 +112,7 @@ export function validateFiles(
       continue;
     }
     if (slots <= 0) {
-      errors.push(`You can attach a maximum of ${MAX_FILES} files`);
+      errors.push(`You can attach a maximum of ${maxFiles} files`);
       break;
     }
     accepted.push(f);

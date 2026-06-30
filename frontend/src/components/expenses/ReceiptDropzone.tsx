@@ -64,7 +64,7 @@ export function ReceiptDropzone({
       // Compress large photos before validating so big mobile captures fit the
       // size cap and upload reliably on slow connections.
       const prepared = await Promise.all(incoming.map((f) => compressImage(f)));
-      const { accepted, errors } = validateFiles(prepared, files.length);
+      const { accepted, errors } = validateFiles(prepared, files.length, max);
       errors.forEach((e) => toast.error(e));
       if (accepted.length) onChange([...files, ...accepted]);
     } finally {
