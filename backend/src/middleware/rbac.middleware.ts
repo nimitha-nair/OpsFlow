@@ -1,5 +1,6 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 
+import { hasCapability, type Capability } from "../types/permissions";
 import UserRole from "../types/roles";
 
 /**
@@ -30,6 +31,27 @@ export function authorize(...allowedRoles: UserRole[]): RequestHandler {
       return;
     }
 
+    next();
+  };
+}
+
+/**
+ * Capability-based access control. Allows the request through when the
+ * authenticated user's role is granted ANY of `caps`. Runs after `authenticate`.
+ * - 401 if unauthenticated.
+ * - 403 if the role has none of the listed capabilities.
+ */
+export function requirePermission(...caps: Capability[]): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const user = req.user;
+    if (!user) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+    if (!caps.some((cap) => hasCapability(user.role, cap))) {
+      res.status(403).json({ error: "Insufficient permissions" });
+      return;
+    }
     next();
   };
 }
