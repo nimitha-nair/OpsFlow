@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Loader2, Save, Send, Sparkles, Upload } from "lucide-react";
+import { useAuth } from "../../context/auth-context";
+import { expensesBasePath } from "../../lib/permissions";
 import { toast } from "sonner";
 
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -49,6 +51,8 @@ export function SubmitExpensePage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
+  const { user } = useAuth();
+  const base = user ? expensesBasePath(user.role) : "/employee/expenses";
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -138,7 +142,7 @@ export function SubmitExpensePage() {
       );
       await uploadExpenseDocuments(created.id, files);
       toast.success("Draft saved — starting analysis…");
-      navigate(`/employee/expenses/${created.id}/analysis?analyze=1`);
+      navigate(`${base}/${created.id}/analysis?analyze=1`);
     } catch (err) {
       setError(apiErrorMessage(err, "Failed to start analysis."));
       setBusy(false);
@@ -155,7 +159,7 @@ export function SubmitExpensePage() {
       );
       if (files.length > 0) await uploadExpenseDocuments(created.id, files);
       toast.success("Draft saved.");
-      navigate(`/employee/expenses/${created.id}`);
+      navigate(`${base}/${created.id}`);
     } catch (err) {
       setError(apiErrorMessage(err, "Failed to save draft."));
       setBusy(false);
@@ -184,7 +188,7 @@ export function SubmitExpensePage() {
         }),
       );
       toast.success(action === "submit" ? "Expense submitted." : "Draft saved.");
-      navigate(`/employee/expenses/${created.id}`);
+      navigate(`${base}/${created.id}`);
     } catch (err) {
       setError(apiErrorMessage(err, "Failed to save expense."));
       setBusy(false);
@@ -211,7 +215,7 @@ export function SubmitExpensePage() {
         expenseDate,
       });
       toast.success("Changes saved.");
-      navigate(`/employee/expenses/${id}`);
+      navigate(`${base}/${id}`);
     } catch (err) {
       setError(apiErrorMessage(err, "Failed to save changes."));
       setBusy(false);
@@ -328,7 +332,7 @@ export function SubmitExpensePage() {
       <PageHeader
         title={isEdit ? "Edit Draft" : "Submit Expense"}
         breadcrumbs={[
-          { label: "Expenses", to: "/employee/expenses" },
+          { label: "Expenses", to: base },
           { label: isEdit ? "Edit" : "Submit" },
         ]}
       />
@@ -339,7 +343,7 @@ export function SubmitExpensePage() {
         <ErrorState
           title="Couldn't open the form"
           description={loadError}
-          onRetry={() => navigate("/employee/expenses")}
+          onRetry={() => navigate(base)}
           retryLabel="Back to expenses"
         />
       ) : (
@@ -412,7 +416,7 @@ export function SubmitExpensePage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate("/employee/expenses")}
+                onClick={() => navigate(base)}
                 disabled={busy}
               >
                 Cancel

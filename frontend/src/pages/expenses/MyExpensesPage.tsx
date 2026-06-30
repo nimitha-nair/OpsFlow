@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { useAutoRefresh } from "../../hooks/useAutoRefresh";
 import { Link } from "react-router-dom";
+import { useAuth } from "../../context/auth-context";
+import { can, expensesBasePath } from "../../lib/permissions";
 import { Check, Eye, Pencil, Plus, Trash2, Wallet, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -78,6 +80,8 @@ function CheckBox({
 type DeleteTarget = { kind: "single"; id: string; code: string } | { kind: "bulk" } | null;
 
 export function MyExpensesPage() {
+  const { user } = useAuth();
+  const base = user ? expensesBasePath(user.role) : "/employee/expenses";
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [projectNames, setProjectNames] = useState<Map<string, string>>(
     new Map(),
@@ -238,13 +242,23 @@ export function MyExpensesPage() {
                 <DateRangeFilter value={range} onChange={setRange} />
               </FilterField>
             </MobileFiltersSheet>
-            <Link
-              to="/employee/expenses/new"
-              className={buttonVariants({ size: "sm" })}
-            >
-              <Plus className="size-4" />
-              Submit Expense
-            </Link>
+            {can(user?.role, "expense:create") && (
+              <Link
+                to={`${base}/new`}
+                className={buttonVariants({ size: "sm" })}
+              >
+                <Plus className="size-4" />
+                Submit Expense
+              </Link>
+            )}
+            {can(user?.role, "expense:bulk-upload") && (
+              <Link
+                to={`${base}/bulk`}
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+              >
+                Bulk Upload
+              </Link>
+            )}
           </div>
         }
       />
@@ -351,7 +365,7 @@ export function MyExpensesPage() {
                           {isDraft && (
                             <>
                               <Link
-                                to={`/employee/expenses/${expense.id}/edit`}
+                                to={`${base}/${expense.id}/edit`}
                                 className={buttonVariants({ variant: "ghost", size: "sm" })}
                               >
                                 <Pencil className="size-4" />
@@ -375,7 +389,7 @@ export function MyExpensesPage() {
                             </>
                           )}
                           <Link
-                            to={`/employee/expenses/${expense.id}`}
+                            to={`${base}/${expense.id}`}
                             className={buttonVariants({ variant: "ghost", size: "sm" })}
                           >
                             <Eye className="size-4" />
@@ -433,7 +447,7 @@ export function MyExpensesPage() {
                         {isDraft && (
                           <>
                             <Link
-                              to={`/employee/expenses/${expense.id}/edit`}
+                              to={`${base}/${expense.id}/edit`}
                               className={buttonVariants({ variant: "outline", size: "sm" })}
                             >
                               <Pencil className="size-4" />
@@ -457,7 +471,7 @@ export function MyExpensesPage() {
                           </>
                         )}
                         <Link
-                          to={`/employee/expenses/${expense.id}`}
+                          to={`${base}/${expense.id}`}
                           className={buttonVariants({ variant: "outline", size: "sm" })}
                         >
                           <Eye className="size-4" />

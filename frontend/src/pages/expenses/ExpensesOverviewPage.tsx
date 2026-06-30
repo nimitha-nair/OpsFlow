@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../../context/auth-context";
+import { can, expensesBasePath } from "../../lib/permissions";
 import {
   CheckCircle2,
   Clock,
@@ -66,6 +68,8 @@ const STATUS_OPTIONS = [
 ];
 
 export function ExpensesOverviewPage() {
+  const { user } = useAuth();
+  const base = user ? expensesBasePath(user.role) : "/admin/expenses";
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [userNames, setUserNames] = useState<Map<string, string>>(new Map());
   const [projects, setProjects] = useState<Project[]>([]);
@@ -230,6 +234,22 @@ export function ExpensesOverviewPage() {
             >
               Project Spending
             </Link>
+            {can(user?.role, "expense:create") && (
+              <Link
+                to={`${base}/new`}
+                className={buttonVariants({ size: "sm" })}
+              >
+                Submit Expense
+              </Link>
+            )}
+            {can(user?.role, "expense:bulk-upload") && (
+              <Link
+                to={`${base}/bulk`}
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+              >
+                Bulk Upload
+              </Link>
+            )}
           </div>
         }
       />

@@ -104,11 +104,15 @@ function App() {
         <Route path="kanban" element={<KanbanPage />} />
         <Route path="tasks" element={<AdminTasksPage />} />
         <Route path="expenses" element={<ExpensesOverviewPage />} />
+        <Route path="expenses/new" element={<SubmitExpensePage />} />
         <Route path="expenses/projects" element={<ProjectExpensesPage />} />
         <Route
           path="expenses/reimbursements"
           element={<ReimbursementsPage />}
         />
+        <Route path="expenses/:id/edit" element={<SubmitExpensePage />} />
+        <Route path="expenses/:id/analysis" element={<AnalysisReviewPage />} />
+        <Route path="expenses/:id/verify" element={<ExpenseVerificationPage />} />
         <Route path="expenses/:id/report" element={<ExpenseReportPage />} />
         <Route path="expenses/:id" element={<ExpenseDetailsPage />} />
         <Route path="departments" element={<DepartmentsPage />} />
@@ -138,10 +142,14 @@ function App() {
         <Route path="tasks" element={<MyTasksPage />} />
         <Route path="kanban" element={<KanbanPage />} />
         <Route path="expenses" element={<PendingReviewsPage />} />
+        <Route path="expenses/new" element={<SubmitExpensePage />} />
         <Route
           path="expenses/reimbursements"
           element={<ReimbursementsPage />}
         />
+        <Route path="expenses/:id/edit" element={<SubmitExpensePage />} />
+        <Route path="expenses/:id/analysis" element={<AnalysisReviewPage />} />
+        <Route path="expenses/:id/verify" element={<ExpenseVerificationPage />} />
         <Route path="expenses/:id/report" element={<ExpenseReportPage />} />
         <Route path="expenses/:id" element={<ExpenseDetailsPage />} />
         <Route path="employees" element={<EmployeesPage />} />

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { useAuth } from "../../context/auth-context";
+import { expensesBasePath } from "../../lib/permissions";
 import { toast } from "sonner";
 
 import { Button } from "../../components/ui/button";
@@ -33,6 +35,8 @@ const POLL_MS = 2000;
 export function AnalysisReviewPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const base = user ? expensesBasePath(user.role) : "/employee/expenses";
   const [params] = useSearchParams();
   const autoStart = params.get("analyze") === "1";
   const [hasDocument, setHasDocument] = useState<boolean | null>(null);
@@ -106,7 +110,7 @@ export function AnalysisReviewPage() {
 
   const canVerify =
     analysis?.status === "COMPLETED" || analysis?.status === "LOW_CONFIDENCE";
-  const goEdit = () => navigate(`/employee/expenses/${id}/verify`);
+  const goEdit = () => navigate(`${base}/${id}/verify`);
 
   // The fast-path "Submit" sends AI-extracted values straight to approval. It is
   // only offered when the required fields are already valid; otherwise the user
@@ -132,7 +136,7 @@ export function AnalysisReviewPage() {
         projectId: projectId || undefined,
       });
       toast.success("Expense submitted for approval.");
-      navigate(`/employee/expenses/${id}`);
+      navigate(`${base}/${id}`);
     } catch {
       toast.error("Could not submit — open Edit to review the details.");
     } finally {
@@ -146,7 +150,7 @@ export function AnalysisReviewPage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate(`/employee/expenses/${id}`)}
+          onClick={() => navigate(`${base}/${id}`)}
         >
           <ArrowLeft className="size-4" />
           Back to expense
@@ -213,7 +217,7 @@ export function AnalysisReviewPage() {
                   Retry
                 </Button>
                 <Button
-                  onClick={() => navigate(`/employee/expenses/${id}/edit`)}
+                  onClick={() => navigate(`${base}/${id}/edit`)}
                   variant="ghost"
                 >
                   Enter manually

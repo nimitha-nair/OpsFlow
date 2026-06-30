@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, FileText, Sparkles } from "lucide-react";
+import { useAuth } from "../../context/auth-context";
+import { expensesBasePath } from "../../lib/permissions";
 import { toast } from "sonner";
 
 import { Button } from "../../components/ui/button";
@@ -55,6 +57,8 @@ const draftKey = (id: string) => `expense-verify-draft:${id}`;
 export function ExpenseVerificationPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const base = user ? expensesBasePath(user.role) : "/employee/expenses";
   const [form, setForm] = useState<Form | null>(null);
   const [analysis, setAnalysis] = useState<ExpenseAnalysis | null>(null);
   const [scope, setScope] = useState<ExpenseScope | null>(null);
@@ -164,7 +168,7 @@ export function ExpenseVerificationPage() {
       });
       sessionStorage.removeItem(draftKey(id));
       toast.success("Expense submitted for approval.");
-      navigate(`/employee/expenses/${id}`);
+      navigate(`${base}/${id}`);
     } catch {
       toast.error("Could not submit. Check the values and try again.");
     } finally {
@@ -297,7 +301,7 @@ export function ExpenseVerificationPage() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => navigate(`/employee/expenses/${id}/analysis`)}
+              onClick={() => navigate(`${base}/${id}/analysis`)}
               title="Your edits are kept"
             >
               <ArrowLeft className="size-4" />
@@ -305,7 +309,7 @@ export function ExpenseVerificationPage() {
             </Button>
             <Button
               variant="ghost"
-              onClick={() => navigate(`/employee/expenses/${id}`)}
+              onClick={() => navigate(`${base}/${id}`)}
             >
               <FileText className="size-4" />
               Back to expense
