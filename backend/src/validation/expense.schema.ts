@@ -67,6 +67,15 @@ export const updateExpenseBody = z
     { message: "projectId is required for PROJECT expenses", path: ["projectId"] },
   );
 
+/** POST /expenses/bulk-drafts — batch metadata (files come via multipart). */
+export const bulkDraftsBody = z
+  .object({
+    scope: scopeSchema.default("GENERAL"),
+    projectId: firestoreId.optional(),
+    currency: z.string().trim().min(1).max(8).default("INR"),
+  })
+  .strict();
+
 /** PATCH /expenses/:id/approve — remarks optional. */
 export const approveExpenseBody = z
   .object({

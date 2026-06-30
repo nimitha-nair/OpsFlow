@@ -2,11 +2,12 @@ import { Router } from "express";
 
 import { authenticate } from "../middleware/auth.middleware";
 import { requirePermission } from "../middleware/rbac.middleware";
-import { uploadReceipts } from "../middleware/upload";
+import { uploadReceipts, uploadReceiptsBulk } from "../middleware/upload";
 import { validate } from "../middleware/validate";
 import { idParams } from "../validation/common";
 import {
   approveExpenseBody,
+  bulkDraftsBody,
   createExpenseBody,
   expenseDocParams,
   expenseProjectParams,
@@ -36,6 +37,7 @@ import {
   patchReimbursement,
   patchReject,
   patchStartReview,
+  postBulkDrafts,
   postExpense,
   postExpenseDocuments,
   getExpenseDocuments,
@@ -115,6 +117,16 @@ router.get(
   requirePermission("expense:view-all"),
   validate({ query: listExpensesQuery }),
   getExpenses,
+);
+
+// EMPLOYEE / HR / ADMIN — bulk upload many receipts → many draft expenses.
+router.post(
+  "/bulk-drafts",
+  authenticate,
+  requirePermission("expense:bulk-upload"),
+  uploadReceiptsBulk,
+  validate({ body: bulkDraftsBody }),
+  postBulkDrafts,
 );
 
 // owner / HR / ADMIN(approved) — single expense (refined in controller).

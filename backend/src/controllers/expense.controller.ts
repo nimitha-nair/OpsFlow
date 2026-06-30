@@ -48,6 +48,7 @@ import {
 } from "../services/expenseAnalysis.service";
 import { MAX_DOCS } from "../middleware/upload";
 import { deriveDocumentIds } from "../services/expense-documents.read";
+import { createBulkDrafts } from "../services/expense.bulk";
 import { notify } from "../services/notification.service";
 import { getStaffIds } from "../services/ticket.service";
 import type {
@@ -485,6 +486,50 @@ async function discardUpload(file?: Express.Multer.File): Promise<void> {
     await unlink(file.path);
   } catch {
     // Already gone — ignore.
+  }
+}
+
+/**
+ * POST /expenses/bulk-drafts — create one DRAFT expense per uploaded receipt.
+ * The client then runs AI analyze per draft and reviews/submits each.
+ */
+export async function postBulkDrafts(
+  req: Request,
+  res: Response,
+): Promise<Response> {
+  const uploaded =
+    (req as Request & { uploaded?: Express.Multer.File[] }).uploaded ?? [];
+  if (!req.user) {
+    await Promise.all(uploaded.map(discardUpload));
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  try {
+    if (uploaded.length === 0) {
+      return res.status(400).json({ error: "At least one file is required" });
+    }
+    const body = (req.valid?.body ?? {}) as {
+      scope?: "PROJECT" | "GENERAL";
+      projectId?: string;
+      currency?: string;
+    };
+    const result = await createBulkDrafts(
+      {
+        employeeId: req.user.userId,
+        scope: body.scope ?? "GENERAL",
+        ...(body.projectId !== undefined ? { projectId: body.projectId } : {}),
+        currency: body.currency ?? "INR",
+      },
+      uploaded.map((f) => ({
+        filename: f.filename,
+        originalname: f.originalname,
+        mimetype: f.mimetype,
+        size: f.size,
+      })),
+    );
+    return res.status(201).json(result);
+  } catch (err) {
+    await Promise.all(uploaded.map(discardUpload));
+    return handleError(res, err);
   }
 }
 
