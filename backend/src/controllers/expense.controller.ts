@@ -3,9 +3,11 @@ import { unlink } from "node:fs/promises";
 import type { Request, Response } from "express";
 
 import { ApiError } from "../utils/errors";
+import { paginate } from "../utils/paginate";
 import UserRole from "../types/roles";
 import type { JwtPayload } from "../types/auth.types";
 import type {
+  Expense,
   ExpenseDocument,
   ExpenseFileView,
   ReimbursementStatus,
@@ -67,6 +69,14 @@ function handleError(res: Response, err: unknown): Response {
 /** Human-readable reference for an expense in notifications (code, else id). */
 function expenseRef(expense: { code?: string; id: string }): string {
   return `Expense ${expense.code ?? expense.id}`;
+}
+
+/** Case-insensitive match across the user-visible text fields of an expense. */
+function matchesQuery(e: Expense, q?: string): boolean {
+  if (!q) return true;
+  const needle = q.toLowerCase();
+  return [e.code, e.description, e.category, e.currency, String(e.amount ?? "")]
+    .some((v) => (v ?? "").toString().toLowerCase().includes(needle));
 }
 
 /** Whether a user may view a given expense. */
@@ -176,10 +186,13 @@ export async function getMyExpenses(
     return res.status(401).json({ error: "Authentication required" });
   }
   try {
-    const { from, to, basis } = (req.valid?.query ?? {}) as {
+    const { from, to, basis, page, limit, q } = (req.valid?.query ?? {}) as {
       from?: string;
       to?: string;
       basis?: "expenseDate" | "submittedAt";
+      page: number;
+      limit: number;
+      q?: string;
     };
     const data = await listMyExpenses(
       req.user.userId,
@@ -187,7 +200,8 @@ export async function getMyExpenses(
       to,
       basis ?? "expenseDate",
     );
-    return res.status(200).json({ data });
+    const filtered = data.filter((e) => matchesQuery(e, q));
+    return res.status(200).json(paginate(filtered, page, limit));
   } catch (err) {
     return handleError(res, err);
   }
@@ -199,12 +213,15 @@ export async function getPendingExpenses(
   res: Response,
 ): Promise<Response> {
   try {
-    const { from, to } = (req.valid?.query ?? {}) as {
+    const { from, to, page, limit, q } = (req.valid?.query ?? {}) as {
       from?: string;
       to?: string;
+      page: number;
+      limit: number;
+      q?: string;
     };
     const data = await listPendingExpenses(from, to);
-    return res.status(200).json({ data });
+    return res.status(200).json(paginate(data.filter((e) => matchesQuery(e, q)), page, limit));
   } catch (err) {
     return handleError(res, err);
   }
@@ -218,12 +235,15 @@ export async function getReimbursements(
   res: Response,
 ): Promise<Response> {
   try {
-    const { from, to } = (req.valid?.query ?? {}) as {
+    const { from, to, page, limit, q } = (req.valid?.query ?? {}) as {
       from?: string;
       to?: string;
+      page: number;
+      limit: number;
+      q?: string;
     };
     const data = await listReimbursements(from, to);
-    return res.status(200).json({ data });
+    return res.status(200).json(paginate(data.filter((e) => matchesQuery(e, q)), page, limit));
   } catch (err) {
     return handleError(res, err);
   }
@@ -235,11 +255,14 @@ export async function getReviewExpenses(
   res: Response,
 ): Promise<Response> {
   try {
-    const { status, from, to, basis } = (req.valid?.query ?? {}) as {
+    const { status, from, to, basis, page, limit, q } = (req.valid?.query ?? {}) as {
       status?: ExpenseStatusFilter;
       from?: string;
       to?: string;
       basis?: "expenseDate" | "submittedAt";
+      page: number;
+      limit: number;
+      q?: string;
     };
     const data = await listExpensesByStatus(
       status ?? "ALL",
@@ -247,13 +270,15 @@ export async function getReviewExpenses(
       to,
       basis ?? "expenseDate",
     );
-    // Attach receipt risk (staff-only) so the review queue can badge & sort it.
-    const risks = await riskLevelsForExpenses(data.map((e) => e.id));
-    const withRisk = data.map((e) => {
+    // Filter first, then paginate, then attach risk only on the page slice (cheaper).
+    const filtered = data.filter((e) => matchesQuery(e, q));
+    const pageResult = paginate(filtered, page, limit);
+    const risks = await riskLevelsForExpenses(pageResult.data.map((e) => e.id));
+    const withRisk = pageResult.data.map((e) => {
       const riskLevel = risks.get(e.id);
       return riskLevel ? { ...e, riskLevel } : e;
     });
-    return res.status(200).json({ data: withRisk });
+    return res.status(200).json({ data: withRisk, pagination: pageResult.pagination });
   } catch (err) {
     return handleError(res, err);
   }

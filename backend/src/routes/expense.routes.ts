@@ -4,7 +4,7 @@ import { authenticate } from "../middleware/auth.middleware";
 import { requirePermission } from "../middleware/rbac.middleware";
 import { uploadReceipts } from "../middleware/upload";
 import { validate } from "../middleware/validate";
-import { dateRangeQuery, idParams } from "../validation/common";
+import { idParams } from "../validation/common";
 import {
   approveExpenseBody,
   createExpenseBody,
@@ -12,6 +12,7 @@ import {
   expenseProjectParams,
   listExpensesQuery,
   myExpensesQuery,
+  paginatedDateRangeQuery,
   reimbursementBody,
   rejectExpenseBody,
   reviewExpensesQuery,
@@ -72,14 +73,14 @@ router.get(
   "/pending",
   authenticate,
   requirePermission("expense:review"),
-  validate({ query: dateRangeQuery }),
+  validate({ query: paginatedDateRangeQuery }),
   getPendingExpenses,
 );
 router.get(
   "/reimbursements",
   authenticate,
   requirePermission("expense:view-all"),
-  validate({ query: dateRangeQuery }),
+  validate({ query: paginatedDateRangeQuery }),
   getReimbursements,
 );
 
