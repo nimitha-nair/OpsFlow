@@ -1,7 +1,7 @@
 import { Router } from "express";
 
 import { authenticate } from "../middleware/auth.middleware";
-import { authorize } from "../middleware/rbac.middleware";
+import { requirePermission } from "../middleware/rbac.middleware";
 import { uploadReceipts } from "../middleware/upload";
 import { validate } from "../middleware/validate";
 import { dateRangeQuery, idParams } from "../validation/common";
@@ -17,7 +17,6 @@ import {
   reviewExpensesQuery,
   updateExpenseBody,
 } from "../validation/expense.schema";
-import UserRole from "../types/roles";
 import {
   deleteExpense,
   getExpense,
@@ -56,7 +55,7 @@ const router = Router();
 router.post(
   "/",
   authenticate,
-  authorize(UserRole.EMPLOYEE),
+  requirePermission("expense:create"),
   validate({ body: createExpenseBody }),
   postExpense,
 );
@@ -65,21 +64,21 @@ router.post(
 router.get(
   "/my-expenses",
   authenticate,
-  authorize(UserRole.EMPLOYEE),
+  requirePermission("expense:view-own"),
   validate({ query: myExpensesQuery }),
   getMyExpenses,
 );
 router.get(
   "/pending",
   authenticate,
-  authorize(UserRole.HR),
+  requirePermission("expense:review"),
   validate({ query: dateRangeQuery }),
   getPendingExpenses,
 );
 router.get(
   "/reimbursements",
   authenticate,
-  authorize(UserRole.HR, UserRole.ADMIN),
+  requirePermission("expense:view-all"),
   validate({ query: dateRangeQuery }),
   getReimbursements,
 );
@@ -88,7 +87,7 @@ router.get(
 router.get(
   "/review",
   authenticate,
-  authorize(UserRole.HR, UserRole.ADMIN),
+  requirePermission("expense:view-all"),
   validate({ query: reviewExpensesQuery }),
   getReviewExpenses,
 );
@@ -97,13 +96,13 @@ router.get(
 router.get(
   "/projects-spending",
   authenticate,
-  authorize(UserRole.ADMIN),
+  requirePermission("expense:view-all"),
   getProjectsSpending,
 );
 router.get(
   "/project/:projectId",
   authenticate,
-  authorize(UserRole.ADMIN),
+  requirePermission("expense:view-all"),
   validate({ params: expenseProjectParams }),
   getProjectExpenses,
 );
@@ -112,7 +111,7 @@ router.get(
 router.get(
   "/",
   authenticate,
-  authorize(UserRole.ADMIN),
+  requirePermission("expense:view-all"),
   validate({ query: listExpensesQuery }),
   getExpenses,
 );
@@ -121,7 +120,7 @@ router.get(
 router.get(
   "/:id",
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.HR, UserRole.EMPLOYEE),
+  requirePermission("expense:view-own", "expense:view-all"),
   validate({ params: idParams }),
   getExpense,
 );
@@ -130,14 +129,14 @@ router.get(
 router.patch(
   "/:id",
   authenticate,
-  authorize(UserRole.EMPLOYEE),
+  requirePermission("expense:edit-own"),
   validate({ params: idParams, body: updateExpenseBody }),
   patchExpense,
 );
 router.post(
   "/:id/submit",
   authenticate,
-  authorize(UserRole.EMPLOYEE),
+  requirePermission("expense:submit"),
   validate({ params: idParams }),
   postSubmitExpense,
 );
@@ -146,7 +145,7 @@ router.post(
 router.delete(
   "/:id",
   authenticate,
-  authorize(UserRole.EMPLOYEE),
+  requirePermission("expense:delete-own"),
   validate({ params: idParams }),
   deleteExpense,
 );
@@ -155,7 +154,7 @@ router.delete(
 router.post(
   "/:id/documents",
   authenticate,
-  authorize(UserRole.EMPLOYEE),
+  requirePermission("expense:create"),
   validate({ params: idParams }),
   uploadReceipts,
   postExpenseDocuments,
@@ -165,7 +164,7 @@ router.post(
 router.get(
   "/:id/documents",
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.HR, UserRole.EMPLOYEE),
+  requirePermission("expense:view-own", "expense:view-all"),
   validate({ params: idParams }),
   getExpenseDocuments,
 );
@@ -174,7 +173,7 @@ router.get(
 router.get(
   "/:id/documents/:docId/file",
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.HR, UserRole.EMPLOYEE),
+  requirePermission("expense:view-own", "expense:view-all"),
   validate({ params: expenseDocParams }),
   getExpenseDocumentFileById,
 );
@@ -183,7 +182,7 @@ router.get(
 router.delete(
   "/:id/documents/:docId",
   authenticate,
-  authorize(UserRole.EMPLOYEE),
+  requirePermission("expense:edit-own"),
   validate({ params: expenseDocParams }),
   deleteExpenseDocumentById,
 );
@@ -192,7 +191,7 @@ router.delete(
 router.get(
   "/:id/review-info",
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.HR, UserRole.EMPLOYEE),
+  requirePermission("expense:view-own", "expense:view-all"),
   validate({ params: idParams }),
   getReviewInfo,
 );
@@ -201,7 +200,7 @@ router.get(
 router.get(
   "/:id/document",
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.HR, UserRole.EMPLOYEE),
+  requirePermission("expense:view-own", "expense:view-all"),
   validate({ params: idParams }),
   getExpenseDocument,
 );
@@ -210,7 +209,7 @@ router.get(
 router.get(
   "/:id/document/file",
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.HR, UserRole.EMPLOYEE),
+  requirePermission("expense:view-own", "expense:view-all"),
   validate({ params: idParams }),
   getExpenseDocumentFile,
 );
@@ -219,7 +218,7 @@ router.get(
 router.patch(
   "/:id/review",
   authenticate,
-  authorize(UserRole.HR),
+  requirePermission("expense:review"),
   validate({ params: idParams }),
   patchStartReview,
 );
@@ -228,14 +227,14 @@ router.patch(
 router.patch(
   "/:id/approve",
   authenticate,
-  authorize(UserRole.HR),
+  requirePermission("expense:review"),
   validate({ params: idParams, body: approveExpenseBody }),
   patchApprove,
 );
 router.patch(
   "/:id/reject",
   authenticate,
-  authorize(UserRole.HR),
+  requirePermission("expense:review"),
   validate({ params: idParams, body: rejectExpenseBody }),
   patchReject,
 );
@@ -244,7 +243,7 @@ router.patch(
 router.patch(
   "/:id/reimbursement",
   authenticate,
-  authorize(UserRole.ADMIN),
+  requirePermission("expense:reimburse"),
   validate({ params: idParams, body: reimbursementBody }),
   patchReimbursement,
 );
@@ -253,7 +252,7 @@ router.patch(
 router.post(
   "/:id/analyze",
   authenticate,
-  authorize(UserRole.EMPLOYEE),
+  requirePermission("expense:create"),
   validate({ params: idParams }),
   postAnalyze,
 );
@@ -262,7 +261,7 @@ router.post(
 router.get(
   "/:id/analysis",
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.HR, UserRole.EMPLOYEE),
+  requirePermission("expense:view-own", "expense:view-all"),
   validate({ params: idParams }),
   getAnalysis,
 );
@@ -271,7 +270,7 @@ router.get(
 router.patch(
   "/:id/analysis",
   authenticate,
-  authorize(UserRole.EMPLOYEE),
+  requirePermission("expense:edit-own"),
   validate({ params: idParams, body: updateAnalysisBody }),
   patchAnalysis,
 );
