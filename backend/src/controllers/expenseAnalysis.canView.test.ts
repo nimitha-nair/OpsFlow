@@ -25,29 +25,20 @@ vi.mock("../services/expense.service", () => ({
   submitExpense: vi.fn(),
   updateExpense: vi.fn(),
 }));
-vi.mock("../services/expense-document.service", () => ({
-  deleteExpenseDocument: vi.fn(),
-  getDocumentById: vi.fn(),
-  getExpenseDocumentMeta: vi.fn(),
-  listExpenseDocuments: vi.fn(),
-  resolveExpenseDocumentFile: vi.fn(),
-  saveExpenseDocument: vi.fn(),
-}));
 vi.mock("../services/expenseAnalysis.service", () => ({
+  analyzeExpense: vi.fn(),
+  getAnalysisByExpenseId: vi.fn(),
+  updateAnalysis: vi.fn(),
   deleteAnalysisForExpense: vi.fn(),
   riskLevelsForExpenses: vi.fn(),
 }));
-vi.mock("../middleware/upload", () => ({ MAX_DOCS: 5 }));
-vi.mock("../services/expense-documents.read", () => ({ deriveDocumentIds: vi.fn() }));
-vi.mock("../services/expense.bulk", () => ({ createBulkDrafts: vi.fn() }));
-vi.mock("../services/notification.service", () => ({ notify: vi.fn() }));
-vi.mock("../services/ticket.service", () => ({ getStaffIds: vi.fn() }));
 
-import { getExpense } from "./expense.controller";
-import { requireExpense, getExpenseById } from "../services/expense.service";
+import { getAnalysis } from "./expenseAnalysis.controller";
+import { requireExpense } from "../services/expense.service";
+import { getAnalysisByExpenseId } from "../services/expenseAnalysis.service";
 
 const requireExpenseMock = vi.mocked(requireExpense);
-const getExpenseByIdMock = vi.mocked(getExpenseById);
+const getAnalysisByExpenseIdMock = vi.mocked(getAnalysisByExpenseId);
 
 function mockRes(): Response {
   const res = {} as Response;
@@ -60,14 +51,17 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("getExpense canView — own-expense access", () => {
-  it("allows ADMIN to view their OWN draft expense (200)", async () => {
+describe("getAnalysis canViewAnalysis — own-analysis access", () => {
+  it("allows ADMIN to view their OWN draft analysis (200)", async () => {
     requireExpenseMock.mockResolvedValue({
       id: "exp1",
       employeeId: "admin1",
       approvalStatus: "DRAFT",
     } as never);
-    getExpenseByIdMock.mockResolvedValue({ id: "exp1" } as never);
+    getAnalysisByExpenseIdMock.mockResolvedValue({
+      id: "ana1",
+      expenseId: "exp1",
+    } as never);
 
     const req = {
       user: { userId: "admin1", role: "ADMIN" },
@@ -75,12 +69,13 @@ describe("getExpense canView — own-expense access", () => {
     } as unknown as Request;
     const res = mockRes();
 
-    await getExpense(req, res);
+    await getAnalysis(req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
+    expect(getAnalysisByExpenseIdMock).toHaveBeenCalled();
   });
 
-  it("forbids ADMIN from viewing ANOTHER user's draft expense (403)", async () => {
+  it("forbids ADMIN from viewing ANOTHER user's draft analysis (403)", async () => {
     requireExpenseMock.mockResolvedValue({
       id: "exp2",
       employeeId: "emp1",
@@ -93,19 +88,22 @@ describe("getExpense canView — own-expense access", () => {
     } as unknown as Request;
     const res = mockRes();
 
-    await getExpense(req, res);
+    await getAnalysis(req, res);
 
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(getExpenseByIdMock).not.toHaveBeenCalled();
+    expect(getAnalysisByExpenseIdMock).not.toHaveBeenCalled();
   });
 
-  it("allows HR to view their OWN draft expense (200)", async () => {
+  it("allows HR to view their OWN draft analysis (200)", async () => {
     requireExpenseMock.mockResolvedValue({
       id: "exp3",
       employeeId: "hr1",
       approvalStatus: "DRAFT",
     } as never);
-    getExpenseByIdMock.mockResolvedValue({ id: "exp3" } as never);
+    getAnalysisByExpenseIdMock.mockResolvedValue({
+      id: "ana3",
+      expenseId: "exp3",
+    } as never);
 
     const req = {
       user: { userId: "hr1", role: "HR" },
@@ -113,12 +111,13 @@ describe("getExpense canView — own-expense access", () => {
     } as unknown as Request;
     const res = mockRes();
 
-    await getExpense(req, res);
+    await getAnalysis(req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
+    expect(getAnalysisByExpenseIdMock).toHaveBeenCalled();
   });
 
-  it("forbids HR from viewing ANOTHER user's draft expense (403)", async () => {
+  it("forbids HR from viewing ANOTHER user's draft analysis (403)", async () => {
     requireExpenseMock.mockResolvedValue({
       id: "exp4",
       employeeId: "emp2",
@@ -131,19 +130,22 @@ describe("getExpense canView — own-expense access", () => {
     } as unknown as Request;
     const res = mockRes();
 
-    await getExpense(req, res);
+    await getAnalysis(req, res);
 
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(getExpenseByIdMock).not.toHaveBeenCalled();
+    expect(getAnalysisByExpenseIdMock).not.toHaveBeenCalled();
   });
 
-  it("allows ADMIN to view another user's APPROVED expense (200)", async () => {
+  it("allows ADMIN to view another user's APPROVED analysis (200)", async () => {
     requireExpenseMock.mockResolvedValue({
       id: "exp5",
       employeeId: "emp3",
       approvalStatus: "APPROVED",
     } as never);
-    getExpenseByIdMock.mockResolvedValue({ id: "exp5" } as never);
+    getAnalysisByExpenseIdMock.mockResolvedValue({
+      id: "ana5",
+      expenseId: "exp5",
+    } as never);
 
     const req = {
       user: { userId: "admin1", role: "ADMIN" },
@@ -151,36 +153,17 @@ describe("getExpense canView — own-expense access", () => {
     } as unknown as Request;
     const res = mockRes();
 
-    await getExpense(req, res);
+    await getAnalysis(req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
+    expect(getAnalysisByExpenseIdMock).toHaveBeenCalled();
   });
 
-  it("allows EMPLOYEE to view their OWN draft expense (200)", async () => {
-    requireExpenseMock.mockResolvedValue({
-      id: "exp7",
-      employeeId: "emp1",
-      approvalStatus: "DRAFT",
-    } as never);
-    getExpenseByIdMock.mockResolvedValue({ id: "exp7" } as never);
-
-    const req = {
-      user: { userId: "emp1", role: "EMPLOYEE" },
-      valid: { params: { id: "exp7" } },
-    } as unknown as Request;
-    const res = mockRes();
-
-    await getExpense(req, res);
-
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(getExpenseByIdMock).toHaveBeenCalled();
-  });
-
-  it("forbids EMPLOYEE from viewing ANOTHER user's draft expense (403)", async () => {
+  it("forbids EMPLOYEE from viewing ANOTHER user's analysis (403)", async () => {
     requireExpenseMock.mockResolvedValue({
       id: "exp6",
       employeeId: "emp_other",
-      approvalStatus: "DRAFT",
+      approvalStatus: "APPROVED",
     } as never);
 
     const req = {
@@ -189,9 +172,9 @@ describe("getExpense canView — own-expense access", () => {
     } as unknown as Request;
     const res = mockRes();
 
-    await getExpense(req, res);
+    await getAnalysis(req, res);
 
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(getExpenseByIdMock).not.toHaveBeenCalled();
+    expect(getAnalysisByExpenseIdMock).not.toHaveBeenCalled();
   });
 });
